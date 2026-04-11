@@ -1,0 +1,61 @@
+pub mod commands;
+pub mod proxy_runtime;
+pub mod singbox;
+pub mod storage;
+pub mod system;
+
+use commands::config::AppState;
+use commands::proxy::ProxyState;
+use singbox::process::SingBoxProcess;
+use std::sync::Mutex;
+use storage::app_config::AppConfig;
+
+pub fn run() {
+    let _ = system::proxy_macos::clear_system_proxy();
+    let app_config = AppConfig::load();
+
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .manage(AppState {
+            config: Mutex::new(app_config),
+        })
+        .manage(ProxyState {
+            process: SingBoxProcess::new(),
+            connected_at: Mutex::new(None),
+            running_node_id: Mutex::new(None),
+            running_group_id: Mutex::new(None),
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::config::import_node,
+            commands::config::delete_node,
+            commands::config::list_nodes,
+            commands::config::set_active_node,
+            commands::proxy::connect,
+            commands::proxy::disconnect,
+            commands::proxy::get_status,
+            commands::proxy::reload_proxy,
+            commands::proxy::get_proxy_info,
+            commands::proxy::get_logs,
+            commands::proxy::clear_logs,
+            commands::proxy::get_log_file_path,
+            commands::rules::list_rule_groups,
+            commands::rules::get_active_group_id,
+            commands::rules::set_active_group,
+            commands::rules::create_rule_group,
+            commands::rules::delete_rule_group,
+            commands::rules::rename_rule_group,
+            commands::rules::list_rules,
+            commands::rules::add_rule,
+            commands::rules::delete_rule,
+            commands::rules::set_default_strategy,
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_, event| match event {
+        tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+            let _ = system::proxy_macos::clear_system_proxy();
+        }
+        _ => {}
+    });
+}
