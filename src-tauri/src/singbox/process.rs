@@ -93,7 +93,7 @@ impl SingBoxProcess {
             logs.clear();
         }
 
-        let mut child = Command::new("sing-box")
+        let mut child = Command::new(crate::resolve_sing_box_path())
             .args(["run", "-c", config_path])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

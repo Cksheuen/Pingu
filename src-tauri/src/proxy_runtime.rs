@@ -60,7 +60,7 @@ pub fn prepare_runtime(config: &AppConfig) -> Result<PreparedRuntime, String> {
 }
 
 pub fn check_generated_config(config_path: &Path) -> Result<(), String> {
-    let output = Command::new("sing-box")
+    let output = Command::new(crate::resolve_sing_box_path())
         .args([
             "check",
             "-c",

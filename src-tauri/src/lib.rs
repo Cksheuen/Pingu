@@ -10,6 +10,27 @@ use singbox::process::SingBoxProcess;
 use std::sync::Mutex;
 use storage::app_config::AppConfig;
 
+/// Resolve the path to the bundled `sing-box` sidecar binary.
+/// In dev mode this falls back to the system PATH version.
+pub fn resolve_sing_box_path() -> String {
+    // Tauri places sidecar binaries next to the main executable.
+    if let Ok(exe) = std::env::current_exe() {
+        let sidecar = exe.parent().unwrap_or(exe.as_ref()).join("sing-box");
+        if sidecar.exists() {
+            return sidecar.to_string_lossy().to_string();
+        }
+        // macOS .app bundle: also check in MacOS/ directory
+        if let Some(parent) = exe.parent() {
+            let macos_sidecar = parent.join("sing-box");
+            if macos_sidecar.exists() {
+                return macos_sidecar.to_string_lossy().to_string();
+            }
+        }
+    }
+    // Fallback: system PATH (dev mode)
+    "sing-box".to_string()
+}
+
 pub fn run() {
     let _ = system::proxy_macos::clear_system_proxy();
     let app_config = AppConfig::load();

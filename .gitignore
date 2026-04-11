@@ -6,6 +6,9 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
+# Sidecar binaries (user must provide their own sing-box)
+src-tauri/binaries/
+
 # Cache & DB
 src-tauri/cache.db
 
