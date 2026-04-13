@@ -28,3 +28,5 @@ Thumbs.db
 config.json
 sing-box-config.json
 *.log
+.claude/tasks
+.test-dist/
