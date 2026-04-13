@@ -1,0 +1,307 @@
+{
+  "version": 1,
+  "project": "Pingu",
+  "description": "JSON-compatible YAML. Each item is a functional atom expressed as user action, preconditions and expected result.",
+  "atoms": [
+    {
+      "id": "U-001",
+      "action": "打开应用",
+      "preconditions": ["本地无配置"],
+      "expected": ["显示空节点", "显示未连接状态", "显示空或默认规则组"]
+    },
+    {
+      "id": "U-002",
+      "action": "打开应用",
+      "preconditions": ["本地已有配置"],
+      "expected": ["加载节点列表", "加载活动节点", "加载活动规则组", "加载连接状态", "加载代理信息"]
+    },
+    {
+      "id": "U-003",
+      "action": "导入合法节点 URI",
+      "preconditions": ["当前无同名或同配置冲突节点"],
+      "expected": ["新节点被保存", "节点出现在节点列表"]
+    },
+    {
+      "id": "U-004",
+      "action": "导入非法节点 URI",
+      "preconditions": [],
+      "expected": ["导入失败", "节点列表不变"]
+    },
+    {
+      "id": "U-005",
+      "action": "查看节点列表",
+      "preconditions": ["已存在一个或多个节点"],
+      "expected": ["返回全部节点"]
+    },
+    {
+      "id": "U-006",
+      "action": "设置活动节点",
+      "preconditions": ["目标节点存在"],
+      "expected": ["active node 更新", "活动节点被持久化"]
+    },
+    {
+      "id": "U-007",
+      "action": "设置活动节点",
+      "preconditions": ["目标节点不存在"],
+      "expected": ["操作失败", "active node 保持不变"]
+    },
+    {
+      "id": "U-008",
+      "action": "删除节点",
+      "preconditions": ["目标节点存在且不是 active node"],
+      "expected": ["节点被删除", "其余节点和状态保持不变"]
+    },
+    {
+      "id": "U-009",
+      "action": "删除节点",
+      "preconditions": ["目标节点存在且是 active node"],
+      "expected": ["节点被删除", "active node 被清空或按系统规则切换"]
+    },
+    {
+      "id": "U-010",
+      "action": "创建规则组",
+      "preconditions": ["名称合法且非空"],
+      "expected": ["新规则组被创建", "规则组被持久化"]
+    },
+    {
+      "id": "U-011",
+      "action": "创建规则组",
+      "preconditions": ["名称为空或只有空白"],
+      "expected": ["创建失败", "规则组列表不变"]
+    },
+    {
+      "id": "U-012",
+      "action": "查看规则组列表",
+      "preconditions": ["已有一个或多个规则组"],
+      "expected": ["返回全部规则组"]
+    },
+    {
+      "id": "U-013",
+      "action": "切换活动规则组",
+      "preconditions": ["目标规则组存在"],
+      "expected": ["active group 更新", "活动规则组被持久化"]
+    },
+    {
+      "id": "U-014",
+      "action": "切换活动规则组",
+      "preconditions": ["目标规则组不存在"],
+      "expected": ["操作失败", "active group 保持不变"]
+    },
+    {
+      "id": "U-015",
+      "action": "重命名规则组",
+      "preconditions": ["目标规则组存在", "新名称合法且非空"],
+      "expected": ["规则组名称更新", "新名称被持久化"]
+    },
+    {
+      "id": "U-016",
+      "action": "删除规则组",
+      "preconditions": ["目标规则组存在且不是 active group"],
+      "expected": ["规则组被删除"]
+    },
+    {
+      "id": "U-017",
+      "action": "删除规则组",
+      "preconditions": ["目标规则组存在且是 active group"],
+      "expected": ["规则组被删除", "系统切换到有效规则组或返回错误"]
+    },
+    {
+      "id": "U-018",
+      "action": "新增 geosite 规则",
+      "preconditions": ["当前 active group 存在", "match_value 合法"],
+      "expected": ["规则写入当前规则组"]
+    },
+    {
+      "id": "U-019",
+      "action": "新增 geoip 规则",
+      "preconditions": ["当前 active group 存在", "match_value 合法"],
+      "expected": ["规则写入当前规则组"]
+    },
+    {
+      "id": "U-020",
+      "action": "新增 domain_suffix 规则",
+      "preconditions": ["当前 active group 存在", "match_value 合法"],
+      "expected": ["规则写入当前规则组"]
+    },
+    {
+      "id": "U-021",
+      "action": "新增 domain 规则",
+      "preconditions": ["当前 active group 存在", "match_value 合法"],
+      "expected": ["规则写入当前规则组"]
+    },
+    {
+      "id": "U-022",
+      "action": "新增 ip_cidr 规则",
+      "preconditions": ["当前 active group 存在", "match_value 合法"],
+      "expected": ["规则写入当前规则组"]
+    },
+    {
+      "id": "U-023",
+      "action": "新增 ip_is_private 规则",
+      "preconditions": ["当前 active group 存在"],
+      "expected": ["规则写入当前规则组", "match_value 按系统规则自动填充"]
+    },
+    {
+      "id": "U-024",
+      "action": "新增规则",
+      "preconditions": ["当前 active group 存在", "非 ip_is_private 且 match_value 为空"],
+      "expected": ["操作失败", "规则不写入"]
+    },
+    {
+      "id": "U-025",
+      "action": "删除规则",
+      "preconditions": ["目标规则存在"],
+      "expected": ["规则从当前规则组中移除"]
+    },
+    {
+      "id": "U-026",
+      "action": "删除规则",
+      "preconditions": ["目标规则不存在"],
+      "expected": ["操作失败或忽略", "其他规则不变"]
+    },
+    {
+      "id": "U-027",
+      "action": "修改默认策略为 direct",
+      "preconditions": ["当前 active group 存在"],
+      "expected": ["默认策略更新为 direct", "新策略被持久化"]
+    },
+    {
+      "id": "U-028",
+      "action": "修改默认策略为 proxy",
+      "preconditions": ["当前 active group 存在"],
+      "expected": ["默认策略更新为 proxy", "新策略被持久化"]
+    },
+    {
+      "id": "U-029",
+      "action": "点击连接",
+      "preconditions": ["存在有效 active node", "存在有效 active group"],
+      "expected": ["连接成功", "代理启动", "状态变为已连接"]
+    },
+    {
+      "id": "U-030",
+      "action": "点击连接",
+      "preconditions": ["缺少有效 active node"],
+      "expected": ["连接失败", "状态保持未连接"]
+    },
+    {
+      "id": "U-031",
+      "action": "点击连接",
+      "preconditions": ["缺少有效 active group"],
+      "expected": ["连接失败", "状态保持未连接"]
+    },
+    {
+      "id": "U-032",
+      "action": "点击断开",
+      "preconditions": ["当前已连接"],
+      "expected": ["连接断开", "代理停止", "状态变为未连接"]
+    },
+    {
+      "id": "U-033",
+      "action": "查看首页连接状态",
+      "preconditions": ["当前已连接"],
+      "expected": ["显示 connected", "显示 active node", "显示 active group", "显示 uptime"]
+    },
+    {
+      "id": "U-034",
+      "action": "查看首页连接状态",
+      "preconditions": ["当前未连接"],
+      "expected": ["显示 disconnected"]
+    },
+    {
+      "id": "U-035",
+      "action": "已连接时切换活动节点",
+      "preconditions": ["当前已连接", "目标节点存在"],
+      "expected": ["运行配置 reload", "连接保持有效", "active node 更新"]
+    },
+    {
+      "id": "U-036",
+      "action": "已连接时切换活动规则组",
+      "preconditions": ["当前已连接", "目标规则组存在"],
+      "expected": ["运行配置 reload", "连接保持有效", "active group 更新"]
+    },
+    {
+      "id": "U-037",
+      "action": "已连接时新增规则",
+      "preconditions": ["当前已连接", "当前 active group 存在"],
+      "expected": ["运行配置 reload", "连接保持有效", "新规则生效"]
+    },
+    {
+      "id": "U-038",
+      "action": "已连接时删除规则",
+      "preconditions": ["当前已连接", "目标规则存在"],
+      "expected": ["运行配置 reload", "连接保持有效", "规则删除生效"]
+    },
+    {
+      "id": "U-039",
+      "action": "已连接时修改默认策略",
+      "preconditions": ["当前已连接", "当前 active group 存在"],
+      "expected": ["运行配置 reload", "连接保持有效", "默认策略生效"]
+    },
+    {
+      "id": "U-040",
+      "action": "查看日志",
+      "preconditions": [],
+      "expected": ["返回当前日志列表"]
+    },
+    {
+      "id": "U-041",
+      "action": "清空日志",
+      "preconditions": ["当前存在日志"],
+      "expected": ["日志被清空"]
+    },
+    {
+      "id": "U-042",
+      "action": "查看代理信息",
+      "preconditions": [],
+      "expected": ["返回监听地址", "返回 HTTP 代理地址", "返回 SOCKS 代理地址", "返回终端命令"]
+    },
+    {
+      "id": "U-043",
+      "action": "重启应用",
+      "preconditions": ["之前已经保存节点、规则组和 active 配置"],
+      "expected": ["节点恢复", "规则组恢复", "active node 恢复", "active group 恢复"]
+    },
+    {
+      "id": "U-044",
+      "action": "修正配置后再次点击连接",
+      "preconditions": ["之前因配置不足连接失败", "当前已补齐有效 active node 和 active group"],
+      "expected": ["连接成功", "状态变为已连接"]
+    },
+    {
+      "id": "U-045",
+      "action": "断开后查看首页状态",
+      "preconditions": ["刚执行过断开"],
+      "expected": ["显示未连接", "运行态已清空"]
+    },
+    {
+      "id": "U-046",
+      "action": "连接态下按矩阵切换多个节点与规则组组合",
+      "preconditions": ["至少存在两个以上节点", "至少存在两个以上可用规则组", "当前已连接"],
+      "expected": ["每次切换后连接保持有效", "active node 与 active group 同步更新", "reload 日志持续追加"]
+    },
+    {
+      "id": "U-047",
+      "action": "连接态下核对当前规则组规则集合",
+      "preconditions": ["当前 active group 已按预期写入规则"],
+      "expected": ["返回规则集合与目标规则类型、match_value、outbound 完全一致"]
+    },
+    {
+      "id": "U-048",
+      "action": "删除连接态中的 active node",
+      "preconditions": ["当前已连接", "active node 存在其他可回退节点"],
+      "expected": ["被删除节点消失", "系统自动切换到有效剩余节点", "连接保持有效"]
+    },
+    {
+      "id": "U-049",
+      "action": "删除连接态中的 active group",
+      "preconditions": ["当前已连接", "active group 存在其他可回退规则组"],
+      "expected": ["被删除规则组消失", "系统自动切换到有效剩余规则组", "连接保持有效"]
+    },
+    {
+      "id": "U-050",
+      "action": "连接态下刷新前端 store 全量状态",
+      "preconditions": ["已完成多轮节点与规则组切换或回退"],
+      "expected": ["store 中的连接状态、节点列表、代理信息与后端保持一致"]
+    }
+  ]
+}
