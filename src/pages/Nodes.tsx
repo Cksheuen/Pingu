@@ -1,8 +1,8 @@
-import { useState, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { importNode, deleteNode, setActiveNode } from "../lib/api";
-import { t, onLangChange } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import Tooltip from "../components/Tooltip";
-import { useConnectionStore } from "../lib/connection-store";
+import { ImportDialog } from "../components/nodes/ImportDialog";
+import { useI18nRerender } from "../hooks/useI18nRerender";
+import { useNodesPageModel } from "../hooks/useNodesPageModel";
 
 function PlusIcon() {
   return (
@@ -22,133 +22,20 @@ function XIcon() {
   );
 }
 
-interface ImportDialogProps {
-  onClose: () => void;
-  onImport: (uri: string) => Promise<void>;
-}
-
-function ImportDialog({ onClose, onImport }: ImportDialogProps) {
-  const [uri, setUri] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const handler = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  const handleImport = async () => {
-    if (!uri.trim()) return;
-    setLoading(true);
-    setError("");
-    try {
-      await onImport(uri.trim());
-      onClose();
-    } catch {
-      setError(t("nodes.import_error"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("nodes.import_title")}
-      onClick={onClose}
-    >
-      <div className="bg-card rounded-xl w-full" style={{ maxWidth: "500px", padding: "24px", margin: "0 16px" }} onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-sans font-semibold text-text-primary mb-4" style={{ fontSize: "18px" }}>
-          {t("nodes.import_title")}
-        </h2>
-        <textarea
-          value={uri}
-          onChange={(e) => setUri(e.target.value)}
-          placeholder={t("nodes.import_placeholder")}
-          rows={4}
-          aria-label="VLESS URI"
-          className="w-full rounded-lg text-text-secondary resize-none outline-none font-mono"
-          style={{
-            backgroundColor: "#0F172A",
-            border: "none",
-            padding: "12px",
-            fontSize: "13px",
-            marginBottom: "8px",
-          }}
-        />
-        {error && (
-          <p className="text-red-400 font-mono mb-3" style={{ fontSize: "12px" }}>
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end gap-3 mt-4">
-          <button
-            onClick={onClose}
-            className="font-mono text-text-muted hover:text-text-secondary transition-colors"
-            style={{ fontSize: "13px", padding: "8px 14px" }}
-          >
-            {t("nodes.cancel")}
-          </button>
-          <button
-            onClick={handleImport}
-            disabled={loading || !uri.trim()}
-            className="font-mono rounded-md transition-colors disabled:opacity-50"
-            style={{
-              backgroundColor: "#22D3EE",
-              color: "#0A0F1C",
-              fontSize: "13px",
-              padding: "8px 14px",
-            }}
-          >
-            {loading ? t("nodes.importing") : t("nodes.import_btn")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Nodes() {
-  const { status, nodes, refreshStatus, refreshNodes, updateStatus, setNodes } = useConnectionStore();
-  const [showImport, setShowImport] = useState(false);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [, rerender] = useState(0);
-
-  useEffect(() => onLangChange(() => rerender((n) => n + 1)), []);
-
-  useEffect(() => {
-    refreshNodes().catch(() => undefined);
-  }, [refreshNodes]);
-
-  const handleSetActive = async (id: string) => {
-    try {
-      await setActiveNode(id);
-      updateStatus((s) => ({ ...s, active_node_id: id }));
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    try {
-      await deleteNode(id);
-      setNodes(nodes.filter((n) => n.id !== id));
-      await refreshStatus();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleImport = async (uri: string) => {
-    const node = await importNode(uri);
-    setNodes([...nodes, node]);
-    await refreshStatus();
-  };
+  const {
+    status,
+    nodes,
+    showImport,
+    hoveredId,
+    openImportDialog,
+    closeImportDialog,
+    setHoveredId,
+    activateNode,
+    removeNode,
+    importNodeFromUri,
+  } = useNodesPageModel();
+  useI18nRerender();
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "32px 40px", gap: "24px" }}>
@@ -158,7 +45,7 @@ export default function Nodes() {
           {t("nodes.title")}
         </span>
         <button
-          onClick={() => setShowImport(true)}
+          onClick={openImportDialog}
           className="flex items-center gap-1.5 rounded-md font-mono font-medium transition-colors hover:opacity-90"
           style={{
             backgroundColor: "#22D3EE",
@@ -186,13 +73,15 @@ export default function Nodes() {
           return (
             <div
               key={node.id}
-              onClick={() => handleSetActive(node.id)}
+              onClick={() => void activateNode(node.id)}
               onMouseEnter={() => setHoveredId(node.id)}
               onMouseLeave={() => setHoveredId(null)}
               role="button"
               tabIndex={0}
               aria-pressed={isActive}
-              onKeyDown={(e) => e.key === "Enter" && handleSetActive(node.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void activateNode(node.id);
+              }}
               className="flex items-center gap-3 bg-card rounded-xl cursor-pointer transition-all"
               style={{
                 padding: "16px",
@@ -237,7 +126,10 @@ export default function Nodes() {
                 </span>
                 {hoveredId === node.id && (
                   <button
-                    onClick={(e) => handleDelete(e, node.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void removeNode(node.id);
+                    }}
                     aria-label={`Delete ${node.name}`}
                     className="text-text-muted hover:text-red-400 transition-colors"
                   >
@@ -251,7 +143,7 @@ export default function Nodes() {
       </div>
 
       {showImport && (
-        <ImportDialog onClose={() => setShowImport(false)} onImport={handleImport} />
+        <ImportDialog onClose={closeImportDialog} onImport={importNodeFromUri} />
       )}
     </div>
   );

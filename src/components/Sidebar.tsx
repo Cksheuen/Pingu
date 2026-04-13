@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
-import { t, onLangChange } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import LangSwitch from "./LangSwitch";
+import { useI18nRerender } from "../hooks/useI18nRerender";
 
 function HomeIcon() {
   return (
@@ -46,9 +46,17 @@ function LogsIcon() {
   );
 }
 
+function HostOverridesIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
+      <path d="M9.5 12l1.5 1.5 3.5-3.5" />
+    </svg>
+  );
+}
+
 export default function Sidebar() {
-  const [, rerender] = useState(0);
-  useEffect(() => onLangChange(() => rerender((n) => n + 1)), []);
+  useI18nRerender();
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-[10px] px-3 py-[10px] rounded-lg text-sm font-medium transition-colors ${
@@ -77,6 +85,10 @@ export default function Sidebar() {
             <RulesIcon />
             {t("nav.rules")}
           </NavLink>
+          <NavLink to="/host-overrides" className={navClass}>
+            <HostOverridesIcon />
+            {t("nav.host_overrides")}
+          </NavLink>
           <NavLink to="/logs" className={navClass}>
             <LogsIcon />
             {t("nav.logs")}
@@ -84,7 +96,7 @@ export default function Sidebar() {
         </nav>
       </div>
       <div>
-        <LangSwitch onSwitch={() => rerender((n) => n + 1)} />
+        <LangSwitch />
       </div>
     </div>
   );

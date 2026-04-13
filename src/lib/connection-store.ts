@@ -1,6 +1,8 @@
 import { create } from "zustand";
-import { getStatus, listNodes, getProxyInfo } from "./api";
-import type { ProxyStatus, Node, ProxyInfo } from "./types";
+import { getStatus } from "./connection-api.js";
+import { listNodes } from "./nodes-api.js";
+import { getProxyInfo } from "./proxy-api.js";
+import type { ProxyStatus, Node, ProxyInfo } from "./types.js";
 
 interface ConnectionState {
   status: ProxyStatus;
@@ -20,6 +22,8 @@ interface ConnectionState {
 const defaultStatus: ProxyStatus = {
   connected: false,
   active_node_id: null,
+  active_group_id: null,
+  active_group_name: null,
   uptime_seconds: 0,
 };
 

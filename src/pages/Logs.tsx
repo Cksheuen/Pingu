@@ -1,7 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { getLogs, clearLogs, getLogFilePath } from "../lib/api";
-import type { LogEntry } from "../lib/types";
-import { t, onLangChange } from "../lib/i18n";
+import { t } from "../lib/i18n";
+import { useLogsPageModel } from "../hooks/useLogsPageModel";
 
 function levelStyle(level: string) {
   switch (level.toLowerCase()) {
@@ -27,51 +25,7 @@ function formatTimestamp(ts: string): string {
 }
 
 export default function Logs() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [logPath, setLogPath] = useState("");
-  const [clearedAt, setClearedAt] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [, rerender] = useState(0);
-
-  useEffect(() => onLangChange(() => rerender((n) => n + 1)), []);
-
-  useEffect(() => {
-    const fetchLogs = () => {
-      getLogs().then((entries) => {
-        if (clearedAt) {
-          setLogs(entries.filter((e) => e.timestamp > clearedAt));
-        } else {
-          setLogs(entries);
-        }
-      });
-    };
-    fetchLogs();
-    getLogFilePath().then(setLogPath);
-    const id = setInterval(fetchLogs, 2000);
-    return () => clearInterval(id);
-  }, [clearedAt]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (el) {
-      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-      if (isNearBottom) {
-        el.scrollTop = el.scrollHeight;
-      }
-    }
-  }, [logs]);
-
-  const handleClear = async () => {
-    try {
-      await clearLogs();
-    } catch {
-      // fallback to frontend filter
-      if (logs.length > 0) {
-        setClearedAt(logs[logs.length - 1].timestamp);
-      }
-    }
-    setLogs([]);
-  };
+  const { logs, logPath, containerRef, handleClear } = useLogsPageModel();
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "32px 40px", gap: "16px" }}>

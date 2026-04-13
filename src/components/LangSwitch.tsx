@@ -1,12 +1,11 @@
 import { getLang, setLang } from "../lib/i18n";
 
-export default function LangSwitch({ onSwitch }: { onSwitch: () => void }) {
+export default function LangSwitch() {
   const lang = getLang();
   return (
     <button
       onClick={() => {
         setLang(lang === "en" ? "zh" : "en");
-        onSwitch();
       }}
       className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer"
       style={{

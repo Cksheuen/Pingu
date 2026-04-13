@@ -27,6 +27,8 @@ export interface Rule {
 export interface ProxyStatus {
   connected: boolean;
   active_node_id: string | null;
+  active_group_id: string | null;
+  active_group_name: string | null;
   uptime_seconds: number;
 }
 
@@ -50,4 +52,37 @@ export interface ProxyInfo {
   socks_proxy: string;
   terminal_commands: string[];
   unset_commands: string[];
+}
+
+export type HostOverrideResolver =
+  | "inherit"
+  | "system-dns"
+  | "local-dns"
+  | "remote-dns";
+
+export type HostOverrideOutbound = "inherit" | Outbound;
+
+export type HostOverrideSource =
+  | "manual"
+  | "runtime_learned"
+  | "runtime_fallback";
+
+export interface HostOverride {
+  id: string;
+  host: string;
+  resolver: HostOverrideResolver;
+  outbound: HostOverrideOutbound;
+  enabled: boolean;
+  source: HostOverrideSource;
+  reason: string;
+  last_verified_at: string | null;
+  last_verified_result: string | null;
+}
+
+export interface HostOverrideDraft {
+  host: string;
+  resolver: HostOverrideResolver;
+  outbound: HostOverrideOutbound;
+  enabled: boolean;
+  reason: string;
 }
