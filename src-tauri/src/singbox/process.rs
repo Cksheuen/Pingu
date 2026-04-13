@@ -57,7 +57,7 @@ fn append_to_log_file(entry: &LogEntry) {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LogEntry {
     pub timestamp: String,
     pub level: String,
@@ -98,7 +98,13 @@ impl SingBoxProcess {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to start sing-box: {}", e))?;
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    crate::missing_sing_box_message()
+                } else {
+                    format!("Failed to start sing-box: {}", e)
+                }
+            })?;
 
         // Capture stderr in a background thread (sing-box logs to stderr)
         if let Some(stderr) = child.stderr.take() {

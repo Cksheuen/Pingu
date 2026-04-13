@@ -9,6 +9,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
+from routing_case_matrix import build_case_matrix
+
 
 DOMESTIC_IP_ECHO_URLS = [
     "https://myip.ipip.net",
@@ -18,16 +20,6 @@ DOMESTIC_IP_ECHO_URLS = [
 FOREIGN_IP_ECHO_URLS = [
     "https://api.ipify.org",
     "https://ifconfig.me/ip",
-]
-
-CN_SITES = [
-    "https://www.baidu.com",
-    "https://www.qq.com",
-]
-
-FOREIGN_SITES = [
-    "https://www.google.com",
-    "https://www.wikipedia.org",
 ]
 
 CONFIG_CANDIDATES = [
@@ -45,22 +37,27 @@ class CurlResult:
 
 
 def run_curl(url: str, proxy: Optional[str], timeout: int, body: bool) -> CurlResult:
-    cmd = ["curl", "-sS", "-L", "--connect-timeout", str(timeout), "--max-time", str(timeout)]
-    if proxy:
-        cmd += ["--proxy", proxy]
+    last_result = CurlResult(False, "", "no request attempted", None)
+    for _ in range(3):
+        cmd = ["curl", "-sS", "-L", "--connect-timeout", str(timeout), "--max-time", str(timeout)]
+        if proxy:
+            cmd += ["--proxy", proxy]
 
-    if body:
-        cmd.append(url)
-    else:
-        cmd += ["-o", "/dev/null", "-w", "%{http_code}", url]
+        if body:
+            cmd.append(url)
+        else:
+            cmd += ["-o", "/dev/null", "-w", "%{http_code}", url]
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    return CurlResult(
-        ok=proc.returncode == 0,
-        output=proc.stdout.strip(),
-        error=proc.stderr.strip(),
-        http_code=None if body else proc.stdout.strip(),
-    )
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        last_result = CurlResult(
+            ok=proc.returncode == 0,
+            output=proc.stdout.strip(),
+            error=proc.stderr.strip(),
+            http_code=None if body else proc.stdout.strip(),
+        )
+        if last_result.ok and (body or (last_result.http_code not in (None, "", "000"))):
+            return last_result
+    return last_result
 
 
 def extract_ip(text: str) -> Optional[str]:
@@ -94,14 +91,23 @@ def ensure_proxy_listening(host: str, port: int, timeout: int) -> None:
         return
 
 
-def smoke_check(urls: list[str], proxy: str, timeout: int, label: str) -> bool:
+def is_allowed_http_code(http_code: Optional[str], allowed_prefixes: list[str]) -> bool:
+    if not http_code or http_code == "000":
+        return False
+    return any(http_code.startswith(prefix) for prefix in allowed_prefixes)
+
+
+def smoke_check(cases: list[dict], proxy: str, timeout: int, label: str) -> bool:
     print(f"\n[{label}]")
     all_ok = True
-    for url in urls:
-        result = run_curl(url, proxy=proxy, timeout=timeout, body=False)
-        ok = result.ok and result.http_code not in (None, "", "000")
+    for case in cases:
+        result = run_curl(case["url"], proxy=proxy, timeout=timeout, body=False)
+        ok = result.ok and is_allowed_http_code(result.http_code, case["allowed_status_prefixes"])
         status = "OK" if ok else "FAIL"
-        print(f"- {status} {url} http_code={result.http_code or 'n/a'}")
+        print(
+            f"- {status} {case['label']} route={case['expected_route']} "
+            f"url={case['url']} http_code={result.http_code or 'n/a'}"
+        )
         if not ok and result.error:
             print(f"  error: {result.error}")
         all_ok = all_ok and ok
@@ -117,6 +123,10 @@ def main() -> int:
 
     proxy = f"http://{args.proxy_host}:{args.proxy_port}"
     route_final = read_route_final()
+    cases = build_case_matrix()
+    direct_cases = [case for case in cases if case["expected_route"] == "direct"]
+    proxy_cases = [case for case in cases if case["expected_route"] == "proxy"]
+    policy_cases = [case for case in cases if case["source"] == "policy-domain"]
 
     if route_final:
         print(f"当前生成配置的 route.final: {route_final}")
@@ -192,11 +202,14 @@ def main() -> int:
     else:
         print("WARN: 无法解析国内探针出口 IP")
 
-    passed = smoke_check(CN_SITES, proxy=proxy, timeout=args.timeout, label="国内站点可达性") and passed
-    passed = smoke_check(FOREIGN_SITES, proxy=proxy, timeout=args.timeout, label="国外站点可达性") and passed
+    passed = smoke_check(direct_cases, proxy=proxy, timeout=args.timeout, label="直连目标可达性") and passed
+    passed = smoke_check(proxy_cases, proxy=proxy, timeout=args.timeout, label="代理目标可达性") and passed
+
+    if policy_cases:
+        passed = smoke_check(policy_cases, proxy=proxy, timeout=args.timeout, label="规则相关目标可达性") and passed
 
     if passed:
-        print("\nPASS: 代理可用，且脚本观测到国外流量走代理、国内流量大概率走直连。")
+        print("\nPASS: 代理可用，且脚本观测到国外流量走代理、国内流量大概率走直连；扩展 URL 与规则相关目标均可达。")
         return 0
 
     print("\nFAIL: 至少一项代理/分流检查失败。")

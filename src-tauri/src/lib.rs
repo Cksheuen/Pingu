@@ -4,6 +4,9 @@ pub mod singbox;
 pub mod storage;
 pub mod system;
 
+#[cfg(test)]
+mod functional_chain_generated_tests;
+
 use commands::config::AppState;
 use commands::proxy::ProxyState;
 use singbox::process::SingBoxProcess;
@@ -29,6 +32,10 @@ pub fn resolve_sing_box_path() -> String {
     }
     // Fallback: system PATH (dev mode)
     "sing-box".to_string()
+}
+
+pub fn missing_sing_box_message() -> String {
+    "sing-box binary not found. Install `sing-box` on your PATH, or set `PINGU_SING_BOX_BIN` before building so Tauri can bundle it as a sidecar.".to_string()
 }
 
 pub fn run() {
@@ -59,6 +66,12 @@ pub fn run() {
             commands::proxy::get_logs,
             commands::proxy::clear_logs,
             commands::proxy::get_log_file_path,
+            commands::host_overrides::list_host_overrides,
+            commands::host_overrides::create_host_override,
+            commands::host_overrides::update_host_override,
+            commands::host_overrides::delete_host_override,
+            commands::host_overrides::toggle_host_override,
+            commands::host_overrides::reset_host_overrides,
             commands::rules::list_rule_groups,
             commands::rules::get_active_group_id,
             commands::rules::set_active_group,

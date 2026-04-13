@@ -38,7 +38,9 @@ fn print_status(config: &AppConfig) {
 }
 
 fn main() -> Result<(), String> {
-    let action = std::env::args().nth(1).unwrap_or_else(|| "status".to_string());
+    let action = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "status".to_string());
     let config = AppConfig::load();
 
     match action.as_str() {

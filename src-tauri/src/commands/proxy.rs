@@ -3,11 +3,12 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
 use tauri::State;
 
 use crate::commands::config::AppState;
-use crate::proxy_runtime::{check_generated_config, prepare_runtime};
+use crate::proxy_runtime::{
+    build_proxy_status, check_generated_config, prepare_runtime, proxy_info, ProxyInfo, ProxyStatus,
+};
 use crate::singbox::process::{LogEntry, SingBoxProcess};
 use crate::system::proxy_macos;
 
@@ -16,23 +17,6 @@ pub struct ProxyState {
     pub connected_at: Mutex<Option<Instant>>,
     pub running_node_id: Mutex<Option<String>>,
     pub running_group_id: Mutex<Option<String>>,
-}
-
-#[derive(Serialize)]
-pub struct ProxyStatus {
-    pub connected: bool,
-    pub active_node_id: Option<String>,
-    pub uptime_seconds: u64,
-}
-
-#[derive(Serialize)]
-pub struct ProxyInfo {
-    pub listen_host: String,
-    pub listen_port: u16,
-    pub http_proxy: String,
-    pub socks_proxy: String,
-    pub terminal_commands: Vec<String>,
-    pub unset_commands: Vec<String>,
 }
 
 struct RuntimeLaunch {
@@ -121,7 +105,7 @@ pub fn disconnect(proxy_state: State<ProxyState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_status(
-    _app_state: State<AppState>,
+    app_state: State<AppState>,
     proxy_state: State<ProxyState>,
 ) -> Result<ProxyStatus, String> {
     let connected = proxy_state.process.is_running();
@@ -140,12 +124,24 @@ pub fn get_status(
     } else {
         None
     };
+    let active_group_id = if connected {
+        proxy_state
+            .running_group_id
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+    } else {
+        None
+    };
+    let config = app_state.config.lock().map_err(|e| e.to_string())?;
 
-    Ok(ProxyStatus {
+    Ok(build_proxy_status(
+        &config,
         connected,
+        uptime,
         active_node_id,
-        uptime_seconds: if connected { uptime } else { 0 },
-    })
+        active_group_id,
+    ))
 }
 
 #[tauri::command]
@@ -224,18 +220,7 @@ pub fn reload_proxy_if_running(
 
 #[tauri::command]
 pub fn get_proxy_info() -> ProxyInfo {
-    ProxyInfo {
-        listen_host: "127.0.0.1".to_string(),
-        listen_port: 2080,
-        http_proxy: "http://127.0.0.1:2080".to_string(),
-        socks_proxy: "socks5://127.0.0.1:2080".to_string(),
-        terminal_commands: vec![
-            "export http_proxy=http://127.0.0.1:2080".to_string(),
-            "export https_proxy=http://127.0.0.1:2080".to_string(),
-            "export all_proxy=socks5://127.0.0.1:2080".to_string(),
-        ],
-        unset_commands: vec!["unset http_proxy https_proxy all_proxy".to_string()],
-    }
+    proxy_info()
 }
 
 #[tauri::command]

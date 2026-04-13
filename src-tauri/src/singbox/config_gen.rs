@@ -2,6 +2,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::uri_parser::Node;
+use crate::storage::app_config::HostOverride;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExactDnsPolicy {
+    pub domain: String,
+    pub server: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
@@ -30,10 +37,45 @@ pub struct NameServerPolicy {
 }
 
 pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_path: &str) -> Value {
+    generate_config_with_host_overrides(active_node, rule_group, cache_file_path, &[])
+}
+
+pub fn generate_config_with_exact_dns_policies(
+    active_node: &Node,
+    rule_group: &RuleGroup,
+    cache_file_path: &str,
+    exact_dns_policies: &[ExactDnsPolicy],
+) -> Value {
+    let overrides: Vec<HostOverride> = exact_dns_policies
+        .iter()
+        .map(|policy| HostOverride {
+            id: format!("exact-dns-{}", policy.domain),
+            host: policy.domain.clone(),
+            resolver_mode: policy.server.clone(),
+            outbound_mode: "inherit".to_string(),
+            enabled: true,
+            source: "compat".to_string(),
+            reason: "compat exact dns policy".to_string(),
+            updated_at: "0".to_string(),
+        })
+        .collect();
+    generate_config_with_host_overrides(active_node, rule_group, cache_file_path, &overrides)
+}
+
+pub fn generate_config_with_host_overrides(
+    active_node: &Node,
+    rule_group: &RuleGroup,
+    cache_file_path: &str,
+    host_overrides: &[HostOverride],
+) -> Value {
     let mut route_rules: Vec<Value> = Vec::new();
     let mut rule_sets: Vec<Value> = Vec::new();
     let mut seen_rule_sets = std::collections::HashSet::new();
     let mut dns_servers: Vec<Value> = vec![
+        json!({
+            "type": "local",
+            "tag": "system-dns"
+        }),
         json!({
             "type": "udp",
             "tag": "remote-dns",
@@ -50,6 +92,7 @@ pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_pa
     ];
     let mut dns_rules: Vec<Value> = Vec::new();
     let mut dns_server_tags = std::collections::HashMap::from([
+        ("system-dns".to_string(), "system-dns".to_string()),
         ("8.8.8.8".to_string(), "remote-dns".to_string()),
         ("223.5.5.5".to_string(), "local-dns".to_string()),
     ]);
@@ -84,27 +127,42 @@ pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_pa
         }));
     }
 
+    for item in host_overrides {
+        if !item.enabled {
+            continue;
+        }
+
+        let normalized_domain = normalize_domain(item.host.as_str());
+        if normalized_domain.is_empty() {
+            continue;
+        }
+
+        if item.resolver_mode != "inherit" {
+            let server_tag =
+                resolve_dns_server_tag(&item.resolver_mode, &mut dns_servers, &mut dns_server_tags);
+            dns_rules.push(json!({
+                "action": "route",
+                "domain": [normalized_domain.clone()],
+                "server": server_tag
+            }));
+        }
+
+        if item.outbound_mode != "inherit" {
+            route_rules.push(json!({
+                "action": "route",
+                "domain": [normalized_domain],
+                "outbound": &item.outbound_mode
+            }));
+        }
+    }
+
     for policy in &rule_group.nameserver_policy {
         let normalized_suffix = normalize_domain_suffix(&policy.domain_suffix);
         if normalized_suffix.is_empty() {
             continue;
         }
-        let server_tag = if let Some(existing_tag) = dns_server_tags.get(&policy.server) {
-            existing_tag.clone()
-        } else {
-            let next_tag = format!("policy-dns-{}", dns_server_tags.len());
-            dns_server_tags.insert(policy.server.clone(), next_tag.clone());
-            dns_servers.push(json!({
-                "type": "udp",
-                "tag": next_tag,
-                "server": &policy.server,
-                "server_port": 53
-            }));
-            dns_server_tags
-                .get(&policy.server)
-                .cloned()
-                .unwrap_or_default()
-        };
+        let server_tag =
+            resolve_dns_server_tag(&policy.server, &mut dns_servers, &mut dns_server_tags);
         dns_rules.push(json!({
             "action": "route",
             "domain_suffix": [normalized_suffix],
@@ -218,7 +276,7 @@ pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_pa
         "uuid": &active_node.uuid,
         "flow": &active_node.flow,
         "tls": build_tls_config(active_node),
-        "domain_resolver": "local-dns"
+        "domain_resolver": "system-dns"
     });
     if active_node.transport != "tcp" {
         vless_outbound["transport"] = json!({ "type": &active_node.transport });
@@ -257,7 +315,7 @@ pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_pa
             "rules": route_rules,
             "rule_set": rule_sets,
             "final": &rule_group.default_strategy,
-            "default_domain_resolver": "local-dns"
+            "default_domain_resolver": "system-dns"
         },
         "experimental": {
             "cache_file": {
@@ -266,6 +324,35 @@ pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_pa
             }
         }
     })
+}
+
+fn normalize_domain(value: &str) -> String {
+    value.trim().trim_start_matches('.').to_string()
+}
+
+fn resolve_dns_server_tag(
+    server: &str,
+    dns_servers: &mut Vec<Value>,
+    dns_server_tags: &mut std::collections::HashMap<String, String>,
+) -> String {
+    match server {
+        "system-dns" | "remote-dns" | "local-dns" => server.to_string(),
+        _ => {
+            if let Some(existing_tag) = dns_server_tags.get(server) {
+                return existing_tag.clone();
+            }
+
+            let next_tag = format!("policy-dns-{}", dns_server_tags.len());
+            dns_server_tags.insert(server.to_string(), next_tag.clone());
+            dns_servers.push(json!({
+                "type": "udp",
+                "tag": next_tag,
+                "server": server,
+                "server_port": 53
+            }));
+            next_tag
+        }
+    }
 }
 
 fn normalize_domain_suffix(value: &str) -> String {
@@ -369,17 +456,19 @@ mod tests {
         assert_eq!(config["inbounds"][0]["listen_port"], 2080);
         assert_eq!(config["outbounds"][0]["type"], "vless");
         assert_eq!(config["route"]["final"], "proxy");
-        assert_eq!(config["route"]["default_domain_resolver"], "local-dns");
-        assert_eq!(config["outbounds"][0]["domain_resolver"], "local-dns");
+        assert_eq!(config["route"]["default_domain_resolver"], "system-dns");
+        assert_eq!(config["outbounds"][0]["domain_resolver"], "system-dns");
 
         // DNS section
         let dns_servers = config["dns"]["servers"].as_array().unwrap();
-        assert_eq!(dns_servers.len(), 2);
-        assert_eq!(dns_servers[0]["tag"], "remote-dns");
+        assert_eq!(dns_servers.len(), 3);
+        assert_eq!(dns_servers[0]["tag"], "system-dns");
         assert_eq!(config["dns"]["strategy"], "ipv4_only");
-        assert_eq!(dns_servers[0]["type"], "udp");
-        assert_eq!(dns_servers[1]["tag"], "local-dns");
+        assert_eq!(dns_servers[0]["type"], "local");
+        assert_eq!(dns_servers[1]["tag"], "remote-dns");
         assert_eq!(dns_servers[1]["type"], "udp");
+        assert_eq!(dns_servers[2]["tag"], "local-dns");
+        assert_eq!(dns_servers[2]["type"], "udp");
         let dns_rules = config["dns"]["rules"].as_array().unwrap();
         assert!(!dns_rules.is_empty());
 
@@ -463,14 +552,120 @@ mod tests {
 
         let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db");
         let dns_servers = config["dns"]["servers"].as_array().unwrap();
-        assert_eq!(dns_servers.len(), 3);
-        assert_eq!(dns_servers[2]["server"], "100.82.0.1");
+        assert_eq!(dns_servers.len(), 4);
+        assert_eq!(dns_servers[0]["tag"], "system-dns");
+        assert_eq!(dns_servers[3]["server"], "100.82.0.1");
 
         let dns_rules = config["dns"]["rules"].as_array().unwrap();
         assert_eq!(dns_rules[0]["domain_suffix"][0], "npmjs.org");
-        assert_eq!(dns_rules[0]["server"], "policy-dns-2");
+        assert_eq!(dns_rules[0]["server"], "policy-dns-3");
         assert_eq!(dns_rules[1]["domain_suffix"][0], "feishu.cn");
-        assert_eq!(dns_rules[1]["server"], "policy-dns-2");
+        assert_eq!(dns_rules[1]["server"], "policy-dns-3");
+    }
+
+    #[test]
+    fn test_generate_config_with_exact_dns_policy_overrides_suffix_policy() {
+        let node = Node {
+            id: "test-id".into(),
+            name: "test".into(),
+            address: "example.com".into(),
+            port: 443,
+            uuid: "test-uuid".into(),
+            flow: "xtls-rprx-vision".into(),
+            security: "reality".into(),
+            sni: "www.example.com".into(),
+            fingerprint: "chrome".into(),
+            public_key: "pk123".into(),
+            short_id: "sid".into(),
+            transport: "tcp".into(),
+        };
+        let group = RuleGroup {
+            id: "work".into(),
+            name: "Work".into(),
+            rules: vec![],
+            default_strategy: "proxy".into(),
+            fake_ip_filter: vec!["+.byted.org".into()],
+            nameserver_policy: vec![NameServerPolicy {
+                domain_suffix: "+.byted.org".into(),
+                server: "100.82.0.1".into(),
+            }],
+        };
+
+        let config = generate_config_with_exact_dns_policies(
+            &node,
+            &group,
+            "/tmp/sing-proxy-cache.db",
+            &[ExactDnsPolicy {
+                domain: "bnpm.byted.org".into(),
+                server: "system-dns".into(),
+            }],
+        );
+
+        let dns_rules = config["dns"]["rules"].as_array().unwrap();
+        assert_eq!(dns_rules[0]["domain"][0], "bnpm.byted.org");
+        assert_eq!(dns_rules[0]["server"], "system-dns");
+        assert_eq!(dns_rules[1]["domain_suffix"][0], "byted.org");
+    }
+
+    #[test]
+    fn test_generate_config_with_host_override_adds_exact_route_and_dns() {
+        let node = Node {
+            id: "test-id".into(),
+            name: "test".into(),
+            address: "example.com".into(),
+            port: 443,
+            uuid: "test-uuid".into(),
+            flow: "xtls-rprx-vision".into(),
+            security: "reality".into(),
+            sni: "www.example.com".into(),
+            fingerprint: "chrome".into(),
+            public_key: "pk123".into(),
+            short_id: "sid".into(),
+            transport: "tcp".into(),
+        };
+        let group = RuleGroup {
+            id: "work".into(),
+            name: "Work".into(),
+            rules: vec![Rule {
+                id: "r1".into(),
+                rule_type: "domain_suffix".into(),
+                match_value: "npmjs.org".into(),
+                outbound: "proxy".into(),
+            }],
+            default_strategy: "direct".into(),
+            fake_ip_filter: vec![],
+            nameserver_policy: vec![NameServerPolicy {
+                domain_suffix: "+.npmjs.org".into(),
+                server: "100.82.0.1".into(),
+            }],
+        };
+
+        let config = generate_config_with_host_overrides(
+            &node,
+            &group,
+            "/tmp/sing-proxy-cache.db",
+            &[HostOverride {
+                id: "override-1".into(),
+                host: "registry.npmjs.org".into(),
+                resolver_mode: "system-dns".into(),
+                outbound_mode: "direct".into(),
+                enabled: true,
+                source: "manual".into(),
+                reason: "direct exact host".into(),
+                updated_at: "1".into(),
+            }],
+        );
+
+        let dns_rules = config["dns"]["rules"].as_array().unwrap();
+        assert_eq!(dns_rules[0]["domain"][0], "registry.npmjs.org");
+        assert_eq!(dns_rules[0]["server"], "system-dns");
+        assert_eq!(dns_rules[1]["domain_suffix"][0], "npmjs.org");
+
+        let route_rules = config["route"]["rules"].as_array().unwrap();
+        assert_eq!(route_rules[2]["domain"][0], "registry.npmjs.org");
+        assert_eq!(route_rules[2]["outbound"], "direct");
+        assert_eq!(route_rules[3]["domain_suffix"][0], "npmjs.org");
+        assert_eq!(route_rules[3]["outbound"], "proxy");
     }
 
     #[test]
