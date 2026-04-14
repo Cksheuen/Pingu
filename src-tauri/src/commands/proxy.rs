@@ -31,33 +31,33 @@ struct RuntimeLaunch {
     clash_api_port: u16,
 }
 
-#[tauri::command]
-pub fn connect(app_state: State<AppState>, proxy_state: State<ProxyState>) -> Result<(), String> {
-    let runtime = prepare_runtime_launch(app_state.inner())?;
+/// Core connect logic shared by Tauri command and tray menu.
+pub fn connect_core(app_state: &AppState, proxy_state: &ProxyState) -> Result<(), String> {
+    let runtime = prepare_runtime_launch(app_state)?;
 
     proxy_state
         .process
         .start(runtime.config_path.to_str().ok_or("Invalid path")?)?;
 
-    if let Err(error) = wait_for_local_proxy_port(proxy_state.inner()) {
-        return Err(cleanup_runtime_failure(proxy_state.inner(), error));
+    if let Err(error) = wait_for_local_proxy_port(proxy_state) {
+        return Err(cleanup_runtime_failure(proxy_state, error));
     }
 
     if let Err(error) = proxy_macos::set_system_proxy(2080) {
         return Err(cleanup_runtime_failure(
-            proxy_state.inner(),
+            proxy_state,
             format!("Failed to configure system proxy: {}", error),
         ));
     }
 
     if let Err(error) = set_runtime_connected(
-        proxy_state.inner(),
+        proxy_state,
         runtime.node_id.clone(),
         runtime.group_id.clone(),
         runtime.clash_api_port,
     ) {
         return Err(cleanup_runtime_failure(
-            proxy_state.inner(),
+            proxy_state,
             format!("Failed to record runtime snapshot: {}", error),
         ));
     }
@@ -80,8 +80,8 @@ pub fn connect(app_state: State<AppState>, proxy_state: State<ProxyState>) -> Re
     Ok(())
 }
 
-#[tauri::command]
-pub fn disconnect(proxy_state: State<ProxyState>) -> Result<(), String> {
+/// Core disconnect logic shared by Tauri command and tray menu.
+pub fn disconnect_core(proxy_state: &ProxyState) -> Result<(), String> {
     let mut errors = Vec::new();
 
     if let Err(error) = proxy_state.process.stop() {
@@ -90,7 +90,7 @@ pub fn disconnect(proxy_state: State<ProxyState>) -> Result<(), String> {
     if let Err(error) = proxy_macos::clear_system_proxy() {
         errors.push(format!("Failed to clear system proxy: {}", error));
     }
-    if let Err(error) = set_runtime_disconnected(proxy_state.inner()) {
+    if let Err(error) = set_runtime_disconnected(proxy_state) {
         errors.push(format!("Failed to clear runtime snapshot: {}", error));
     }
 
@@ -104,6 +104,16 @@ pub fn disconnect(proxy_state: State<ProxyState>) -> Result<(), String> {
         proxy_state.process.add_log("error", &combined_error);
         Err(combined_error)
     }
+}
+
+#[tauri::command]
+pub fn connect(app_state: State<AppState>, proxy_state: State<ProxyState>) -> Result<(), String> {
+    connect_core(app_state.inner(), proxy_state.inner())
+}
+
+#[tauri::command]
+pub fn disconnect(proxy_state: State<ProxyState>) -> Result<(), String> {
+    disconnect_core(proxy_state.inner())
 }
 
 #[tauri::command]

@@ -32,7 +32,7 @@ pub fn get_traffic(proxy_state: State<ProxyState>) -> Result<TrafficSnapshot, St
 
     let url = format!("http://127.0.0.1:{}/traffic", port);
     let body: serde_json::Value = ureq::get(&url)
-        .timeout(std::time::Duration::from_secs(2))
+        .timeout(std::time::Duration::from_millis(500))
         .call()
         .map_err(|e| format!("Failed to query clash API: {}", e))?
         .into_json()

@@ -3,6 +3,7 @@ pub mod proxy_runtime;
 pub mod singbox;
 pub mod storage;
 pub mod system;
+pub mod tray;
 
 #[cfg(test)]
 mod functional_chain_generated_tests;
@@ -12,6 +13,7 @@ use commands::proxy::ProxyState;
 use singbox::process::SingBoxProcess;
 use std::sync::Mutex;
 use storage::app_config::AppConfig;
+use tauri::{Manager, RunEvent, WindowEvent};
 
 /// Resolve the path to the bundled `sing-box` sidecar binary.
 /// In dev mode this falls back to the system PATH version.
@@ -58,6 +60,10 @@ pub fn run() {
             running_group_id: Mutex::new(None),
             clash_api_port: Mutex::new(None),
         })
+        .setup(|app| {
+            tray::setup_tray(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::config::import_node,
             commands::config::delete_node,
@@ -97,8 +103,20 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_, event| match event {
-        tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+    app.run(|app_handle, event| match event {
+        RunEvent::WindowEvent {
+            label,
+            event: WindowEvent::CloseRequested { api, .. },
+            ..
+        } => {
+            if label == "main" {
+                api.prevent_close();
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+        }
+        RunEvent::ExitRequested { .. } | RunEvent::Exit => {
             let _ = system::proxy_macos::clear_system_proxy();
         }
         _ => {}

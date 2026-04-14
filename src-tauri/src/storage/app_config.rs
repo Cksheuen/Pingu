@@ -7,6 +7,33 @@ use url::Url;
 use crate::singbox::config_gen::{Rule, RuleGroup};
 use crate::singbox::uri_parser::{parse_vless_uri, Node};
 
+const BYTED_INTERNAL_DNS_GROUP_NAME: &str = "Byted Internal DNS";
+const BYTED_INTERNAL_PRIMARY_DNS: &str = "10.199.34.255";
+const BYTED_INTERNAL_SECONDARY_DNS: &str = "10.199.35.253";
+const BYTED_INTERNAL_DOMAIN_SUFFIXES: [&str; 4] = [
+    "+.byted.org",
+    "+.bytedance.net",
+    "+.tiktok-row.org",
+    "+.tiktok-row.net",
+];
+const BYTED_INTERNAL_FAKE_IP_FILTERS: [&str; 8] = [
+    "+.byted.org",
+    "+.bytedance.net",
+    "+.tiktok-row.org",
+    "+.tiktok-row.net",
+    "+.npmjs.org",
+    "+.feishu.cn",
+    "+.lan",
+    "+.local",
+];
+const BYTED_INTERNAL_DIRECT_SUFFIXES: [&str; 4] = [
+    "byted.org",
+    "bytedance.net",
+    "tiktok-row.org",
+    "tiktok-row.net",
+];
+const BYTED_INTERNAL_DIRECT_IP_CIDRS: [&str; 1] = ["10.0.0.0/8"];
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostOverride {
     pub id: String,
@@ -68,6 +95,7 @@ impl AppConfig {
                     let mut changed = config.normalize_legacy_split_proxy_default();
                     changed = config.backfill_node_security() || changed;
                     changed = config.normalize_host_overrides() || changed;
+                    changed = config.normalize_rule_groups() || changed;
                     if changed {
                         config.save().ok();
                     }
@@ -95,6 +123,7 @@ impl AppConfig {
                     };
                     let mut config = config;
                     let _ = config.normalize_legacy_split_proxy_default();
+                    let _ = config.normalize_rule_groups();
                     config.save().ok();
                     return config;
                 }
@@ -200,6 +229,31 @@ impl AppConfig {
         changed
     }
 
+    fn normalize_rule_groups(&mut self) -> bool {
+        let mut changed = false;
+        for group in &mut self.rule_groups {
+            for policy in &mut group.nameserver_policy {
+                changed = normalize_nameserver_policy(policy) || changed;
+            }
+        }
+
+        changed = self.ensure_byted_internal_dns_group() || changed;
+        changed
+    }
+
+    fn ensure_byted_internal_dns_group(&mut self) -> bool {
+        if let Some(group) = self
+            .rule_groups
+            .iter_mut()
+            .find(|group| group.name == BYTED_INTERNAL_DNS_GROUP_NAME)
+        {
+            return strengthen_byted_internal_dns_group(group);
+        }
+
+        self.rule_groups.push(make_byted_internal_dns_group());
+        true
+    }
+
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path()?;
         if let Some(parent) = path.parent() {
@@ -234,6 +288,7 @@ impl AppConfig {
             fake_ip_filter: vec![],
             nameserver_policy: vec![],
         };
+        let byted_internal_dns = make_byted_internal_dns_group();
         let full_proxy = RuleGroup {
             id: uuid::Uuid::new_v4().to_string(),
             name: "Full Proxy".into(),
@@ -254,7 +309,7 @@ impl AppConfig {
         Self {
             nodes: Vec::new(),
             active_node_id: None,
-            rule_groups: vec![default_group, full_proxy, direct_only],
+            rule_groups: vec![default_group, byted_internal_dns, full_proxy, direct_only],
             active_group_id: active_id,
             host_overrides: vec![],
             autostart: false,
@@ -593,6 +648,151 @@ fn normalize_reason(value: Option<&str>) -> String {
     value.unwrap_or_default().trim().to_string()
 }
 
+fn make_byted_internal_dns_group() -> RuleGroup {
+    let mut group = RuleGroup {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: BYTED_INTERNAL_DNS_GROUP_NAME.to_string(),
+        rules: vec![
+            Rule {
+                id: uuid::Uuid::new_v4().to_string(),
+                rule_type: "geosite".to_string(),
+                match_value: "geolocation-cn".to_string(),
+                outbound: "direct".to_string(),
+            },
+            Rule {
+                id: uuid::Uuid::new_v4().to_string(),
+                rule_type: "geoip".to_string(),
+                match_value: "cn".to_string(),
+                outbound: "direct".to_string(),
+            },
+        ],
+        default_strategy: "proxy".to_string(),
+        fake_ip_filter: vec![],
+        nameserver_policy: vec![],
+    };
+    let _ = strengthen_byted_internal_dns_group(&mut group);
+    group
+}
+
+fn strengthen_byted_internal_dns_group(group: &mut RuleGroup) -> bool {
+    let mut changed = false;
+
+    if group.default_strategy != "proxy" {
+        group.default_strategy = "proxy".to_string();
+        changed = true;
+    }
+
+    changed = ensure_group_rule(group, "geosite", "geolocation-cn", "direct") || changed;
+    changed = ensure_group_rule(group, "geoip", "cn", "direct") || changed;
+
+    for suffix in BYTED_INTERNAL_DIRECT_SUFFIXES {
+        changed = ensure_group_rule(group, "domain_suffix", suffix, "direct") || changed;
+    }
+    for cidr in BYTED_INTERNAL_DIRECT_IP_CIDRS {
+        changed = ensure_group_rule(group, "ip_cidr", cidr, "direct") || changed;
+    }
+
+    for filter in BYTED_INTERNAL_FAKE_IP_FILTERS {
+        if !group.fake_ip_filter.iter().any(|item| item == filter) {
+            group.fake_ip_filter.push(filter.to_string());
+            changed = true;
+        }
+    }
+
+    for suffix in BYTED_INTERNAL_DOMAIN_SUFFIXES {
+        changed = upsert_nameserver_policy(
+            &mut group.nameserver_policy,
+            suffix,
+            &[BYTED_INTERNAL_PRIMARY_DNS, BYTED_INTERNAL_SECONDARY_DNS],
+        ) || changed;
+    }
+
+    changed
+}
+
+fn ensure_group_rule(
+    group: &mut RuleGroup,
+    rule_type: &str,
+    match_value: &str,
+    outbound: &str,
+) -> bool {
+    if group.rules.iter().any(|rule| {
+        rule.rule_type == rule_type
+            && rule.match_value == match_value
+            && rule.outbound == outbound
+    }) {
+        return false;
+    }
+
+    group.rules.push(Rule {
+        id: uuid::Uuid::new_v4().to_string(),
+        rule_type: rule_type.to_string(),
+        match_value: match_value.to_string(),
+        outbound: outbound.to_string(),
+    });
+    true
+}
+
+fn upsert_nameserver_policy(
+    policies: &mut Vec<crate::singbox::config_gen::NameServerPolicy>,
+    domain_suffix: &str,
+    servers: &[&str],
+) -> bool {
+    let mut changed = false;
+    let desired_servers: Vec<String> = servers
+        .iter()
+        .map(|server| server.trim())
+        .filter(|server| !server.is_empty())
+        .map(|server| server.to_string())
+        .collect();
+    if desired_servers.is_empty() {
+        return false;
+    }
+
+    if let Some(policy) = policies
+        .iter_mut()
+        .find(|policy| policy.domain_suffix == domain_suffix)
+    {
+        if policy.domain_suffix != domain_suffix {
+            policy.domain_suffix = domain_suffix.to_string();
+            changed = true;
+        }
+        if policy.server != desired_servers[0] {
+            policy.server = desired_servers[0].clone();
+            changed = true;
+        }
+        if policy.servers != desired_servers {
+            policy.servers = desired_servers;
+            changed = true;
+        }
+        return changed;
+    }
+
+    policies.push(crate::singbox::config_gen::NameServerPolicy {
+        domain_suffix: domain_suffix.to_string(),
+        server: desired_servers[0].clone(),
+        servers: desired_servers,
+    });
+    true
+}
+
+fn normalize_nameserver_policy(policy: &mut crate::singbox::config_gen::NameServerPolicy) -> bool {
+    let normalized_servers = policy.normalized_servers();
+    let primary_server = normalized_servers.first().cloned().unwrap_or_default();
+    let mut changed = false;
+
+    if policy.server != primary_server {
+        policy.server = primary_server;
+        changed = true;
+    }
+    if policy.servers != normalized_servers {
+        policy.servers = normalized_servers;
+        changed = true;
+    }
+
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,11 +894,101 @@ mod tests {
             .map(|group| group.id.clone())
             .collect();
 
-        config.delete_rule_group(&ids[0]).unwrap();
-        config.delete_rule_group(&ids[1]).unwrap();
-        let error = config.delete_rule_group(&ids[2]).unwrap_err();
+        for id in ids.iter().take(ids.len() - 1) {
+            config.delete_rule_group(id).unwrap();
+        }
+        let last_id = config.rule_groups[0].id.clone();
+        let error = config.delete_rule_group(&last_id).unwrap_err();
 
         assert_eq!(error, "Cannot delete the last group");
+    }
+
+    #[test]
+    fn default_config_contains_strengthened_byted_internal_dns_group() {
+        let config = AppConfig::default_config();
+        let group = config
+            .rule_groups
+            .iter()
+            .find(|group| group.name == BYTED_INTERNAL_DNS_GROUP_NAME)
+            .expect("Byted Internal DNS group");
+
+        assert_eq!(group.default_strategy, "proxy");
+        assert!(group.rules.iter().any(|rule| {
+            rule.rule_type == "domain_suffix"
+                && rule.match_value == "tiktok-row.net"
+                && rule.outbound == "direct"
+        }));
+        assert!(group.rules.iter().any(|rule| {
+            rule.rule_type == "ip_cidr"
+                && rule.match_value == "10.0.0.0/8"
+                && rule.outbound == "direct"
+        }));
+
+        let policy = group
+            .nameserver_policy
+            .iter()
+            .find(|policy| policy.domain_suffix == "+.tiktok-row.org")
+            .expect("tiktok-row.org policy");
+        assert_eq!(policy.server, BYTED_INTERNAL_PRIMARY_DNS);
+        assert_eq!(
+            policy.servers,
+            vec![
+                BYTED_INTERNAL_PRIMARY_DNS.to_string(),
+                BYTED_INTERNAL_SECONDARY_DNS.to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_rule_groups_backfills_existing_byted_internal_group() {
+        let mut config = AppConfig {
+            nodes: vec![],
+            active_node_id: None,
+            rule_groups: vec![RuleGroup {
+                id: "group-1".to_string(),
+                name: BYTED_INTERNAL_DNS_GROUP_NAME.to_string(),
+                rules: vec![],
+                default_strategy: "direct".to_string(),
+                fake_ip_filter: vec![],
+                nameserver_policy: vec![crate::singbox::config_gen::NameServerPolicy {
+                    domain_suffix: "+.byted.org".to_string(),
+                    server: BYTED_INTERNAL_SECONDARY_DNS.to_string(),
+                    servers: vec![],
+                }],
+            }],
+            active_group_id: "group-1".to_string(),
+            host_overrides: vec![],
+            autostart: false,
+            language: "zh".to_string(),
+        };
+
+        assert!(config.normalize_rule_groups());
+
+        let group = &config.rule_groups[0];
+        assert_eq!(group.default_strategy, "proxy");
+        assert!(group.rules.iter().any(|rule| {
+            rule.rule_type == "domain_suffix"
+                && rule.match_value == "byted.org"
+                && rule.outbound == "direct"
+        }));
+        assert!(group.rules.iter().any(|rule| {
+            rule.rule_type == "domain_suffix"
+                && rule.match_value == "tiktok-row.org"
+                && rule.outbound == "direct"
+        }));
+        assert!(group.rules.iter().any(|rule| {
+            rule.rule_type == "ip_cidr"
+                && rule.match_value == "10.0.0.0/8"
+                && rule.outbound == "direct"
+        }));
+
+        let policy = group
+            .nameserver_policy
+            .iter()
+            .find(|policy| policy.domain_suffix == "+.byted.org")
+            .expect("byted.org policy");
+        assert_eq!(policy.server, BYTED_INTERNAL_PRIMARY_DNS);
+        assert_eq!(policy.servers.len(), 2);
     }
 
     #[test]

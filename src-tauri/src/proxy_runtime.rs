@@ -399,6 +399,7 @@ mod tests {
             nameserver_policy: vec![NameServerPolicy {
                 domain_suffix: "+.byted.org".to_string(),
                 server: "100.82.0.1".to_string(),
+                servers: vec![],
             }],
         };
 
@@ -437,6 +438,7 @@ mod tests {
         config.rule_groups[0].nameserver_policy = vec![NameServerPolicy {
             domain_suffix: "+.byted.org".to_string(),
             server: "100.82.0.1".to_string(),
+            servers: vec![],
         }];
 
         let overrides = resolve_runtime_host_overrides(&config, &config.rule_groups[0]);

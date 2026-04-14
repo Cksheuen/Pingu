@@ -33,7 +33,35 @@ pub struct RuleGroup {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NameServerPolicy {
     pub domain_suffix: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub server: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub servers: Vec<String>,
+}
+
+impl NameServerPolicy {
+    pub fn normalized_servers(&self) -> Vec<String> {
+        let mut normalized = Vec::new();
+        for server in self
+            .servers
+            .iter()
+            .map(|server| server.trim())
+            .chain(std::iter::once(self.server.trim()))
+        {
+            if server.is_empty() {
+                continue;
+            }
+            if normalized.iter().any(|existing| existing == server) {
+                continue;
+            }
+            normalized.push(server.to_string());
+        }
+        normalized
+    }
+
+    pub fn primary_server(&self) -> Option<String> {
+        self.normalized_servers().into_iter().next()
+    }
 }
 
 pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_path: &str, clash_api_port: u16) -> Value {
@@ -163,8 +191,11 @@ pub fn generate_config_with_host_overrides(
         if normalized_suffix.is_empty() {
             continue;
         }
+        let Some(primary_server) = policy.primary_server() else {
+            continue;
+        };
         let server_tag =
-            resolve_dns_server_tag(&policy.server, &mut dns_servers, &mut dns_server_tags);
+            resolve_dns_server_tag(&primary_server, &mut dns_servers, &mut dns_server_tags);
         dns_rules.push(json!({
             "action": "route",
             "domain_suffix": [normalized_suffix],
@@ -547,10 +578,12 @@ mod tests {
                 NameServerPolicy {
                     domain_suffix: "+.npmjs.org".into(),
                     server: "100.82.0.1".into(),
+                    servers: vec![],
                 },
                 NameServerPolicy {
                     domain_suffix: "+.feishu.cn".into(),
                     server: "100.82.0.1".into(),
+                    servers: vec![],
                 },
             ],
         };
@@ -593,6 +626,7 @@ mod tests {
             nameserver_policy: vec![NameServerPolicy {
                 domain_suffix: "+.byted.org".into(),
                 server: "100.82.0.1".into(),
+                servers: vec![],
             }],
         };
 
@@ -643,6 +677,7 @@ mod tests {
             nameserver_policy: vec![NameServerPolicy {
                 domain_suffix: "+.npmjs.org".into(),
                 server: "100.82.0.1".into(),
+                servers: vec![],
             }],
         };
 
