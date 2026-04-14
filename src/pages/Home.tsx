@@ -23,7 +23,7 @@ export default function Home() {
   useI18nRerender();
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "32px 40px", gap: "32px" }}>
+    <div className="flex-1 flex flex-col overflow-y-auto" style={{ padding: "32px 40px", gap: "32px" }}>
       <ConnectionStatusHeader connected={status.connected} />
 
       <ConnectionHero

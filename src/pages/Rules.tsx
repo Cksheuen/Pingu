@@ -44,7 +44,7 @@ export default function Rules() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "32px 40px", gap: "24px" }}>
+    <div className="flex-1 flex flex-col overflow-y-auto" style={{ padding: "32px 40px", gap: "24px" }}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <span className="font-mono text-text-muted tracking-[2px] uppercase" style={{ fontSize: "11px" }}>
