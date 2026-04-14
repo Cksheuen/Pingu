@@ -1,8 +1,9 @@
-use crate::proxy_runtime::{build_proxy_status, proxy_info, resolve_runtime_selection};
-use crate::singbox::config_gen::{Rule, RuleGroup};
+use crate::proxy_runtime::{build_proxy_status, find_available_port, proxy_info, resolve_runtime_selection};
+use crate::singbox::config_gen::{generate_config, Rule, RuleGroup};
 use crate::singbox::process::SingBoxProcess;
 use crate::singbox::uri_parser::Node;
 use crate::storage::app_config::AppConfig;
+use std::net::TcpListener;
 
 fn sample_node(id: &str, name: &str) -> Node {
     Node {
@@ -370,4 +371,91 @@ fn generated_mc03_incremental_configuration_chain_handles_active_resource_reassi
     let reopened_selection = resolve_runtime_selection(&reopened).unwrap();
     assert_eq!(reopened_selection.node.id, "node-2");
     assert_ne!(reopened_selection.rule_group.id, travel_group.id);
+}
+
+#[test]
+fn generated_mc04_settings_chain_covers_autostart_and_language_persistence() {
+    // 1. Verify defaults
+    let config = AppConfig {
+        nodes: vec![],
+        active_node_id: None,
+        rule_groups: vec![sample_group("group-default", "Default", "proxy")],
+        active_group_id: "group-default".to_string(),
+        host_overrides: vec![],
+        autostart: false,
+        language: "zh".to_string(),
+    };
+    assert!(!config.autostart);
+    assert_eq!(config.language, "zh");
+
+    // 2. Modify autostart and language
+    let mut config = config;
+    config.autostart = true;
+    config.language = "en".to_string();
+    assert!(config.autostart);
+    assert_eq!(config.language, "en");
+
+    // 3. Backward-compatible deserialization (old format without autostart/language)
+    let json_str = r#"{
+        "nodes": [],
+        "active_node_id": null,
+        "rule_groups": [{"id":"g1","name":"G1","rules":[],"default_strategy":"proxy"}],
+        "active_group_id": "g1",
+        "host_overrides": []
+    }"#;
+    let deserialized: AppConfig = serde_json::from_str(json_str).unwrap();
+    assert!(!deserialized.autostart);
+    assert_eq!(deserialized.language, "zh");
+
+    // 4. Serialize then deserialize preserves values
+    let json_roundtrip = serde_json::to_string(&config).unwrap();
+    let roundtripped: AppConfig = serde_json::from_str(&json_roundtrip).unwrap();
+    assert!(roundtripped.autostart);
+    assert_eq!(roundtripped.language, "en");
+}
+
+#[test]
+fn generated_mc05_port_probe_chain_finds_available_port_with_fallback() {
+    // 1. Find an available port at a high range (assume 19000 is free)
+    let port = find_available_port(19000).unwrap();
+    assert_eq!(port, 19000);
+
+    // 2. Occupy the start port, verify fallback to next
+    let _listener = TcpListener::bind("127.0.0.1:19100").unwrap();
+    let port = find_available_port(19100).unwrap();
+    assert_eq!(port, 19101);
+
+    // 3. Occupy multiple consecutive ports, verify sequential fallback
+    let _l1 = TcpListener::bind("127.0.0.1:19200").unwrap();
+    let _l2 = TcpListener::bind("127.0.0.1:19201").unwrap();
+    let _l3 = TcpListener::bind("127.0.0.1:19202").unwrap();
+    let port = find_available_port(19200).unwrap();
+    assert_eq!(port, 19203);
+}
+
+#[test]
+fn generated_mc06_clash_api_config_chain_includes_external_controller() {
+    let node = sample_node("node-1", "Node 1");
+    let group = sample_group("group-1", "Default", "proxy");
+
+    // 1. Generate config with clash_api_port = 9090
+    let config = generate_config(&node, &group, "/tmp/cache.db", 9090);
+
+    // 2. Verify experimental.clash_api.external_controller
+    assert_eq!(
+        config["experimental"]["clash_api"]["external_controller"],
+        "127.0.0.1:9090"
+    );
+
+    // 3. Use a different port (9191)
+    let config2 = generate_config(&node, &group, "/tmp/cache.db", 9191);
+    assert_eq!(
+        config2["experimental"]["clash_api"]["external_controller"],
+        "127.0.0.1:9191"
+    );
+
+    // 4. Verify other config sections are unaffected
+    assert_eq!(config["experimental"]["cache_file"]["enabled"], true);
+    assert_eq!(config["inbounds"][0]["listen_port"], 2080);
+    assert_eq!(config["outbounds"][0]["type"], "vless");
 }
