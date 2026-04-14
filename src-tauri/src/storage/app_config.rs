@@ -33,6 +33,10 @@ pub struct AppConfig {
     pub active_group_id: String,
     #[serde(default)]
     pub host_overrides: Vec<HostOverride>,
+    #[serde(default)]
+    pub autostart: bool,
+    #[serde(default = "default_language")]
+    pub language: String,
 }
 
 /// Old format for migration from pre-RuleGroup configs
@@ -86,6 +90,8 @@ impl AppConfig {
                         rule_groups: vec![group],
                         active_group_id: active_id,
                         host_overrides: vec![],
+                        autostart: false,
+                        language: default_language(),
                     };
                     let mut config = config;
                     let _ = config.normalize_legacy_split_proxy_default();
@@ -251,6 +257,8 @@ impl AppConfig {
             rule_groups: vec![default_group, full_proxy, direct_only],
             active_group_id: active_id,
             host_overrides: vec![],
+            autostart: false,
+            language: default_language(),
         }
     }
 
@@ -492,6 +500,10 @@ impl AppConfig {
     pub fn reset_host_overrides(&mut self) {
         self.host_overrides.clear();
     }
+}
+
+fn default_language() -> String {
+    "zh".to_string()
 }
 
 fn default_resolver_mode() -> String {

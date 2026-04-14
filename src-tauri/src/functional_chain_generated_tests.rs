@@ -50,6 +50,8 @@ fn generated_mc01_full_stability_chain_covers_runtime_lifecycle() {
         rule_groups: vec![default_group],
         active_group_id: "group-default".to_string(),
         host_overrides: vec![],
+        autostart: false,
+        language: "zh".to_string(),
     };
 
     // SC-01: 空态启动
@@ -192,6 +194,8 @@ fn generated_mc02_recovery_chain_recovers_after_invalid_inputs_and_missing_prere
         rule_groups: vec![sample_group("group-default", "Default", "proxy")],
         active_group_id: "group-default".to_string(),
         host_overrides: vec![],
+        autostart: false,
+        language: "zh".to_string(),
     };
 
     // U-030: 缺失 active node
@@ -212,6 +216,8 @@ fn generated_mc02_recovery_chain_recovers_after_invalid_inputs_and_missing_prere
         rule_groups: vec![],
         active_group_id: String::new(),
         host_overrides: vec![],
+        autostart: false,
+        language: "zh".to_string(),
     };
     let no_group_error = resolve_runtime_selection(&no_group_config).unwrap_err();
     assert_eq!(no_group_error, "Active group not found");
@@ -278,6 +284,8 @@ fn generated_mc03_incremental_configuration_chain_handles_active_resource_reassi
         ],
         active_group_id: "group-default".to_string(),
         host_overrides: vec![],
+        autostart: false,
+        language: "zh".to_string(),
     };
 
     // SC-02 + 增量节点扩展

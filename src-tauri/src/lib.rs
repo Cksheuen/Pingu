@@ -44,6 +44,10 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(AppState {
             config: Mutex::new(app_config),
         })
@@ -52,6 +56,7 @@ pub fn run() {
             connected_at: Mutex::new(None),
             running_node_id: Mutex::new(None),
             running_group_id: Mutex::new(None),
+            clash_api_port: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             commands::config::import_node,
@@ -82,6 +87,12 @@ pub fn run() {
             commands::rules::add_rule,
             commands::rules::delete_rule,
             commands::rules::set_default_strategy,
+            commands::settings::get_autostart,
+            commands::settings::set_autostart,
+            commands::settings::get_language,
+            commands::settings::set_language,
+            commands::traffic::get_traffic,
+            commands::traffic::get_clash_api_port,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

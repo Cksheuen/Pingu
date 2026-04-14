@@ -1,3 +1,4 @@
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -41,6 +42,20 @@ pub struct PreparedRuntime {
     pub cache_path: PathBuf,
     pub node: Node,
     pub rule_group: RuleGroup,
+    pub clash_api_port: u16,
+}
+
+pub fn find_available_port(start: u16) -> Result<u16, String> {
+    for port in start..=start.saturating_add(100) {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Ok(port);
+        }
+    }
+    Err(format!(
+        "No available port found in range {}-{}",
+        start,
+        start.saturating_add(100)
+    ))
 }
 
 pub fn app_config_dir() -> Result<PathBuf, String> {
@@ -69,6 +84,7 @@ pub fn resolve_runtime_selection(config: &AppConfig) -> Result<RuntimeSelection,
 
 pub fn prepare_runtime(config: &AppConfig) -> Result<PreparedRuntime, String> {
     let selection = resolve_runtime_selection(config)?;
+    let clash_api_port = find_available_port(9090)?;
 
     let config_dir = app_config_dir()?;
     let cache_path = config_dir.join("cache.db");
@@ -79,6 +95,7 @@ pub fn prepare_runtime(config: &AppConfig) -> Result<PreparedRuntime, String> {
         &selection.rule_group,
         cache_path.to_str().ok_or("Invalid cache path")?,
         &host_overrides,
+        clash_api_port,
     );
     let config_str = serde_json::to_string_pretty(&sb_config).map_err(|e| e.to_string())?;
     std::fs::write(&config_path, config_str).map_err(|e| e.to_string())?;
@@ -89,6 +106,7 @@ pub fn prepare_runtime(config: &AppConfig) -> Result<PreparedRuntime, String> {
         cache_path,
         node: selection.node,
         rule_group: selection.rule_group,
+        clash_api_port,
     })
 }
 
@@ -312,6 +330,8 @@ mod tests {
             rule_groups: vec![sample_group("group-1", "Default")],
             active_group_id: "group-1".to_string(),
             host_overrides: vec![],
+            autostart: false,
+            language: "zh".to_string(),
         }
     }
 

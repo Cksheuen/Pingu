@@ -17,6 +17,7 @@ pub struct ProxyState {
     pub connected_at: Mutex<Option<Instant>>,
     pub running_node_id: Mutex<Option<String>>,
     pub running_group_id: Mutex<Option<String>>,
+    pub clash_api_port: Mutex<Option<u16>>,
 }
 
 struct RuntimeLaunch {
@@ -27,6 +28,7 @@ struct RuntimeLaunch {
     node_port: u16,
     group_id: String,
     group_name: String,
+    clash_api_port: u16,
 }
 
 #[tauri::command]
@@ -52,6 +54,7 @@ pub fn connect(app_state: State<AppState>, proxy_state: State<ProxyState>) -> Re
         proxy_state.inner(),
         runtime.node_id.clone(),
         runtime.group_id.clone(),
+        runtime.clash_api_port,
     ) {
         return Err(cleanup_runtime_failure(
             proxy_state.inner(),
@@ -195,6 +198,7 @@ pub fn reload_proxy_if_running(
         proxy_state,
         runtime.node_id.clone(),
         runtime.group_id.clone(),
+        runtime.clash_api_port,
     )
     .map_err(|error| {
         cleanup_runtime_failure(
@@ -253,6 +257,7 @@ fn prepare_runtime_launch(app_state: &AppState) -> Result<RuntimeLaunch, String>
         node_port: prepared.node.port,
         group_id: prepared.rule_group.id.clone(),
         group_name: prepared.rule_group.name.clone(),
+        clash_api_port: prepared.clash_api_port,
     };
 
     drop(config);
@@ -265,6 +270,7 @@ fn set_runtime_connected(
     proxy_state: &ProxyState,
     node_id: String,
     group_id: String,
+    clash_api_port: u16,
 ) -> Result<(), String> {
     let mut connected_at = proxy_state.connected_at.lock().map_err(|e| e.to_string())?;
     let mut running_node_id = proxy_state
@@ -275,10 +281,15 @@ fn set_runtime_connected(
         .running_group_id
         .lock()
         .map_err(|e| e.to_string())?;
+    let mut api_port = proxy_state
+        .clash_api_port
+        .lock()
+        .map_err(|e| e.to_string())?;
 
     *connected_at = Some(Instant::now());
     *running_node_id = Some(node_id);
     *running_group_id = Some(group_id);
+    *api_port = Some(clash_api_port);
 
     Ok(())
 }
@@ -293,10 +304,15 @@ fn set_runtime_disconnected(proxy_state: &ProxyState) -> Result<(), String> {
         .running_group_id
         .lock()
         .map_err(|e| e.to_string())?;
+    let mut api_port = proxy_state
+        .clash_api_port
+        .lock()
+        .map_err(|e| e.to_string())?;
 
     *connected_at = None;
     *running_node_id = None;
     *running_group_id = None;
+    *api_port = None;
 
     Ok(())
 }

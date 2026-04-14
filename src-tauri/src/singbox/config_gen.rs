@@ -36,8 +36,8 @@ pub struct NameServerPolicy {
     pub server: String,
 }
 
-pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_path: &str) -> Value {
-    generate_config_with_host_overrides(active_node, rule_group, cache_file_path, &[])
+pub fn generate_config(active_node: &Node, rule_group: &RuleGroup, cache_file_path: &str, clash_api_port: u16) -> Value {
+    generate_config_with_host_overrides(active_node, rule_group, cache_file_path, &[], clash_api_port)
 }
 
 pub fn generate_config_with_exact_dns_policies(
@@ -45,6 +45,7 @@ pub fn generate_config_with_exact_dns_policies(
     rule_group: &RuleGroup,
     cache_file_path: &str,
     exact_dns_policies: &[ExactDnsPolicy],
+    clash_api_port: u16,
 ) -> Value {
     let overrides: Vec<HostOverride> = exact_dns_policies
         .iter()
@@ -59,7 +60,7 @@ pub fn generate_config_with_exact_dns_policies(
             updated_at: "0".to_string(),
         })
         .collect();
-    generate_config_with_host_overrides(active_node, rule_group, cache_file_path, &overrides)
+    generate_config_with_host_overrides(active_node, rule_group, cache_file_path, &overrides, clash_api_port)
 }
 
 pub fn generate_config_with_host_overrides(
@@ -67,6 +68,7 @@ pub fn generate_config_with_host_overrides(
     rule_group: &RuleGroup,
     cache_file_path: &str,
     host_overrides: &[HostOverride],
+    clash_api_port: u16,
 ) -> Value {
     let mut route_rules: Vec<Value> = Vec::new();
     let mut rule_sets: Vec<Value> = Vec::new();
@@ -321,6 +323,9 @@ pub fn generate_config_with_host_overrides(
             "cache_file": {
                 "enabled": true,
                 "path": cache_file_path
+            },
+            "clash_api": {
+                "external_controller": format!("127.0.0.1:{}", clash_api_port)
             }
         }
     })
@@ -450,7 +455,7 @@ mod tests {
             nameserver_policy: vec![],
         };
 
-        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db");
+        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
 
         // Basic structure
         assert_eq!(config["inbounds"][0]["listen_port"], 2080);
@@ -550,7 +555,7 @@ mod tests {
             ],
         };
 
-        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db");
+        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
         let dns_servers = config["dns"]["servers"].as_array().unwrap();
         assert_eq!(dns_servers.len(), 4);
         assert_eq!(dns_servers[0]["tag"], "system-dns");
@@ -599,6 +604,7 @@ mod tests {
                 domain: "bnpm.byted.org".into(),
                 server: "system-dns".into(),
             }],
+            9090,
         );
 
         let dns_rules = config["dns"]["rules"].as_array().unwrap();
@@ -654,6 +660,7 @@ mod tests {
                 reason: "direct exact host".into(),
                 updated_at: "1".into(),
             }],
+            9090,
         );
 
         let dns_rules = config["dns"]["rules"].as_array().unwrap();
@@ -706,7 +713,7 @@ mod tests {
             nameserver_policy: vec![],
         };
 
-        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db");
+        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
         let rule_sets = config["route"]["rule_set"].as_array().unwrap();
         let tags: Vec<&str> = rule_sets
             .iter()
@@ -742,12 +749,12 @@ mod tests {
             nameserver_policy: vec![],
         };
 
-        let tls_config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db");
+        let tls_config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
         assert_eq!(tls_config["outbounds"][0]["tls"]["enabled"], true);
         assert!(tls_config["outbounds"][0]["tls"]["reality"].is_null());
 
         node.security.clear();
-        let disabled_tls_config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db");
+        let disabled_tls_config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
         assert_eq!(disabled_tls_config["outbounds"][0]["tls"]["enabled"], false);
     }
 }
