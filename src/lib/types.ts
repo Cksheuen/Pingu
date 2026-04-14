@@ -79,6 +79,13 @@ export interface HostOverride {
   last_verified_result: string | null;
 }
 
+export interface TrafficSnapshot {
+  upload_speed: number;
+  download_speed: number;
+  upload_total: number;
+  download_total: number;
+}
+
 export interface HostOverrideDraft {
   host: string;
   resolver: HostOverrideResolver;

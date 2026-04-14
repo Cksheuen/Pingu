@@ -188,6 +188,14 @@ const translations: Record<string, Record<Lang, string>> = {
   "host_overrides.outbound_value.direct": { en: "Direct", zh: "直连" },
   "host_overrides.outbound_value.proxy": { en: "Proxy", zh: "代理" },
   "host_overrides.outbound_value.block": { en: "Block", zh: "拦截" },
+
+  // Settings
+  "nav.settings": { en: "Settings", zh: "设置" },
+  "settings.title": { en: "SETTINGS", zh: "设置" },
+  "settings.autostart": { en: "Launch at Login", zh: "开机启动" },
+  "settings.autostart_desc": { en: "Start Pingu automatically when you log in", zh: "登录系统时自动启动 Pingu" },
+  "settings.language": { en: "Language", zh: "语言" },
+  "settings.language_desc": { en: "Choose display language", zh: "选择显示语言" },
 };
 
 let currentLang: Lang = (() => {
