@@ -1,56 +1,18 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
-use url::Url;
 
+use super::byted_internal::{
+    make_byted_internal_dns_group, normalize_nameserver_policy,
+    strengthen_byted_internal_dns_group, BYTED_INTERNAL_DNS_GROUP_NAME,
+};
+use super::host_overrides::{
+    current_timestamp_string, normalize_host, normalize_host_override_source,
+    normalize_outbound_mode, normalize_reason, normalize_resolver_mode,
+};
+pub use super::host_overrides::HostOverride;
 use crate::singbox::config_gen::{Rule, RuleGroup};
 use crate::singbox::uri_parser::{parse_vless_uri, Node};
-
-const BYTED_INTERNAL_DNS_GROUP_NAME: &str = "Byted Internal DNS";
-const BYTED_INTERNAL_PRIMARY_DNS: &str = "10.199.34.255";
-const BYTED_INTERNAL_SECONDARY_DNS: &str = "10.199.35.253";
-const BYTED_INTERNAL_DOMAIN_SUFFIXES: [&str; 4] = [
-    "+.byted.org",
-    "+.bytedance.net",
-    "+.tiktok-row.org",
-    "+.tiktok-row.net",
-];
-const BYTED_INTERNAL_FAKE_IP_FILTERS: [&str; 8] = [
-    "+.byted.org",
-    "+.bytedance.net",
-    "+.tiktok-row.org",
-    "+.tiktok-row.net",
-    "+.npmjs.org",
-    "+.feishu.cn",
-    "+.lan",
-    "+.local",
-];
-const BYTED_INTERNAL_DIRECT_SUFFIXES: [&str; 4] = [
-    "byted.org",
-    "bytedance.net",
-    "tiktok-row.org",
-    "tiktok-row.net",
-];
-const BYTED_INTERNAL_DIRECT_IP_CIDRS: [&str; 1] = ["10.0.0.0/8"];
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct HostOverride {
-    pub id: String,
-    pub host: String,
-    #[serde(default = "default_resolver_mode")]
-    pub resolver_mode: String,
-    #[serde(default = "default_outbound_mode")]
-    pub outbound_mode: String,
-    #[serde(default = "default_host_override_enabled")]
-    pub enabled: bool,
-    #[serde(default = "default_host_override_source")]
-    pub source: String,
-    #[serde(default)]
-    pub reason: String,
-    #[serde(default = "current_timestamp_string")]
-    pub updated_at: String,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -561,241 +523,12 @@ fn default_language() -> String {
     "zh".to_string()
 }
 
-fn default_resolver_mode() -> String {
-    "inherit".to_string()
-}
-
-fn default_outbound_mode() -> String {
-    "inherit".to_string()
-}
-
-fn default_host_override_enabled() -> bool {
-    true
-}
-
-fn default_host_override_source() -> String {
-    "manual".to_string()
-}
-
-fn current_timestamp_string() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs().to_string())
-        .unwrap_or_else(|_| "0".to_string())
-}
-
-fn normalize_host(value: &str) -> Result<String, String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err("Host is required".to_string());
-    }
-
-    let candidate = if trimmed.contains("://") {
-        let parsed = Url::parse(trimmed).map_err(|_| "Host is invalid".to_string())?;
-        parsed
-            .host_str()
-            .ok_or("Host is invalid".to_string())?
-            .to_string()
-    } else {
-        trimmed
-            .trim_matches('/')
-            .trim_start_matches('.')
-            .to_string()
-    };
-
-    let normalized = candidate.to_ascii_lowercase();
-    if normalized.is_empty() || normalized.contains('/') || normalized.contains(char::is_whitespace)
-    {
-        return Err("Host is invalid".to_string());
-    }
-
-    Ok(normalized)
-}
-
-fn normalize_resolver_mode(value: Option<&str>) -> Result<String, String> {
-    let normalized = value.unwrap_or("inherit").trim();
-    if normalized.is_empty() {
-        return Ok(default_resolver_mode());
-    }
-
-    match normalized {
-        "inherit" | "system-dns" | "local-dns" | "remote-dns" => Ok(normalized.to_string()),
-        _ => Ok(normalized.to_string()),
-    }
-}
-
-fn normalize_outbound_mode(value: Option<&str>) -> Result<String, String> {
-    let normalized = value.unwrap_or("inherit").trim();
-    if normalized.is_empty() {
-        return Ok(default_outbound_mode());
-    }
-
-    match normalized {
-        "inherit" | "direct" | "proxy" | "block" => Ok(normalized.to_string()),
-        _ => Err("Outbound mode must be inherit, direct, proxy, or block".to_string()),
-    }
-}
-
-fn normalize_host_override_source(value: Option<&str>) -> String {
-    let normalized = value.unwrap_or("manual").trim();
-    if normalized.is_empty() {
-        return default_host_override_source();
-    }
-    normalized.to_string()
-}
-
-fn normalize_reason(value: Option<&str>) -> String {
-    value.unwrap_or_default().trim().to_string()
-}
-
-fn make_byted_internal_dns_group() -> RuleGroup {
-    let mut group = RuleGroup {
-        id: uuid::Uuid::new_v4().to_string(),
-        name: BYTED_INTERNAL_DNS_GROUP_NAME.to_string(),
-        rules: vec![
-            Rule {
-                id: uuid::Uuid::new_v4().to_string(),
-                rule_type: "geosite".to_string(),
-                match_value: "geolocation-cn".to_string(),
-                outbound: "direct".to_string(),
-            },
-            Rule {
-                id: uuid::Uuid::new_v4().to_string(),
-                rule_type: "geoip".to_string(),
-                match_value: "cn".to_string(),
-                outbound: "direct".to_string(),
-            },
-        ],
-        default_strategy: "proxy".to_string(),
-        fake_ip_filter: vec![],
-        nameserver_policy: vec![],
-    };
-    let _ = strengthen_byted_internal_dns_group(&mut group);
-    group
-}
-
-fn strengthen_byted_internal_dns_group(group: &mut RuleGroup) -> bool {
-    let mut changed = false;
-
-    if group.default_strategy != "proxy" {
-        group.default_strategy = "proxy".to_string();
-        changed = true;
-    }
-
-    changed = ensure_group_rule(group, "geosite", "geolocation-cn", "direct") || changed;
-    changed = ensure_group_rule(group, "geoip", "cn", "direct") || changed;
-
-    for suffix in BYTED_INTERNAL_DIRECT_SUFFIXES {
-        changed = ensure_group_rule(group, "domain_suffix", suffix, "direct") || changed;
-    }
-    for cidr in BYTED_INTERNAL_DIRECT_IP_CIDRS {
-        changed = ensure_group_rule(group, "ip_cidr", cidr, "direct") || changed;
-    }
-
-    for filter in BYTED_INTERNAL_FAKE_IP_FILTERS {
-        if !group.fake_ip_filter.iter().any(|item| item == filter) {
-            group.fake_ip_filter.push(filter.to_string());
-            changed = true;
-        }
-    }
-
-    for suffix in BYTED_INTERNAL_DOMAIN_SUFFIXES {
-        changed = upsert_nameserver_policy(
-            &mut group.nameserver_policy,
-            suffix,
-            &[BYTED_INTERNAL_PRIMARY_DNS, BYTED_INTERNAL_SECONDARY_DNS],
-        ) || changed;
-    }
-
-    changed
-}
-
-fn ensure_group_rule(
-    group: &mut RuleGroup,
-    rule_type: &str,
-    match_value: &str,
-    outbound: &str,
-) -> bool {
-    if group.rules.iter().any(|rule| {
-        rule.rule_type == rule_type
-            && rule.match_value == match_value
-            && rule.outbound == outbound
-    }) {
-        return false;
-    }
-
-    group.rules.push(Rule {
-        id: uuid::Uuid::new_v4().to_string(),
-        rule_type: rule_type.to_string(),
-        match_value: match_value.to_string(),
-        outbound: outbound.to_string(),
-    });
-    true
-}
-
-fn upsert_nameserver_policy(
-    policies: &mut Vec<crate::singbox::config_gen::NameServerPolicy>,
-    domain_suffix: &str,
-    servers: &[&str],
-) -> bool {
-    let mut changed = false;
-    let desired_servers: Vec<String> = servers
-        .iter()
-        .map(|server| server.trim())
-        .filter(|server| !server.is_empty())
-        .map(|server| server.to_string())
-        .collect();
-    if desired_servers.is_empty() {
-        return false;
-    }
-
-    if let Some(policy) = policies
-        .iter_mut()
-        .find(|policy| policy.domain_suffix == domain_suffix)
-    {
-        if policy.domain_suffix != domain_suffix {
-            policy.domain_suffix = domain_suffix.to_string();
-            changed = true;
-        }
-        if policy.server != desired_servers[0] {
-            policy.server = desired_servers[0].clone();
-            changed = true;
-        }
-        if policy.servers != desired_servers {
-            policy.servers = desired_servers;
-            changed = true;
-        }
-        return changed;
-    }
-
-    policies.push(crate::singbox::config_gen::NameServerPolicy {
-        domain_suffix: domain_suffix.to_string(),
-        server: desired_servers[0].clone(),
-        servers: desired_servers,
-    });
-    true
-}
-
-fn normalize_nameserver_policy(policy: &mut crate::singbox::config_gen::NameServerPolicy) -> bool {
-    let normalized_servers = policy.normalized_servers();
-    let primary_server = normalized_servers.first().cloned().unwrap_or_default();
-    let mut changed = false;
-
-    if policy.server != primary_server {
-        policy.server = primary_server;
-        changed = true;
-    }
-    if policy.servers != normalized_servers {
-        policy.servers = normalized_servers;
-        changed = true;
-    }
-
-    changed
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::byted_internal::{
+        BYTED_INTERNAL_PRIMARY_DNS, BYTED_INTERNAL_SECONDARY_DNS,
+    };
 
     fn sample_node(id: &str, name: &str) -> Node {
         Node {
