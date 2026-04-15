@@ -1,6 +1,6 @@
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconId};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::config::AppState;
 use crate::commands::proxy::ProxyState;
@@ -74,18 +74,6 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             handle_tray_menu_event(app, event.id().as_ref());
         })
         .build(app)?;
-
-    // Start background refresh thread
-    let app_handle = app.handle().clone();
-    std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            let proxy_state = app_handle.state::<ProxyState>();
-            if proxy_state.process.is_running() {
-                let _ = rebuild_tray_menu(&app_handle);
-            }
-        }
-    });
 
     Ok(())
 }
@@ -303,14 +291,20 @@ fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
 fn handle_connect(app: &AppHandle) {
     let app_state = app.state::<AppState>();
     let proxy_state = app.state::<ProxyState>();
-    let _ = crate::commands::proxy::connect_core(app_state.inner(), proxy_state.inner());
-    let _ = rebuild_tray_menu(app);
+    if crate::commands::proxy::connect_core(app_state.inner(), proxy_state.inner()).is_ok()
+        && rebuild_tray_menu(app).is_ok()
+    {
+        app.emit("tray-state-changed", "connect").ok();
+    }
 }
 
 fn handle_disconnect(app: &AppHandle) {
     let proxy_state = app.state::<ProxyState>();
-    let _ = crate::commands::proxy::disconnect_core(proxy_state.inner());
-    let _ = rebuild_tray_menu(app);
+    if crate::commands::proxy::disconnect_core(proxy_state.inner()).is_ok()
+        && rebuild_tray_menu(app).is_ok()
+    {
+        app.emit("tray-state-changed", "disconnect").ok();
+    }
 }
 
 fn handle_switch_node(app: &AppHandle, node_id: &str) {
@@ -329,8 +323,11 @@ fn handle_switch_node(app: &AppHandle, node_id: &str) {
     }
 
     // Reload proxy if running
-    let _ = crate::commands::proxy::reload_proxy_if_running(app_state.inner(), proxy_state.inner());
-    let _ = rebuild_tray_menu(app);
+    if crate::commands::proxy::reload_proxy_if_running(app_state.inner(), proxy_state.inner()).is_ok()
+        && rebuild_tray_menu(app).is_ok()
+    {
+        app.emit("tray-state-changed", "switch-node").ok();
+    }
 }
 
 fn handle_switch_group(app: &AppHandle, group_id: &str) {
@@ -349,6 +346,9 @@ fn handle_switch_group(app: &AppHandle, group_id: &str) {
     }
 
     // Reload proxy if running
-    let _ = crate::commands::proxy::reload_proxy_if_running(app_state.inner(), proxy_state.inner());
-    let _ = rebuild_tray_menu(app);
+    if crate::commands::proxy::reload_proxy_if_running(app_state.inner(), proxy_state.inner()).is_ok()
+        && rebuild_tray_menu(app).is_ok()
+    {
+        app.emit("tray-state-changed", "switch-group").ok();
+    }
 }

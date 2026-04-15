@@ -107,13 +107,24 @@ pub fn disconnect_core(proxy_state: &ProxyState) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn connect(app_state: State<AppState>, proxy_state: State<ProxyState>) -> Result<(), String> {
-    connect_core(app_state.inner(), proxy_state.inner())
+pub fn connect(
+    app_handle: tauri::AppHandle,
+    app_state: State<AppState>,
+    proxy_state: State<ProxyState>,
+) -> Result<(), String> {
+    connect_core(app_state.inner(), proxy_state.inner())?;
+    crate::tray::rebuild_tray_menu(&app_handle)?;
+    Ok(())
 }
 
 #[tauri::command]
-pub fn disconnect(proxy_state: State<ProxyState>) -> Result<(), String> {
-    disconnect_core(proxy_state.inner())
+pub fn disconnect(
+    app_handle: tauri::AppHandle,
+    proxy_state: State<ProxyState>,
+) -> Result<(), String> {
+    disconnect_core(proxy_state.inner())?;
+    crate::tray::rebuild_tray_menu(&app_handle)?;
+    Ok(())
 }
 
 #[tauri::command]

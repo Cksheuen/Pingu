@@ -20,6 +20,7 @@ pub fn get_active_group_id(state: State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 pub fn set_active_group(
+    app_handle: tauri::AppHandle,
     id: String,
     state: State<AppState>,
     proxy_state: State<ProxyState>,
@@ -30,7 +31,9 @@ pub fn set_active_group(
         config.save()?;
     }
 
-    reload_proxy_if_running(state.inner(), proxy_state.inner())
+    reload_proxy_if_running(state.inner(), proxy_state.inner())?;
+    crate::tray::rebuild_tray_menu(&app_handle)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -97,6 +100,7 @@ pub fn delete_rule(
 
 #[tauri::command]
 pub fn set_default_strategy(
+    app_handle: tauri::AppHandle,
     strategy: String,
     state: State<AppState>,
     proxy_state: State<ProxyState>,
@@ -107,5 +111,7 @@ pub fn set_default_strategy(
         config.save()?;
     }
 
-    reload_proxy_if_running(state.inner(), proxy_state.inner())
+    reload_proxy_if_running(state.inner(), proxy_state.inner())?;
+    crate::tray::rebuild_tray_menu(&app_handle)?;
+    Ok(())
 }

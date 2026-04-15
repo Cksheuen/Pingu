@@ -37,12 +37,17 @@ pub fn get_language(app_state: State<AppState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn set_language(app_state: State<AppState>, language: String) -> Result<(), String> {
+pub fn set_language(
+    app_handle: tauri::AppHandle,
+    app_state: State<AppState>,
+    language: String,
+) -> Result<(), String> {
     if language != "en" && language != "zh" {
         return Err(format!("Unsupported language: {}", language));
     }
     let mut config = app_state.config.lock().map_err(|e| e.to_string())?;
     config.language = language;
     config.save()?;
+    crate::tray::rebuild_tray_menu(&app_handle)?;
     Ok(())
 }

@@ -33,6 +33,7 @@ pub fn list_nodes(state: State<AppState>) -> Result<Vec<Node>, String> {
 
 #[tauri::command]
 pub fn set_active_node(
+    app_handle: tauri::AppHandle,
     id: String,
     state: State<AppState>,
     proxy_state: State<ProxyState>,
@@ -43,5 +44,7 @@ pub fn set_active_node(
         config.save()?;
     }
 
-    reload_proxy_if_running(state.inner(), proxy_state.inner())
+    reload_proxy_if_running(state.inner(), proxy_state.inner())?;
+    crate::tray::rebuild_tray_menu(&app_handle)?;
+    Ok(())
 }

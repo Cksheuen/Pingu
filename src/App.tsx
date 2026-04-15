@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Home from "./pages/Home";
@@ -14,6 +15,16 @@ export default function App() {
 
   useEffect(() => {
     refreshAll().catch(() => undefined);
+  }, [refreshAll]);
+
+  useEffect(() => {
+    const unlisten = listen("tray-state-changed", () => {
+      refreshAll().catch(() => undefined);
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, [refreshAll]);
 
   return (
