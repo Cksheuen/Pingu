@@ -267,6 +267,10 @@ fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
             handle_disconnect(app);
         }
         "tray-show" => {
+            #[cfg(target_os = "macos")]
+            {
+                let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
