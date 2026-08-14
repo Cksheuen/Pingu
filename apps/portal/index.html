@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="cksheuen 私人服务入口" />
+    <meta name="theme-color" content="#0f1420" />
+    <title>cksheuen / private gateway</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="site-header">
+        <a class="wordmark" href="/" aria-label="cksheuen 首页">
+          <span class="wordmark-mark" aria-hidden="true">C</span>
+          <span>
+            <strong>cksheuen</strong>
+            <small>private gateway</small>
+          </span>
+        </a>
+        <span class="availability"><i></i> gateway online</span>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow">PERSONAL INFRASTRUCTURE / 01</p>
+            <h1 id="hero-title">入口应该被看见，<br />不该被记住。</h1>
+            <p class="hero-description">
+              从这里进入你的私人网络服务。Pingu 会自动处理动态 IP 租约，
+              你只需要选择要去的地方。
+            </p>
+            <a class="primary-link" href="/__pingu_gate__/">
+              <span>授权当前网络</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <div class="gateway-object" aria-hidden="true">
+            <div class="gateway-plate">
+              <span>CKS / 01</span>
+              <div class="gateway-dial"><i></i></div>
+              <strong>PRIVATE<br />ACCESS</strong>
+              <small>ONE ENTRY · SHORT LEASE</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="services" aria-labelledby="services-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">SERVICE DIRECTORY / 02</p>
+              <h2 id="services-title">可用入口</h2>
+            </div>
+            <p>当前只开放真实可用的服务；预留位不会跳向不存在的页面。</p>
+          </div>
+
+          <div class="service-grid">
+            <a class="service-card service-card-live" href="/__pingu_gate__/">
+              <div class="service-card-top">
+                <span class="service-index">01</span>
+                <span class="service-status"><i></i> AVAILABLE</span>
+              </div>
+              <div>
+                <h3>Pingu Gate</h3>
+                <p>识别当前公网 IP，并签发短期 Reality 访问租约。</p>
+              </div>
+              <span class="service-action">进入授权页 <b aria-hidden="true">↗</b></span>
+            </a>
+
+            <article class="service-card service-card-reserved" aria-label="预留服务入口一">
+              <div class="service-card-top">
+                <span class="service-index">02</span>
+                <span class="service-status">RESERVED</span>
+              </div>
+              <div>
+                <h3>Next service</h3>
+                <p>为后续私人服务保留，不提供无效跳转。</p>
+              </div>
+              <span class="service-action">尚未启用</span>
+            </article>
+
+            <article class="service-card service-card-reserved" aria-label="预留服务入口二">
+              <div class="service-card-top">
+                <span class="service-index">03</span>
+                <span class="service-status">RESERVED</span>
+              </div>
+              <div>
+                <h3>Future route</h3>
+                <p>保持独立空间，待下一项服务明确后再接入。</p>
+              </div>
+              <span class="service-action">尚未启用</span>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span id="current-host">cksheuen.site</span>
+        <span>PRIVATE SERVICES · <span id="current-year"></span></span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
