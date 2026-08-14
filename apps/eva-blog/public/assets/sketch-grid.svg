@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 820" role="img" aria-labelledby="title desc">
+  <title id="title">Grid memory</title>
+  <desc id="desc">A warm editorial grid with hand-drawn marks and a small blue signal.</desc>
+  <rect width="700" height="820" fill="#f0e8d7"/>
+  <g stroke="#c9bfae" stroke-width="2" opacity=".8">
+    <path d="M56 0V820M128 0V820M200 0V820M272 0V820M344 0V820M416 0V820M488 0V820M560 0V820M632 0V820"/>
+    <path d="M0 76H700M0 148H700M0 220H700M0 292H700M0 364H700M0 436H700M0 508H700M0 580H700M0 652H700M0 724H700"/>
+  </g>
+  <path d="M126 604C180 390 318 238 510 158" fill="none" stroke="#d46b61" stroke-width="14"/>
+  <path d="M126 604C274 614 410 572 572 436" fill="none" stroke="#314f9b" stroke-width="7"/>
+  <circle cx="506" cy="160" r="34" fill="#69c9d8" stroke="#26374d" stroke-width="5"/>
+  <path d="M96 112h154M96 136h96M450 692h146" stroke="#26374d" stroke-width="5"/>
+  <text x="96" y="756" fill="#26374d" font-family="monospace" font-size="18" letter-spacing="4">GRID MEMORY / 02</text>
+</svg>

@@ -1,0 +1,33 @@
+name = "eva-blog-public-api"
+main = "server/worker.js"
+compatibility_date = "2026-06-04"
+workers_dev = true
+migrations_dir = "migrations"
+
+[vars]
+BLOG_STORAGE_NAMESPACE = "eva-blog-system-mvp"
+ALLOWED_ORIGINS = ""
+ALLOWED_REDIRECT_ORIGINS = ""
+PUBLIC_SITE_ORIGIN = "https://replace-with-public-domain.example"
+
+[[d1_databases]]
+binding = "BLOG_DB"
+database_name = "eva-blog-system"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[kv_namespaces]]
+binding = "OAUTH_STATE_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[r2_buckets]]
+binding = "ARTWORK_BUCKET"
+bucket_name = "eva-blog-artworks"
+
+# Production secrets should be configured with:
+# wrangler secret put GITHUB_CLIENT_ID
+# wrangler secret put GITHUB_CLIENT_SECRET
+# wrangler secret put SESSION_SECRET
+# Bind a KV namespace as OAUTH_STATE_KV for durable OAuth state.
+#
+# Replace binding placeholders with resources created in the target account.
+# The public Worker reads only sanitized rows and derived R2 display assets.

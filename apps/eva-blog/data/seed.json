@@ -1,0 +1,108 @@
+{
+  "articles": [
+    {
+      "id": "article_seed_hello",
+      "title": "Building a small publishing loop",
+      "slug": "building-a-small-publishing-loop",
+      "content": "# Building a small publishing loop\n\nA useful personal blog starts with a short path from draft to public page. This MVP keeps the publishing surface local and exposes a static-friendly public reader.\n\n## Contract\n\nThe production handoff keeps the same contract: articles, comments, public statuses, and summaries can move behind a Cloudflare Worker or Pages Function without changing the reading experience.\n\n## Why it stays small\n\nThe public surface reads only published, sanitized records. The private author channel owns the decisions that make a note ready.",
+      "tags": ["mvp", "publishing", "local-first"],
+      "series": { "title": "Small publishing systems", "slug": "small-publishing-systems", "order": 1 },
+      "relatedSlugs": [],
+      "seoDescription": "A small publishing loop from private draft to public reader.",
+      "status": "published",
+      "publishedAt": "2026-06-04T09:00:00.000Z",
+      "createdAt": "2026-06-04T08:00:00.000Z",
+      "updatedAt": "2026-06-04T09:00:00.000Z",
+      "excerpt": "A useful personal blog starts with a short path from draft to public page. This MVP keeps the publishing surface local, stores drafts in browser storage, and exposes a static friendly public reader.",
+      "readingMinutes": 1,
+      "summary": {
+        "provider": "deterministic-fallback",
+        "text": "A useful personal blog starts with a short path from draft to public page. Estimated reading time: 1 min. Tags: mvp, publishing, local-first.",
+        "generatedAt": "2026-06-04T09:00:00.000Z"
+      }
+    },
+    {
+      "id": "article_seed_draft",
+      "title": "Draft: local status as context",
+      "slug": "draft-local-status-as-context",
+      "content": "# Draft: local status as context\n\nStatus sync gives readers a small, current signal about what the author is working on or listening to. The MVP stores this locally and documents the API boundary for deployment.",
+      "tags": ["status", "draft"],
+      "series": { "title": "Small publishing systems", "slug": "small-publishing-systems", "order": 2 },
+      "status": "draft",
+      "publishedAt": null,
+      "createdAt": "2026-06-04T10:30:00.000Z",
+      "updatedAt": "2026-06-04T10:30:00.000Z",
+      "excerpt": "Status sync gives readers a small, current signal about what the author is working on or listening to. The MVP stores this locally and documents the API boundary for deployment.",
+      "readingMinutes": 1,
+      "summary": null
+    }
+  ],
+  "artworks": [
+    {
+      "id": "artwork_seed_orbit",
+      "title": "Orbit / 01",
+      "slug": "orbit-01",
+      "status": "published",
+      "publishedAt": "2026-08-10T11:00:00.000Z",
+      "createdAt": "2026-08-10T10:00:00.000Z",
+      "updatedAt": "2026-08-10T11:00:00.000Z",
+      "caption": "A line finding its way through a colder field.",
+      "artistNote": "The first plate in a study of attention, repetition, and the small geometry around a working day.",
+      "altText": "Cobalt orbit crossing a pale paper field with cyan and red markers.",
+      "medium": "ink and digital wash",
+      "dimensions": { "width": 900, "height": 640 },
+      "tags": ["study", "orbit", "cobalt"],
+      "license": "All rights reserved",
+      "assets": [{ "id": "orbit-display", "publicSrc": "/public/assets/sketch-orbit.svg", "publicThumbSrc": "/public/assets/sketch-orbit.svg", "altText": "Cobalt orbit crossing a pale paper field with cyan and red markers.", "width": 900, "height": 640, "kind": "image" }]
+    },
+    {
+      "id": "artwork_seed_grid",
+      "title": "Grid memory / 02",
+      "slug": "grid-memory-02",
+      "status": "published",
+      "publishedAt": "2026-08-06T14:00:00.000Z",
+      "createdAt": "2026-08-06T13:00:00.000Z",
+      "updatedAt": "2026-08-06T14:00:00.000Z",
+      "caption": "A warm page for things that do not resolve at once.",
+      "artistNote": "A visual note about leaving enough room for the unfinished parts of a system.",
+      "altText": "Warm paper grid with red and blue hand-drawn lines and a cyan circle.",
+      "medium": "graphite, marker, digital paper",
+      "dimensions": { "width": 700, "height": 820 },
+      "tags": ["study", "grid", "memory"],
+      "license": "All rights reserved",
+      "assets": [{ "id": "grid-display", "publicSrc": "/public/assets/sketch-grid.svg", "publicThumbSrc": "/public/assets/sketch-grid.svg", "altText": "Warm paper grid with red and blue hand-drawn lines and a cyan circle.", "width": 700, "height": 820, "kind": "image" }]
+    }
+  ],
+  "revisions": [],
+  "comments": [
+    {
+      "id": "comment_seed_1",
+      "articleId": "article_seed_hello",
+      "body": "The local-first publishing loop is enough to verify the full product chain.",
+      "author": {
+        "id": "github-seed-reader",
+        "login": "eva-reader",
+        "name": "eva-reader",
+        "avatarUrl": "https://github.com/eva-reader.png?size=80"
+      },
+      "createdAt": "2026-06-04T10:00:00.000Z"
+    }
+  ],
+  "statuses": [
+    {
+      "id": "status_seed_work",
+      "kind": "work",
+      "title": "Assembling the MVP blog system",
+      "details": "Publishing flow, comments, status sync, and deterministic summaries",
+      "source": "manual",
+      "isPublic": true,
+      "actor": {
+        "id": "github-seed-author",
+        "login": "eva-dev",
+        "name": "eva-dev"
+      },
+      "createdAt": "2026-06-04T10:45:00.000Z",
+      "updatedAt": "2026-06-04T10:45:00.000Z"
+    }
+  ]
+}
