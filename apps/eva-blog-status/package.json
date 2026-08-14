@@ -1,0 +1,21 @@
+{
+  "name": "eva-blog-status-publisher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "eva-blog-status": "scripts/daemon.mjs" },
+  "description": "Local-only Eva Blog status publisher for the author's device.",
+  "scripts": {
+    "assets": "node scripts/generate-assets.mjs",
+    "dev": "pnpm assets && node scripts/dev-server.mjs",
+    "build": "node scripts/build.mjs",
+    "daemon": "node scripts/daemon.mjs",
+    "daemon:once": "node scripts/daemon.mjs once",
+    "daemon:status": "node scripts/daemon.mjs status",
+    "smoke:dev": "node scripts/smoke-dev-server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "pnpm test && pnpm build && pnpm smoke:dev"
+  },
+  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@10.12.1"
+}
