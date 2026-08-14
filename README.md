@@ -1,99 +1,113 @@
-# Pingu
+# Pingu workspace
 
-## 调试与验证命令
+This repository contains independently built applications:
 
-新增了一组面向后端代理调试的命令，建议在项目根目录执行。
+- `apps/desktop` — the Pingu Tauri desktop client.
+- `apps/portal` — the public `cksheuen.site` landing page.
+- `apps/eva-blog` — the public Eva Blog reader only.
+- `apps/eva-blog-admin` — the private Eva Blog article editor/API.
+- `apps/eva-blog-status` — the local-only author status publisher.
 
-### 1. 查看当前后端状态
+The Eva Blog public reader and author console are separate deployables. The
+public app does not include Admin/Status author UI or author write routes. Keep
+the author API/editor private or behind an access layer. Run the status
+publisher only on the author's device, and connect the public/private apps to
+the same production persistence boundary. The status publisher supports work,
+activity, now-playing music, and token-usage signals; token usage is private by
+default. Music is read from the local player through macOS AppleScript, while
+Token usage can come from a local producer snapshot or the current Codex
+session's local `token_count` counters. Automatic reporting is handled only by
+the configured local CLI, which sends private safe summaries without transcript
+content or credentials; the browser author page never needs to remain open.
 
-```bash
-pnpm run debug:proxy:status
-```
+Eva Blog public modules now include:
 
-用于检查：
+- Reader home: latest note, featured folio plate, and public signal ribbon.
+- Archive: search, year index, tags, series, related-note paths, and long-form
+  reader entry points.
+- Long-form reader: TOC, progress cue, Markdown code/image rendering, copy
+  link, digest, related notes, and comments.
+- Now: public timeline for sanitized work/music signals; token usage remains
+  private by default.
+- Sketchbook: artwork folio grid and detail pages with captions, artist notes,
+  alt text, dimensions, license, and related articles.
+- Distribution: RSS 2.0 feed, sitemap, robots, canonical, and Open Graph.
 
-- 当前是否有可用节点
-- 当前 active node / active rule group
-- 当前默认分流策略是否正确
+The private author app additionally owns scheduling, preview, revisions,
+publishing checks, unpublish, artwork derivative upload, and gallery lifecycle.
+Durable deployment uses D1 for the blog state, KV for OAuth state, and R2 for
+private originals plus public display/thumb derivatives. Local development
+continues to use the shared file-backed state.
 
-### 2. 生成并检查 sing-box 配置
-
-```bash
-pnpm run check:config
-```
-
-这个命令会：
-
-- 读取当前本机保存的节点与规则配置
-- 生成 `sing-box-config.json`
-- 调用 `sing-box check` 校验配置是否合法
-
-### 3. 直接启动后端代理调试进程
-
-```bash
-pnpm run debug:proxy:start
-```
-
-启动后会直接在终端输出 sing-box 运行日志，监听：
-
-- `http://127.0.0.1:2080`
-
-适合用来排查：
-
-- 节点是否真的连上
-- 国内请求是否走 `direct`
-- 国外请求是否走 `vless[proxy]`
-
-### 4. 连通性与分流脚本
+## Development
 
 ```bash
-pnpm run test:routing
+pnpm install
+pnpm dev:desktop
+pnpm dev:portal
+pnpm dev:eva-blog
+pnpm dev:eva-blog-admin
+pnpm dev:eva-blog-status
 ```
 
-这个脚本会检查：
-
-- 本地代理端口是否监听
-- 国内站点是否可达
-- 国外站点是否可达
-- 当前生成配置的 `route.final`
-
-说明：
-
-- 这个脚本会给出 PASS / FAIL / WARN
-- IP 探针结果只作为辅助判断
-- 最终应结合 sing-box 运行日志确认真实出站
-
-### 5. 一键端到端验证
+The local status app can stay headless after author setup:
 
 ```bash
-pnpm run verify:routing
+printf '%s' '<daemon-token>' | pnpm --dir apps/eva-blog-status daemon configure --token-stdin
+pnpm --dir apps/eva-blog-status daemon run
 ```
 
-这个脚本会自动：
+It uses one serialized 60-second timer, does not serve a network port, and
+sends only private safe status summaries to the author API.
 
-- 启动 debug-proxy
-- 发起国内/国外请求
-- 按日志验证国内是否走 `direct`
-- 按日志验证国外是否走 `vless[proxy]`
+Development ports:
 
-## 当前推荐验证流程
+- Desktop: `1420`
+- Portal: `1422`
+- Public Eva Blog: `4173`
+- Private author editor/API: `4174`
+- Local status publisher: `4175`
 
-每次改后端代理逻辑后，建议按下面顺序执行：
+## Build
 
 ```bash
-pnpm run debug:proxy:status
-pnpm run check:config
-pnpm run debug:proxy:start
+pnpm build
+pnpm check:vps
+pnpm test:vps
 ```
 
-另开一个终端执行：
+Independent Eva Blog checks:
 
 ```bash
-pnpm run test:routing
+pnpm verify:eva-blog
+pnpm verify:eva-blog-admin
+pnpm verify:eva-blog-status
 ```
 
-如果要做端到端闭环验证：
+## Desktop proxy diagnostics
 
 ```bash
-pnpm run verify:routing
+pnpm debug:proxy:status
+pnpm check:config
+pnpm debug:proxy:start
+pnpm test:routing
 ```
+
+`pnpm verify:routing` runs the desktop routing smoke chain end to end.
+
+## VPS Gate
+
+The desktop client renews a short-lived IP lease before connecting and every
+five minutes while connected. The server implementation and deployment notes
+are in `ops/vps`.
+
+The live VPS inventory captured during import is recorded in
+`ops/vps/remote-manifest.json`. To verify that the remote host has not drifted
+from that snapshot:
+
+```bash
+PINGU_VPS_IDENTITY=/path/to/private-key pnpm audit:vps
+```
+
+The audit is read-only. Runtime secrets, Xray credentials, subscriptions,
+firewall state, reports, and logs are intentionally excluded from this repo.
