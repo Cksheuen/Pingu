@@ -1,0 +1,10 @@
+[Unit]
+Description=Generate daily Pingu traffic report
+
+[Timer]
+OnCalendar=*-*-* 00:10:00 UTC
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=Generate Pingu traffic report
+After=network-online.target vnstat.service pingu-traffic-guard.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pingu-traffic-report --days 7 --output-dir /var/log/pingu-traffic-reports

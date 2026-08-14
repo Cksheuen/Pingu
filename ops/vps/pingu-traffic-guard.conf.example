@@ -1,0 +1,7 @@
+EMAIL_TO=operator@example.com
+WATCH_SERVICE=xray
+WATCH_PORTS=443,8443
+MONTHLY_PER_IP_LIMIT_BYTES=21474836480
+DAILY_TOTAL_LIMIT_BYTES=32212254720
+STATE_DIR=/var/lib/pingu-traffic-guard
+ALERT_LOG=/var/log/pingu-traffic-guard-alerts.log

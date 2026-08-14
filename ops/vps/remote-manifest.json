@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-11T13:54:32Z",
+  "host": "root@154.26.187.44",
+  "portal_release": {
+    "remote_path": "/var/www/cksheuen-portal/releases/20260811-032313",
+    "local_path": "apps/portal/dist",
+    "validation": "recursive_sha256_aligned",
+    "files": {
+      "assets/atkinson-hyperlegible-next-regular-BaUiGrIm.ttf": "833b4e79c549e3f407fecf03b5c9e6dbfb94a80c86f35fe4f12d32b5936eccba",
+      "assets/atkinson-hyperlegible-next-semibold-CNJl23hA.ttf": "b8ee2866e707e26b26aca96741b756cfda3e44b1ede220d8c986bd0bc6eaac6d",
+      "assets/index-BVnbCgdS.js": "747e1ea0d0bf1dad067219cd687fb6393ec8fdba4e0abfddbdf23de079dbd4e4",
+      "assets/index-Bv2ev2ga.css": "4289b11648e2136c5fd577d56bbdcf64017d8bb267226762e4c99693b01594ae",
+      "assets/unbounded-semibold-BGMTdtAD.ttf": "5d85f700bcc2a4be1b69c30c6d00c57f0d3848a505aceaaa1a22ba61ebc5b394",
+      "index.html": "d1e01bf22fb69c2a3d7911833a3b77d07ff42bf1ce3e07f6cfcb5451a6bd90ee"
+    }
+  },
+  "artifacts": [
+    {
+      "remote_path": "/usr/local/sbin/pingu-gate",
+      "local_path": "ops/vps/pingu_gate.py",
+      "remote_sha256": "31bd7b37ebdd2c73b64417c8599c6378e23f16fcdab037c70b763e400cdc9d86",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu_device_access.py",
+      "local_path": "ops/vps/pingu_device_access.py",
+      "remote_sha256": "929665a993ce36c6b64b541219304ccb2a861a24d3d5f4cbe5fb6d03c0b23db4",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu-traffic-guard",
+      "local_path": "ops/vps/pingu_traffic_guard.py",
+      "remote_sha256": "047d4dd0415c76b2c697af5ccea9bcdb555bd11d10059c386434c3f99e0b5b8c",
+      "import_policy": "normalized",
+      "note": "Personal alert address moved from source defaults to configuration."
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu-traffic-report",
+      "local_path": "ops/vps/pingu_traffic_report.py",
+      "remote_sha256": "6689bcd6a5bad106491ad495d54074645474fc1f4e190af886126b0df90e31a1",
+      "import_policy": "normalized",
+      "note": "Formatting normalized; behavior retained and covered by local tests."
+    },
+    {
+      "remote_path": "/etc/nftables.d/pingu-guard.nft",
+      "local_path": "ops/vps/pingu-guard.nft",
+      "remote_sha256": "48c1af089c49e5a751446b0bb8784c47f53e5243c6852a39cda8c59dbb9e3323",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/cksheuen-portal.service",
+      "local_path": "ops/vps/cksheuen-portal.service",
+      "remote_sha256": "0aeed9c85cffb3ee223336c15884dd4184fab1af993d36a69f467795ae868bc8",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-gate.service",
+      "local_path": "ops/vps/pingu-gate.service",
+      "remote_sha256": "ec0e613e70e6b0d85b43eb69dffe197f38bc62fb8fd2aa3cd25e3da9c773ca99",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-traffic-guard.service",
+      "local_path": "ops/vps/pingu-traffic-guard.service",
+      "remote_sha256": "7d4932acaae444ca3a8e8aa982ebd31521c77bb1a28d97242f38f78c99867794",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-traffic-guard.timer",
+      "local_path": "ops/vps/pingu-traffic-guard.timer",
+      "remote_sha256": "9a492b2fa4c431939fcfaf6f27a5e4676de0a0ccaaa45ec4e3668b312d8523e4",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-traffic-report.service",
+      "local_path": "ops/vps/pingu-traffic-report.service",
+      "remote_sha256": "b88dfff495b4fad5ea66265a47a21d2ee8d0218b5c38f8678fffa52ed5354814",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-traffic-report.timer",
+      "local_path": "ops/vps/pingu-traffic-report.timer",
+      "remote_sha256": "5f3a2896564930f64cb777a048c6bbfec9c8a7d86f48c364f61c6039463c4af9",
+      "import_policy": "exact"
+    }
+  ],
+  "excluded_runtime_files": [
+    "/etc/pingu-gate.token",
+    "/etc/pingu-gate.tokens",
+    "/etc/pingu-gate.subscription.txt",
+    "/etc/pingu-traffic-guard.conf",
+    "/usr/local/etc/xray/config.json",
+    "/usr/local/etc/xray/certs/cksheuen.site.key",
+    "/root/pingu-secrets",
+    "/var/lib/pingu-gate/devices.json",
+    "/var/lib/pingu-traffic-guard",
+    "/var/log/pingu-traffic-reports"
+  ],
+  "runtime_packages": [
+    {
+      "name": "qrencode",
+      "version": "4.1.1-1build2",
+      "role": "Local SVG generation for one-time device subscription QR codes"
+    }
+  ]
+}
