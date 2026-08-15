@@ -1,7 +1,7 @@
 import { useLocale } from "../hooks/useLocale";
 import type { RefObject } from "react";
 
-interface BackToTopProps {
+export interface BackToTopProps {
   backToTopRef: RefObject<HTMLButtonElement | null>;
   onClick: () => void;
 }

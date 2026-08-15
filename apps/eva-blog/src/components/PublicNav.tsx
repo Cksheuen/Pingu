@@ -9,7 +9,7 @@ const LINKS = [
   ["/gallery", "nav.gallery"],
 ];
 
-interface PublicNavProps {
+export interface PublicNavProps {
   route: Route;
   navLinkRefs: RefObject<(HTMLAnchorElement | null)[]>;
 }

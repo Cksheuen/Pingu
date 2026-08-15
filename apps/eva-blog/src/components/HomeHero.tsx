@@ -5,7 +5,7 @@ import { RichText } from "./RichText";
 import type { PublicArticle } from "../types";
 import type { HeroTextMotion } from "../hooks/useHeroMorph";
 
-interface HomeHeroProps {
+export interface HomeHeroProps {
   article: PublicArticle | null;
   heroRef: RefObject<HTMLElement | null>;
   heroTabRefs: RefObject<(HTMLAnchorElement | null)[]>;

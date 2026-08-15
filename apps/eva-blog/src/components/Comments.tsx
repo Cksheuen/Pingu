@@ -1,8 +1,9 @@
 import { useLocale } from "../hooks/useLocale";
 import { EmptyState } from "./EmptyState";
+import type { FormEvent } from "react";
 import type { PublicArticle, Comment } from "../types";
 
-interface CommentsProps {
+export interface CommentsProps {
   article: PublicArticle;
   comments: Comment[];
   loading: boolean;
@@ -12,7 +13,7 @@ interface CommentsProps {
 export function Comments({ article, comments, loading, onSubmit }: CommentsProps) {
   const { t, formatDate } = useLocale();
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const body = new FormData(event.currentTarget).get("body") as string;
     await onSubmit(body);

@@ -1,19 +1,19 @@
 import { motion } from "framer-motion";
-import type { MotionValue } from "framer-motion";
-import type { RefObject } from "react";
+import type { MouseEvent, RefObject } from "react";
 import { useLocale } from "../hooks/useLocale";
 import { PublicNav } from "./PublicNav";
 import { LocaleSwitch } from "./LocaleSwitch";
 import type { Route } from "../types";
+import type { HeroMorphResult } from "../hooks/useHeroMorph";
 
-interface SiteHeaderProps {
+export interface SiteHeaderProps {
   route: Route;
   isHome: boolean;
-  headerMotion: { opacity: MotionValue<number>; pointerEvents: MotionValue<string> };
+  headerMotion: HeroMorphResult["header"];
   brandSlotRef: RefObject<HTMLDivElement | null>;
   navLinkRefs: RefObject<(HTMLAnchorElement | null)[]>;
   artworkSrc: string;
-  onBrandClick: (e: React.MouseEvent) => void;
+  onBrandClick: (e: MouseEvent) => void;
 }
 
 export function SiteHeader({ route, isHome, headerMotion, brandSlotRef, navLinkRefs, artworkSrc, onBrandClick }: SiteHeaderProps) {

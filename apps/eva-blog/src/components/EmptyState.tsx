@@ -1,4 +1,4 @@
-interface EmptyStateProps {
+export interface EmptyStateProps {
   text: string;
 }
 

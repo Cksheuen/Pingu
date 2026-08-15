@@ -1,6 +1,6 @@
 import { renderMarkdown } from "../lib/markdown";
 
-interface MarkdownProps {
+export interface MarkdownProps {
   content: string;
 }
 

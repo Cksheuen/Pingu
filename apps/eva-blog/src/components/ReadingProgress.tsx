@@ -1,7 +1,8 @@
 import type { RefObject } from "react";
 
-interface ReadingProgressProps {
-  progressRef: RefObject<HTMLSpanElement | null>;
+export interface ReadingProgressProps {
+  // 与 useScrollUi 的 ScrollUi.progressRef 对齐（HTMLSpanElement 是空接口，HTMLElement 可直接赋给 span 的 ref）
+  progressRef: RefObject<HTMLElement | null>;
 }
 
 export function ReadingProgress({ progressRef }: ReadingProgressProps) {

@@ -1,6 +1,6 @@
 import type { PublicArtwork } from "../types";
 
-interface ArtworkImageProps {
+export interface ArtworkImageProps {
   artwork: PublicArtwork;
   className?: string;
 }

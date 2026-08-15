@@ -1,5 +1,7 @@
 import { useLocale } from "../hooks/useLocale";
 
+export interface LocaleSwitchProps {}
+
 export function LocaleSwitch() {
   const { t, language, setLanguage } = useLocale();
   return (

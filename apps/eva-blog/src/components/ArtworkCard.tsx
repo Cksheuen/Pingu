@@ -2,7 +2,7 @@ import { useLocale } from "../hooks/useLocale";
 import { ArtworkImage } from "./ArtworkImage";
 import type { PublicArtwork } from "../types";
 
-interface ArtworkCardProps {
+export interface ArtworkCardProps {
   artwork: PublicArtwork;
   variant?: string;
 }

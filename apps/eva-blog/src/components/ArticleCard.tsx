@@ -1,7 +1,7 @@
 import { useLocale } from "../hooks/useLocale";
 import type { PublicArticle } from "../types";
 
-interface ArticleCardProps {
+export interface ArticleCardProps {
   article: PublicArticle;
   variant?: string;
 }
