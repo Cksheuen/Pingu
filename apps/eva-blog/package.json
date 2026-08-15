@@ -5,21 +5,27 @@
   "type": "module",
   "description": "Public Eva Blog reader with published articles, comments, public status, and GitHub auth contract.",
   "scripts": {
-    "assets": "node scripts/generate-assets.mjs",
+    "assets": "tsx scripts/generate-assets.ts",
     "dev": "vite",
-    "build": "node scripts/generate-assets.mjs && vite build",
-    "preview": "node scripts/dev-server.mjs",
-    "smoke:dev": "node scripts/smoke-dev-server.mjs",
-    "test": "node --test tests/*.test.mjs",
-    "verify:handoff": "node scripts/check-handoff.mjs",
+    "build": "tsx scripts/generate-assets.ts && vite build",
+    "preview": "tsx scripts/dev-server.ts",
+    "smoke:dev": "tsx scripts/smoke-dev-server.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "verify:handoff": "tsx scripts/check-handoff.ts",
     "verify": "pnpm test && pnpm build && pnpm smoke:dev && pnpm verify:handoff"
   },
   "dependencies": {
+    "framer-motion": "^13.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
     "vite": "^6.0.0"
   },
   "engines": {
