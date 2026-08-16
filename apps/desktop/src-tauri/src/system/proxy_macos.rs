@@ -1,5 +1,12 @@
 use std::process::Command;
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ProxySettings {
+    enabled: bool,
+    server: String,
+    port: Option<u16>,
+}
+
 pub fn get_active_network_service() -> Result<String, String> {
     // Get the default route interface
     let route_output = Command::new("route")
@@ -66,6 +73,8 @@ pub fn set_system_proxy(port: u16) -> Result<(), String> {
     run_networksetup(&["-setsocksfirewallproxy", &service, "127.0.0.1", &port_str])?;
     run_networksetup(&["-setsocksfirewallproxystate", &service, "on"])?;
 
+    verify_system_proxy(&service, port)?;
+
     Ok(())
 }
 
@@ -80,6 +89,10 @@ pub fn clear_system_proxy() -> Result<(), String> {
 }
 
 fn run_networksetup(args: &[&str]) -> Result<(), String> {
+    run_networksetup_output(args).map(|_| ())
+}
+
+fn run_networksetup_output(args: &[&str]) -> Result<String, String> {
     let output = Command::new("networksetup")
         .args(args)
         .output()
@@ -90,5 +103,60 @@ fn run_networksetup(args: &[&str]) -> Result<(), String> {
         return Err(format!("networksetup failed: {}", stderr));
     }
 
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn verify_system_proxy(service: &str, port: u16) -> Result<(), String> {
+    for (name, command) in [
+        ("HTTP", "-getwebproxy"),
+        ("HTTPS", "-getsecurewebproxy"),
+        ("SOCKS", "-getsocksfirewallproxy"),
+    ] {
+        let output = run_networksetup_output(&[command, service])?;
+        let settings = parse_proxy_settings(&output);
+        if settings.enabled && settings.server == "127.0.0.1" && settings.port == Some(port) {
+            continue;
+        }
+        return Err(format!(
+            "{name} proxy verification failed for network service {service}"
+        ));
+    }
     Ok(())
+}
+
+fn parse_proxy_settings(output: &str) -> ProxySettings {
+    let mut settings = ProxySettings::default();
+    for line in output.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        match key.trim() {
+            "Enabled" => settings.enabled = value.trim().eq_ignore_ascii_case("yes"),
+            "Server" => settings.server = value.trim().to_string(),
+            "Port" => settings.port = value.trim().parse().ok(),
+            _ => {}
+        }
+    }
+    settings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_enabled_local_proxy_settings() {
+        let settings = parse_proxy_settings(
+            "Enabled: Yes\nServer: 127.0.0.1\nPort: 2080\nAuthenticated Proxy Enabled: 0\n",
+        );
+
+        assert_eq!(
+            settings,
+            ProxySettings {
+                enabled: true,
+                server: "127.0.0.1".to_string(),
+                port: Some(2080),
+            }
+        );
+    }
 }

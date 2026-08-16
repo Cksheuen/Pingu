@@ -52,7 +52,7 @@ export default function Logs() {
   });
 
   return (
-    <div className="page-shell overflow-hidden">
+    <div className="page-shell">
       <header className="page-header">
         <div>
           <p className="page-kicker">{t("logs.kicker")}</p>

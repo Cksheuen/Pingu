@@ -10,6 +10,8 @@ import HostOverrides from "./pages/HostOverrides";
 import Settings from "./pages/Settings";
 import { useConnectionStore } from "./lib/connection-store";
 
+const STATUS_POLL_INTERVAL_MS = 5_000;
+
 // Rendered inside BrowserRouter so useLocation is available; keying the
 // wrapper by pathname replays the page-enter animation on every navigation.
 function RoutedContent() {
@@ -50,15 +52,33 @@ export default function App() {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const poll = async () => {
-      await refreshStatus().catch(() => undefined);
-      if (!stopped) timer = setTimeout(poll, 1000);
+    const schedule = () => {
+      if (!stopped && document.visibilityState === "visible") {
+        timer = setTimeout(poll, STATUS_POLL_INTERVAL_MS);
+      }
     };
 
-    timer = setTimeout(poll, 1000);
+    const poll = async () => {
+      await refreshStatus().catch(() => undefined);
+      schedule();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        return;
+      }
+      if (timer) clearTimeout(timer);
+      void poll();
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [refreshStatus]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { connect, disconnect } from "../lib/connection-api";
 import { useConnectionStore } from "../lib/connection-store";
 import type { Node } from "../lib/types";
@@ -10,7 +10,6 @@ interface HomeConnectionModel {
   activeRuleGroupId: string | null;
   activeRuleGroupName: string | null;
   hasRuleGroup: boolean;
-  elapsed: number;
   loading: boolean;
   error: string | null;
   clearError: () => void;
@@ -18,7 +17,10 @@ interface HomeConnectionModel {
 }
 
 export function useHomeConnection(): HomeConnectionModel {
-  const { status, nodes, proxyInfo, refreshStatus } = useConnectionStore();
+  const status = useConnectionStore((state) => state.status);
+  const nodes = useConnectionStore((state) => state.nodes);
+  const proxyInfo = useConnectionStore((state) => state.proxyInfo);
+  const refreshStatus = useConnectionStore((state) => state.refreshStatus);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +35,7 @@ export function useHomeConnection(): HomeConnectionModel {
   const activeRuleGroupId = status.active_group_id;
   const hasRuleGroup = Boolean(activeRuleGroupName || activeRuleGroupId);
 
-  const toggleConnection = async () => {
+  const toggleConnection = useCallback(async () => {
     setLoading(true);
     try {
       if (status.connected) {
@@ -47,7 +49,7 @@ export function useHomeConnection(): HomeConnectionModel {
       await refreshStatus().catch(() => undefined);
       setLoading(false);
     }
-  };
+  }, [refreshStatus, status.connected]);
 
   return {
     status,
@@ -56,10 +58,9 @@ export function useHomeConnection(): HomeConnectionModel {
     activeRuleGroupId,
     activeRuleGroupName,
     hasRuleGroup,
-    elapsed: status.uptime_seconds,
     loading,
     error,
-    clearError: () => setError(null),
+    clearError: useCallback(() => setError(null), []),
     toggleConnection,
   };
 }

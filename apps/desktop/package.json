@@ -12,6 +12,8 @@
     "debug:proxy:status": "cargo run --manifest-path src-tauri/Cargo.toml --bin debug-proxy -- status",
     "debug:proxy:prepare": "bash scripts/debug-proxy-prepare.sh",
     "debug:proxy:start": "bash scripts/debug-proxy-start.sh",
+    "debug:proxy:verify": "cargo run --manifest-path src-tauri/Cargo.toml --bin debug-proxy -- verify",
+    "debug:proxy:reputation": "cargo run --manifest-path src-tauri/Cargo.toml --bin debug-proxy -- reputation",
     "check:config": "bash scripts/check-generated-config.sh",
     "test:routing": "python3 scripts/test-routing.py",
     "verify:routing": "bash scripts/verify-routing.sh"

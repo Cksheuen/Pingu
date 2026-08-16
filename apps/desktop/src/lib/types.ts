@@ -54,6 +54,25 @@ export interface ProxyInfo {
   unset_commands: string[];
 }
 
+export interface AiServiceRoute {
+  service: string;
+  host: string;
+  outbound: Outbound;
+  matched_by: string;
+}
+
+export interface NetworkContentCheck {
+  id: "egress_ip" | "cloudflare_trace" | "google_content";
+  observed_ip: string | null;
+}
+
+export interface AiServicePreflight {
+  egress_ip: string;
+  network_checks: NetworkContentCheck[];
+  routes: AiServiceRoute[];
+  ready: boolean;
+}
+
 export interface GateSettings {
   enabled: boolean;
   configured: boolean;

@@ -1,11 +1,12 @@
-use std::time::Duration;
-
 use tauri::State;
 
 use crate::commands::config::AppState;
 use crate::lifecycle;
 pub use crate::lifecycle::ProxyState;
-use crate::proxy_runtime::{build_proxy_status, proxy_info, ProxyInfo, ProxyStatus};
+use crate::proxy_runtime::{
+    build_ai_service_preflight, build_proxy_status, probe_proxy_egress, proxy_info,
+    verify_proxy_content, AiServicePreflight, ProxyInfo, ProxyStatus,
+};
 use crate::singbox::process::LogEntry;
 
 /// Core connect logic shared by Tauri command and tray menu.
@@ -48,7 +49,7 @@ pub fn get_status(
     app_state: State<AppState>,
     proxy_state: State<ProxyState>,
 ) -> Result<ProxyStatus, String> {
-    let connected = proxy_state.process.is_running();
+    let connected = proxy_state.is_running();
     let runtime = proxy_state.runtime_snapshot()?;
     let uptime = if connected {
         runtime
@@ -85,41 +86,46 @@ pub fn reload_proxy_if_running(
 }
 
 #[tauri::command]
-pub fn get_proxy_info() -> ProxyInfo {
-    proxy_info()
+pub fn get_proxy_info(proxy_state: State<ProxyState>) -> ProxyInfo {
+    proxy_info(proxy_state.active_listen_port())
 }
 
 #[tauri::command]
 pub fn get_egress_ip(proxy_state: State<ProxyState>) -> Result<String, String> {
-    if !proxy_state.process.is_running() {
+    if !proxy_state.is_running() {
         return Err("Proxy is not connected".to_string());
     }
 
-    let proxy = ureq::Proxy::new(&format!("http://127.0.0.1:{}", proxy_state.listen_port))
-        .map_err(|error| format!("Failed to configure egress probe: {error}"))?;
-    let response = ureq::AgentBuilder::new()
-        .proxy(proxy)
-        .timeout(Duration::from_secs(8))
-        .build()
-        .get("https://ping0.cc/")
-        .call()
-        .map_err(|error| format!("Failed to verify proxy egress: {error}"))?
-        .into_string()
-        .map_err(|error| format!("Failed to read proxy egress: {error}"))?;
-    let ip = response.trim();
-    ip.parse::<std::net::IpAddr>()
-        .map_err(|_| "Egress probe returned an invalid IP address".to_string())?;
-    Ok(ip.to_string())
+    probe_proxy_egress(proxy_state.active_listen_port())
+}
+
+#[tauri::command]
+pub fn get_ai_service_preflight(
+    app_state: State<AppState>,
+    proxy_state: State<ProxyState>,
+) -> Result<AiServicePreflight, String> {
+    if !proxy_state.is_running() {
+        return Err("Proxy is not connected".to_string());
+    }
+
+    let network_checks = verify_proxy_content(proxy_state.active_listen_port())?;
+    let egress_ip = network_checks
+        .iter()
+        .find(|check| check.id == "egress_ip")
+        .and_then(|check| check.observed_ip.clone())
+        .ok_or("Network verification did not return an egress IP")?;
+    let config = app_state.config.lock().map_err(|error| error.to_string())?;
+    build_ai_service_preflight(&config, egress_ip, network_checks)
 }
 
 #[tauri::command]
 pub fn get_logs(proxy_state: State<ProxyState>) -> Vec<LogEntry> {
-    proxy_state.process.get_logs()
+    proxy_state.get_logs()
 }
 
 #[tauri::command]
 pub fn clear_logs(proxy_state: State<ProxyState>) -> Result<(), String> {
-    proxy_state.process.clear_logs();
+    proxy_state.clear_logs();
     Ok(())
 }
 

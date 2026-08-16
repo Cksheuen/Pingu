@@ -3,6 +3,20 @@ import { clearLogs, getLogFilePath, getLogs } from "../lib/logs-api";
 import type { LogEntry } from "../lib/types";
 import { useI18nRerender } from "./useI18nRerender";
 
+const LOG_POLL_INTERVAL_MS = 5_000;
+
+function sameLogs(left: LogEntry[], right: LogEntry[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every(
+      (entry, index) =>
+        entry.timestamp === right[index]?.timestamp &&
+        entry.level === right[index]?.level &&
+        entry.message === right[index]?.message,
+    )
+  );
+}
+
 interface LogsPageModel {
   logs: LogEntry[];
   logPath: string;
@@ -18,21 +32,45 @@ export function useLogsPageModel(): LogsPageModel {
   useI18nRerender();
 
   useEffect(() => {
-    const fetchLogs = () => {
-      getLogs().then((entries) => {
-        if (clearedAt) {
-          setLogs(entries.filter((entry) => entry.timestamp > clearedAt));
-          return;
-        }
-        setLogs(entries);
-      });
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      if (!stopped && document.visibilityState === "visible") {
+        timer = setTimeout(fetchLogs, LOG_POLL_INTERVAL_MS);
+      }
     };
 
-    fetchLogs();
+    const fetchLogs = async () => {
+      try {
+        const entries = await getLogs();
+        if (stopped) return;
+        const next = clearedAt ? entries.filter((entry) => entry.timestamp > clearedAt) : entries;
+        setLogs((current) => (sameLogs(current, next) ? current : next));
+      } finally {
+        schedule();
+      }
+    };
+
+    void fetchLogs();
     getLogFilePath().then(setLogPath);
 
-    const id = setInterval(fetchLogs, 2000);
-    return () => clearInterval(id);
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        return;
+      }
+      if (timer) clearTimeout(timer);
+      void fetchLogs();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [clearedAt]);
 
   useEffect(() => {

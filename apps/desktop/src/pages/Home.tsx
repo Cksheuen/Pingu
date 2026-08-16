@@ -4,8 +4,9 @@ import { CurrentNodeCard } from "../components/home/CurrentNodeCard";
 import { TerminalProxyCard } from "../components/home/TerminalProxyCard";
 import { TrafficCard } from "../components/home/TrafficCard";
 import { NetworkLeaseCard } from "../components/home/NetworkLeaseCard";
-import { EgressCard } from "../components/home/EgressCard";
+import { AiPreflightCard } from "../components/home/AiPreflightCard";
 import { useHomeConnection } from "../hooks/useHomeConnection";
+import { useAiServicePreflight } from "../hooks/useAiServicePreflight";
 import { useI18nRerender } from "../hooks/useI18nRerender";
 
 export default function Home() {
@@ -16,12 +17,12 @@ export default function Home() {
     activeRuleGroupId,
     activeRuleGroupName,
     hasRuleGroup,
-    elapsed,
     loading,
     error,
     clearError,
     toggleConnection,
   } = useHomeConnection();
+  const preflight = useAiServicePreflight(status.connected, activeRuleGroupId);
   useI18nRerender();
 
   return (
@@ -31,7 +32,7 @@ export default function Home() {
       <div className="home-dashboard">
         <ConnectionHero
           connected={status.connected}
-          elapsed={elapsed}
+          uptimeSeconds={status.uptime_seconds}
           loading={loading}
           error={error}
           activeNodeName={activeNode?.name ?? null}
@@ -48,7 +49,7 @@ export default function Home() {
             hasRuleGroup={hasRuleGroup}
           />
           <NetworkLeaseCard connected={status.connected} />
-          <EgressCard connected={status.connected} />
+          <AiPreflightCard connected={status.connected} proxyInfo={proxyInfo} preflight={preflight} />
           <TrafficCard />
         </div>
       </div>

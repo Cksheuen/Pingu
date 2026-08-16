@@ -165,10 +165,10 @@ pub fn generate_config_with_host_overrides_and_port(
     // Built-in route rules (before user rules)
     route_rules.push(json!({ "protocol": "dns", "action": "hijack-dns" }));
     route_rules.push(json!({ "action": "route", "ip_is_private": true, "outbound": "direct" }));
-    // IP-check pages must report the proxy egress even when a broad CN rule is active.
+    // IP-check endpoints must report the proxy egress even when a broad CN rule is active.
     route_rules.push(json!({
         "action": "route",
-        "domain_suffix": ["ping0.cc"],
+        "domain_suffix": ["ping0.cc", "api.ipify.org"],
         "outbound": "proxy"
     }));
 
@@ -565,6 +565,7 @@ mod tests {
         assert_eq!(route_rules[1]["action"], "route");
         assert_eq!(route_rules[1]["outbound"], "direct");
         assert_eq!(route_rules[2]["domain_suffix"][0], "ping0.cc");
+        assert_eq!(route_rules[2]["domain_suffix"][1], "api.ipify.org");
         assert_eq!(route_rules[2]["outbound"], "proxy");
 
         // At least 3 built-in rule_sets (geosite-geolocation-cn, geosite-geolocation-!cn, geoip-cn)

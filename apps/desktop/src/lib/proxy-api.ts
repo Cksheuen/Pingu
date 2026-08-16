@@ -1,4 +1,4 @@
-import type { ProxyInfo } from "./types.js";
+import type { AiServicePreflight, ProxyInfo } from "./types.js";
 import { tauriInvoke } from "./tauri-invoke.js";
 
 export async function getProxyInfo(): Promise<ProxyInfo> {
@@ -23,4 +23,8 @@ export async function getProxyInfo(): Promise<ProxyInfo> {
 
 export async function getEgressIp(): Promise<string> {
   return await tauriInvoke("get_egress_ip");
+}
+
+export async function getAiServicePreflight(): Promise<AiServicePreflight> {
+  return await tauriInvoke("get_ai_service_preflight");
 }

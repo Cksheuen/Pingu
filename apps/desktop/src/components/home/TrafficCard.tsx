@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "../../lib/i18n";
 import { getTraffic } from "../../lib/traffic-api";
 import { useConnectionStore } from "../../lib/connection-store";
@@ -13,23 +13,49 @@ function formatSpeed(bytesPerSec: number): string {
 export function TrafficCard() {
   const connected = useConnectionStore((state) => state.status.connected);
   const [traffic, setTraffic] = useState<TrafficSnapshot | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!connected) {
       setTraffic(null);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = null;
       return;
     }
 
-    const poll = () => getTraffic().then(setTraffic).catch(() => undefined);
-    poll();
-    intervalRef.current = setInterval(poll, 1000);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      if (!stopped && document.visibilityState === "visible") {
+        timer = setTimeout(poll, 2_000);
+      }
+    };
+
+    const poll = async () => {
+      try {
+        const snapshot = await getTraffic();
+        if (!stopped) setTraffic(snapshot);
+      } catch {
+        // Traffic is auxiliary; keep the connection UI responsive on a failed probe.
+      }
+      schedule();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        return;
+      }
+      if (timer) clearTimeout(timer);
+      void poll();
+    };
+
+    void poll();
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = null;
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [connected]);
 

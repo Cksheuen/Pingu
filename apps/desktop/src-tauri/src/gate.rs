@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::io;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use url::Url;
@@ -151,6 +153,11 @@ fn for_suffix<'a>(value: &'a str, suffixes: &[&str]) -> Option<&'a str> {
 
 fn request_lease(config: &GateConfig) -> Result<GateLease, String> {
     let agent = ureq::AgentBuilder::new()
+        // The active Reality node uses the VPS IPv4 address. Request the Gate
+        // lease over IPv4 as well, otherwise a dual-stack client may only add
+        // its IPv6 address to `reality_allow6` while its IPv4 Reality traffic
+        // is still dropped by `reality_allow4`.
+        .resolver(resolve_ipv4)
         .timeout_connect(Duration::from_secs(8))
         .timeout_read(Duration::from_secs(8))
         .timeout_write(Duration::from_secs(8))
@@ -169,6 +176,18 @@ fn request_lease(config: &GateConfig) -> Result<GateLease, String> {
         return Err("Gate returned an incomplete lease".to_string());
     }
     Ok(lease)
+}
+
+fn resolve_ipv4(netloc: &str) -> io::Result<Vec<SocketAddr>> {
+    let addresses = ToSocketAddrs::to_socket_addrs(netloc)?;
+    let ipv4 = addresses.filter(SocketAddr::is_ipv4).collect::<Vec<_>>();
+    if ipv4.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::AddrNotAvailable,
+            format!("No IPv4 address available for {netloc}"),
+        ));
+    }
+    Ok(ipv4)
 }
 
 fn map_request_error(error: ureq::Error) -> String {
@@ -232,5 +251,20 @@ mod tests {
 
         let serialized = serde_json::to_string(&GateSettings::from(&config)).unwrap();
         assert!(!serialized.contains("never-return-this"));
+    }
+
+    #[test]
+    fn gate_lease_resolver_keeps_only_ipv4_addresses() {
+        let addresses = vec![
+            "[2001:db8::1]:443".parse::<SocketAddr>().unwrap(),
+            "198.51.100.27:443".parse::<SocketAddr>().unwrap(),
+        ];
+
+        let ipv4 = addresses
+            .into_iter()
+            .filter(SocketAddr::is_ipv4)
+            .collect::<Vec<_>>();
+
+        assert_eq!(ipv4, vec!["198.51.100.27:443".parse().unwrap()]);
     }
 }

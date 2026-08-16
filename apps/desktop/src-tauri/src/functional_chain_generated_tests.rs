@@ -114,7 +114,7 @@ fn generated_mc01_full_stability_chain_covers_runtime_lifecycle() {
     assert_eq!(connected.active_group_name.as_deref(), Some("Work"));
     assert_eq!(connected.uptime_seconds, 42);
 
-    let info = proxy_info();
+    let info = proxy_info(2080);
     assert_eq!(info.listen_host, "127.0.0.1");
     assert_eq!(info.listen_port, 2080);
     assert_eq!(info.http_proxy, "http://127.0.0.1:2080");

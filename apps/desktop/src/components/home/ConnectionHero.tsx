@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { t } from "../../lib/i18n";
 
 function formatTime(seconds: number): string {
@@ -18,7 +19,7 @@ function PowerIcon() {
 
 interface ConnectionHeroProps {
   connected: boolean;
-  elapsed: number;
+  uptimeSeconds: number;
   loading: boolean;
   error: string | null;
   activeNodeName?: string | null;
@@ -28,13 +29,23 @@ interface ConnectionHeroProps {
 
 export function ConnectionHero({
   connected,
-  elapsed,
+  uptimeSeconds,
   loading,
   error,
   activeNodeName,
   onClearError,
   onToggleConnection,
 }: ConnectionHeroProps) {
+  const [elapsed, setElapsed] = useState(uptimeSeconds);
+
+  useEffect(() => {
+    setElapsed(uptimeSeconds);
+    if (!connected) return;
+
+    const timer = setInterval(() => setElapsed((current) => current + 1), 1_000);
+    return () => clearInterval(timer);
+  }, [connected, uptimeSeconds]);
+
   const action = connected ? t("home.disconnect_action") : t("home.connect_action");
 
   return (

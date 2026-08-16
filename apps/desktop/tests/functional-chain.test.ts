@@ -5,7 +5,7 @@ import { connect, disconnect, getStatus } from "../src/lib/connection-api.js";
 import { useConnectionStore } from "../src/lib/connection-store.js";
 import { clearLogs, getLogs, getLogFilePath } from "../src/lib/logs-api.js";
 import { deleteNode, importNode, listNodes, setActiveNode } from "../src/lib/nodes-api.js";
-import { getProxyInfo } from "../src/lib/proxy-api.js";
+import { getAiServicePreflight, getProxyInfo } from "../src/lib/proxy-api.js";
 import {
   addRule,
   createRuleGroup,
@@ -134,6 +134,11 @@ test("MC-01 前端 API 调用链可以走完整个稳定性闭环", { concurrenc
 
     const proxyInfo = await getProxyInfo();
     assert.equal(proxyInfo.listen_port, 2080);
+
+    const preflight = await getAiServicePreflight();
+    assert.equal(preflight.egress_ip, "198.51.100.27");
+    assert.equal(preflight.ready, true);
+    assert.ok(preflight.routes.every((route) => route.outbound === "proxy"));
 
     const logPath = await getLogFilePath();
     assert.match(logPath, /sing-proxy/);

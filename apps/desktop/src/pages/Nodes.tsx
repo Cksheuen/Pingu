@@ -24,9 +24,11 @@ function XIcon() {
 
 export default function Nodes() {
   const {
-    status,
+    activeNodeId,
     nodes,
     showImport,
+    switchingNodeId,
+    switchError,
     openImportDialog,
     closeImportDialog,
     activateNode,
@@ -36,7 +38,7 @@ export default function Nodes() {
   useI18nRerender();
 
   return (
-    <div className="page-shell overflow-hidden">
+    <div className="page-shell">
       <header className="page-header">
         <div>
           <p className="page-kicker">{t("nodes.kicker")}</p>
@@ -52,6 +54,8 @@ export default function Nodes() {
         </button>
       </header>
 
+      {switchError && <p className="node-switch-error" role="alert">{switchError}</p>}
+
       {/* Node list */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-2">
         {nodes.length === 0 && (
@@ -63,16 +67,23 @@ export default function Nodes() {
           </div>
         )}
         {nodes.map((node) => {
-          const isActive = node.id === status.active_node_id;
+          const isActive = node.id === activeNodeId;
+          const isSwitching = node.id === switchingNodeId;
+          const switching = switchingNodeId !== null;
           return (
             <div
               key={node.id}
-              onClick={() => void activateNode(node.id)}
+              onClick={() => {
+                if (!switching) void activateNode(node.id);
+              }}
               role="button"
-              tabIndex={0}
+              tabIndex={switching ? -1 : 0}
               aria-pressed={isActive}
+              aria-busy={isSwitching}
+              aria-disabled={switching}
+              data-switching={isSwitching}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (!switching && (e.key === "Enter" || e.key === " ")) {
                   if (e.key === " ") e.preventDefault();
                   void activateNode(node.id);
                 }
@@ -116,16 +127,18 @@ export default function Nodes() {
                     color: isActive ? "var(--color-accent)" : "var(--color-text-secondary)",
                   }}
                 >
-                  {isActive ? t("nodes.active") : "\u2014"}
+                  {isSwitching ? t("nodes.switching") : isActive ? t("nodes.active") : "\u2014"}
                 </span>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (switching) return;
                     if (!window.confirm(t("nodes.delete_confirm"))) return;
                     void removeNode(node.id);
                   }}
                   aria-label={`Delete ${node.name}`}
+                  disabled={switching}
                   className="table-action-button"
                 >
                   <XIcon />

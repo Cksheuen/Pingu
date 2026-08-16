@@ -29,6 +29,16 @@ const defaultStatus: ProxyStatus = {
 
 let inflightRefresh: Promise<ProxyStatus> | null = null;
 
+function sameStatus(left: ProxyStatus, right: ProxyStatus): boolean {
+  return (
+    left.connected === right.connected &&
+    left.active_node_id === right.active_node_id &&
+    left.active_group_id === right.active_group_id &&
+    left.active_group_name === right.active_group_name &&
+    left.uptime_seconds === right.uptime_seconds
+  );
+}
+
 export const useConnectionStore = create<ConnectionState>((set, get) => ({
   status: defaultStatus,
   nodes: [],
@@ -39,15 +49,16 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   refreshStatus: async () => {
     if (inflightRefresh) return inflightRefresh;
 
-    set({ loading: true });
-
     inflightRefresh = getStatus()
       .then((status) => {
-        set({ status, loaded: true, loading: false });
+        set((current) => {
+          if (current.loaded && sameStatus(current.status, status)) return current;
+          return { status, loaded: true, loading: false };
+        });
         return status;
       })
       .catch((error) => {
-        set({ loaded: true, loading: false });
+        set((current) => (current.loaded && !current.loading ? current : { loaded: true, loading: false }));
         throw error;
       })
       .finally(() => {

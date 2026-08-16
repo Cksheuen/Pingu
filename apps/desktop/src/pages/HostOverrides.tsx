@@ -58,7 +58,7 @@ export default function HostOverrides() {
   };
 
   return (
-    <div className="page-shell overflow-hidden">
+    <div className="page-shell">
       <header className="page-header">
         <div>
           <p className="page-kicker">{t("host_overrides.kicker")}</p>

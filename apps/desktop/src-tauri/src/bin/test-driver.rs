@@ -2,7 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use pingu_lib::proxy_runtime::{
-    app_config_dir, build_proxy_status, proxy_info, resolve_runtime_selection,
+    app_config_dir, build_ai_service_preflight, build_proxy_status, content_checks_for_egress,
+    proxy_info, resolve_runtime_selection,
 };
 use pingu_lib::singbox::config_gen::Rule;
 use pingu_lib::singbox::process::{log_file_path, LogEntry};
@@ -130,7 +131,17 @@ fn invoke(command: &str, args: &Value) -> Result<Value, String> {
             snapshot.active_node_id.clone(),
             snapshot.active_group_id.clone(),
         )),
-        "get_proxy_info" => json!(proxy_info()),
+        "get_proxy_info" => json!(proxy_info(2080)),
+        "get_ai_service_preflight" => {
+            if !snapshot.connected {
+                return Err("Proxy is not connected".to_string());
+            }
+            json!(build_ai_service_preflight(
+                &config,
+                "198.51.100.27".to_string(),
+                content_checks_for_egress("198.51.100.27".to_string())
+            )?)
+        }
         "get_logs" => json!(snapshot.logs),
         "clear_logs" => {
             snapshot.logs.clear();

@@ -91,7 +91,7 @@ fn build_tray_menu(app_handle: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn s
     let proxy_state = app_handle.state::<ProxyState>();
 
     let config = app_state.config.lock().map_err(|e| e.to_string())?;
-    let connected = proxy_state.process.is_running();
+    let connected = proxy_state.is_running();
     let lang = config.language.as_str();
 
     // --- Status line ---
@@ -273,7 +273,7 @@ pub fn rebuild_tray_menu(app_handle: &AppHandle) -> Result<(), String> {
 
         // Update tooltip based on connection status
         let proxy_state = app_handle.state::<ProxyState>();
-        let tooltip = if proxy_state.process.is_running() {
+        let tooltip = if proxy_state.is_running() {
             "Pingu - Connected"
         } else {
             "Pingu"
@@ -346,20 +346,12 @@ fn handle_switch_node(app: &AppHandle, node_id: &str) {
     let app_state = app.state::<AppState>();
     let proxy_state = app.state::<ProxyState>();
 
-    {
-        let mut config = match app_state.config.lock() {
-            Ok(c) => c,
-            Err(_) => return,
-        };
-        if config.set_active_node(node_id).is_err() {
-            return;
-        }
-        let _ = config.save();
-    }
-
-    // Reload proxy if running
-    if crate::commands::proxy::reload_proxy_if_running(app_state.inner(), proxy_state.inner())
-        .is_ok()
+    if crate::lifecycle::apply_runtime_config_change(
+        app_state.inner(),
+        proxy_state.inner(),
+        |config| config.set_active_node(node_id),
+    )
+    .is_ok()
         && rebuild_tray_menu(app).is_ok()
     {
         app.emit("tray-state-changed", "switch-node").ok();
@@ -370,20 +362,12 @@ fn handle_switch_group(app: &AppHandle, group_id: &str) {
     let app_state = app.state::<AppState>();
     let proxy_state = app.state::<ProxyState>();
 
-    {
-        let mut config = match app_state.config.lock() {
-            Ok(c) => c,
-            Err(_) => return,
-        };
-        if config.set_active_group(group_id).is_err() {
-            return;
-        }
-        let _ = config.save();
-    }
-
-    // Reload proxy if running
-    if crate::commands::proxy::reload_proxy_if_running(app_state.inner(), proxy_state.inner())
-        .is_ok()
+    if crate::lifecycle::apply_runtime_config_change(
+        app_state.inner(),
+        proxy_state.inner(),
+        |config| config.set_active_group(group_id),
+    )
+    .is_ok()
         && rebuild_tray_menu(app).is_ok()
     {
         app.emit("tray-state-changed", "switch-group").ok();

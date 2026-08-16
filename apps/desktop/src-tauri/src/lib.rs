@@ -71,7 +71,7 @@ pub fn run() {
                 loop {
                     interval.tick().await;
                     let proxy_state = app_handle.state::<ProxyState>();
-                    if proxy_state.process.is_running() {
+                    if proxy_state.is_running() {
                         let _ = crate::gate::renew_if_enabled();
                     }
                 }
@@ -105,6 +105,7 @@ pub fn run() {
             commands::proxy::reload_proxy,
             commands::proxy::get_proxy_info,
             commands::proxy::get_egress_ip,
+            commands::proxy::get_ai_service_preflight,
             commands::proxy::get_logs,
             commands::proxy::clear_logs,
             commands::proxy::get_log_file_path,
