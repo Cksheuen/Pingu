@@ -353,7 +353,16 @@ pub fn generate_config_with_host_overrides_and_port(
         "domain_resolver": "system-dns"
     });
     if active_node.transport != "tcp" {
-        vless_outbound["transport"] = json!({ "type": &active_node.transport });
+        let mut transport = json!({ "type": &active_node.transport });
+        if active_node.transport == "ws" {
+            if !active_node.ws_path.is_empty() {
+                transport["path"] = json!(&active_node.ws_path);
+            }
+            if !active_node.ws_host.is_empty() {
+                transport["headers"] = json!({ "Host": &active_node.ws_host });
+            }
+        }
+        vless_outbound["transport"] = transport;
     }
 
     json!({
@@ -457,7 +466,8 @@ fn sanitize_rule_set_value(value: &str) -> Option<String> {
 
 fn build_tls_config(active_node: &Node) -> Value {
     match active_node.security.as_str() {
-        "reality" => json!({
+        "reality" => {
+            let mut tls = json!({
             "enabled": true,
             "server_name": &active_node.sni,
             "utls": {
@@ -469,15 +479,26 @@ fn build_tls_config(active_node: &Node) -> Value {
                 "public_key": &active_node.public_key,
                 "short_id": &active_node.short_id
             }
-        }),
-        "tls" => json!({
+            });
+            if !active_node.alpn.is_empty() {
+                tls["alpn"] = json!(&active_node.alpn);
+            }
+            tls
+        }
+        "tls" => {
+            let mut tls = json!({
             "enabled": true,
             "server_name": &active_node.sni,
             "utls": {
                 "enabled": true,
                 "fingerprint": &active_node.fingerprint
             }
-        }),
+            });
+            if !active_node.alpn.is_empty() {
+                tls["alpn"] = json!(&active_node.alpn);
+            }
+            tls
+        }
         _ => json!({
             "enabled": false
         }),
@@ -503,6 +524,7 @@ mod tests {
             public_key: "pk123".into(),
             short_id: "sid".into(),
             transport: "tcp".into(),
+            ..Default::default()
         };
 
         let group = RuleGroup {
@@ -611,6 +633,7 @@ mod tests {
             public_key: "pk123".into(),
             short_id: "sid".into(),
             transport: "tcp".into(),
+            ..Default::default()
         };
         let group = RuleGroup {
             id: "work".into(),
@@ -660,6 +683,7 @@ mod tests {
             public_key: "pk123".into(),
             short_id: "sid".into(),
             transport: "tcp".into(),
+            ..Default::default()
         };
         let group = RuleGroup {
             id: "work".into(),
@@ -706,6 +730,7 @@ mod tests {
             public_key: "pk123".into(),
             short_id: "sid".into(),
             transport: "tcp".into(),
+            ..Default::default()
         };
         let group = RuleGroup {
             id: "work".into(),
@@ -769,6 +794,7 @@ mod tests {
             public_key: "pk123".into(),
             short_id: "sid".into(),
             transport: "tcp".into(),
+            ..Default::default()
         };
         let group = RuleGroup {
             id: "g1".into(),
@@ -818,6 +844,7 @@ mod tests {
             public_key: "pk123".into(),
             short_id: "sid".into(),
             transport: "tcp".into(),
+            ..Default::default()
         };
         let group = RuleGroup {
             id: "g1".into(),
@@ -835,5 +862,85 @@ mod tests {
         node.security.clear();
         let disabled_tls_config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
         assert_eq!(disabled_tls_config["outbounds"][0]["tls"]["enabled"], false);
+    }
+
+    #[test]
+    fn test_generate_config_ws_device_transport_and_alpn() {
+        let node = Node {
+            id: "ws-id".into(),
+            name: "Web Device".into(),
+            address: "device.example.com".into(),
+            port: 443,
+            uuid: "123e4567-e89b-12d3-a456-426614174000".into(),
+            flow: String::new(),
+            security: "tls".into(),
+            sni: "device.example.com".into(),
+            fingerprint: "chrome".into(),
+            public_key: String::new(),
+            short_id: String::new(),
+            transport: "ws".into(),
+            ws_path: "/__pingu_device__/v1/secret-token".into(),
+            ws_host: "device.example.com".into(),
+            alpn: vec!["h2".into(), "http/1.1".into()],
+            ..Default::default()
+        };
+        let group = RuleGroup {
+            id: "g1".into(),
+            name: "Default".into(),
+            rules: vec![],
+            default_strategy: "proxy".into(),
+            fake_ip_filter: vec![],
+            nameserver_policy: vec![],
+        };
+
+        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
+        let outbound = &config["outbounds"][0];
+        assert_eq!(outbound["transport"]["type"], "ws");
+        assert_eq!(
+            outbound["transport"]["path"],
+            "/__pingu_device__/v1/secret-token"
+        );
+        assert_eq!(
+            outbound["transport"]["headers"]["Host"],
+            "device.example.com"
+        );
+        assert_eq!(outbound["tls"]["enabled"], true);
+        assert_eq!(
+            outbound["tls"]["alpn"],
+            serde_json::json!(["h2", "http/1.1"])
+        );
+    }
+
+    #[test]
+    fn test_generate_config_tcp_node_has_no_transport_or_alpn() {
+        let node = Node {
+            id: "tcp-id".into(),
+            name: "TCP Node".into(),
+            address: "example.com".into(),
+            port: 443,
+            uuid: "123e4567-e89b-12d3-a456-426614174000".into(),
+            flow: "xtls-rprx-vision".into(),
+            security: "reality".into(),
+            sni: "www.example.com".into(),
+            fingerprint: "chrome".into(),
+            public_key: "pk123".into(),
+            short_id: "sid".into(),
+            transport: "tcp".into(),
+            ..Default::default()
+        };
+        let group = RuleGroup {
+            id: "g1".into(),
+            name: "Default".into(),
+            rules: vec![],
+            default_strategy: "proxy".into(),
+            fake_ip_filter: vec![],
+            nameserver_policy: vec![],
+        };
+
+        let config = generate_config(&node, &group, "/tmp/sing-proxy-cache.db", 9090);
+        let outbound = &config["outbounds"][0];
+        assert!(outbound["transport"].is_null());
+        assert_eq!(outbound["tls"]["reality"]["enabled"], true);
+        assert!(outbound["tls"]["alpn"].is_null());
     }
 }

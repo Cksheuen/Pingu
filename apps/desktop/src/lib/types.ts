@@ -11,6 +11,9 @@ export interface Node {
   short_id: string;
   transport: string;
   security: string;
+  ws_path: string;
+  ws_host: string;
+  alpn: string[];
 }
 
 export type RuleType = "geosite" | "geoip" | "domain_suffix" | "domain" | "ip_cidr" | "ip_is_private";

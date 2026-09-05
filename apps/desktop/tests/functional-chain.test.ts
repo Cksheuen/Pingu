@@ -349,3 +349,40 @@ test("MC-04 前端 API 调用链可以覆盖多节点多规则组排列组合与
     });
   });
 });
+
+test("MC-05 Web 设备节点导入保留 WS 路径/Host/ALPN，订阅错误不泄露凭据", { concurrency: false }, async () => {
+  await withRustInvokeHarness(async () => {
+    resetConnectionStore();
+
+    const deviceUri =
+      "vless://123e4567-e89b-12d3-a456-426614174000@device.example.com:443?security=tls&sni=device.example.com&fp=chrome&alpn=h2,http/1.1&type=ws&path=%2F__pingu_device__%2Fv1%2Fsecret-token%3Fmode%3Dauto&host=device.example.com#Web%20Device";
+    const imported = await importNode(deviceUri);
+    assert.equal(imported.transport, "ws");
+    assert.equal(imported.ws_path, "/__pingu_device__/v1/secret-token?mode=auto");
+    assert.equal(imported.ws_host, "device.example.com");
+    assert.deepEqual(imported.alpn, ["h2", "http/1.1"]);
+
+    const listed = await listNodes();
+    const persisted = listed.find((node) => node.id === imported.id);
+    assert.ok(persisted);
+    assert.equal(persisted!.ws_path, "/__pingu_device__/v1/secret-token?mode=auto");
+    assert.equal(persisted!.ws_host, "device.example.com");
+    assert.deepEqual(persisted!.alpn, ["h2", "http/1.1"]);
+
+    // Clash YAML and other formats get an actionable, safe error.
+    await assert.rejects(() => importNode("proxies: []"), /Clash YAML/);
+
+    // HTTPS subscription fetch failures must not leak the URL or credential.
+    const subscriptionUrl = "https://127.0.0.1:1/__pingu_device__/v1/secret-token";
+    await assert.rejects(
+      () => importNode(subscriptionUrl),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        assert.match(message, /subscription server/i);
+        assert.ok(!message.includes("127.0.0.1"), "error must not contain the subscription URL");
+        assert.ok(!message.includes("secret-token"), "error must not contain the device credential");
+        return true;
+      },
+    );
+  });
+});

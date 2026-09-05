@@ -69,7 +69,8 @@ fn invoke(command: &str, args: &Value) -> Result<Value, String> {
     let result = match command {
         "import_node" => {
             let uri = get_string_arg(args, "vlessUri")?;
-            let node = config.import_node_uri(&uri)?;
+            let node = pingu_lib::singbox::subscription::resolve_import_node(&uri)?;
+            let node = config.add_node(node);
             config.save()?;
             json!(node)
         }

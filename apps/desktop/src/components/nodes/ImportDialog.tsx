@@ -7,6 +7,12 @@ interface ImportDialogProps {
   onImport: (uri: string) => Promise<void>;
 }
 
+function backendErrorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim()) return error;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "";
+}
+
 export function ImportDialog({ onClose, onImport }: ImportDialogProps) {
   const [uri, setUri] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,8 +26,8 @@ export function ImportDialog({ onClose, onImport }: ImportDialogProps) {
     try {
       await onImport(uri.trim());
       onClose();
-    } catch {
-      setError(t("nodes.import_error"));
+    } catch (error) {
+      setError(backendErrorMessage(error) || t("nodes.import_error"));
     } finally {
       setLoading(false);
     }

@@ -85,7 +85,10 @@ const translations: Record<string, Record<Lang, string>> = {
   "nodes.title": { en: "NODES", zh: "节点管理" },
   "nodes.import": { en: "Import Link", zh: "导入链接" },
   "nodes.import_title": { en: "Import Node", zh: "导入节点" },
-  "nodes.import_placeholder": { en: "Paste vless:// link here...", zh: "在此粘贴 vless:// 链接..." },
+  "nodes.import_placeholder": {
+    en: "Paste a vless:// node link or an https:// subscription URL...",
+    zh: "在此粘贴 vless:// 节点链接或 https:// 订阅链接...",
+  },
   "nodes.cancel": { en: "Cancel", zh: "取消" },
   "nodes.import_btn": { en: "Import", zh: "导入" },
   "nodes.importing": { en: "Importing...", zh: "导入中..." },

@@ -3,6 +3,7 @@ use tauri::State;
 
 use crate::commands::proxy::ProxyState;
 use crate::lifecycle::{apply_runtime_config_change, LifecycleError};
+use crate::singbox::subscription::{fetch_subscription_node, resolve_import_node};
 use crate::singbox::uri_parser::Node;
 use crate::storage::app_config::AppConfig;
 
@@ -11,9 +12,20 @@ pub struct AppState {
 }
 
 #[tauri::command]
-pub fn import_node(vless_uri: String, state: State<AppState>) -> Result<Node, String> {
+pub async fn import_node(vless_uri: String, state: State<'_, AppState>) -> Result<Node, String> {
+    let input = vless_uri.trim().to_string();
+    // Fetch (blocking HTTPS) and parse happen outside the config mutex so the
+    // app stays responsive while the subscription server is contacted.
+    let node = if input.starts_with("https://") {
+        tauri::async_runtime::spawn_blocking(move || fetch_subscription_node(&input))
+            .await
+            .map_err(|_| "Subscription import task failed to start.".to_string())??
+    } else {
+        resolve_import_node(&input)?
+    };
+
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
-    let node = config.import_node_uri(&vless_uri)?;
+    let node = config.add_node(node);
     config.save()?;
     Ok(node)
 }

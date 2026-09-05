@@ -525,6 +525,7 @@ mod tests {
             public_key: String::new(),
             short_id: String::new(),
             transport: "tcp".to_string(),
+            ..Default::default()
         }
     }
 
