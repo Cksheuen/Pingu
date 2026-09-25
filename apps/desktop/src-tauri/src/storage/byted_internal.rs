@@ -1,4 +1,4 @@
-use crate::singbox::config_gen::{NameServerPolicy, Rule, RuleGroup};
+use crate::mihomo::config_gen::{NameServerPolicy, Rule, RuleGroup};
 
 pub(crate) const BYTED_INTERNAL_DNS_GROUP_NAME: &str = "Byted Internal DNS";
 pub(crate) const BYTED_INTERNAL_PRIMARY_DNS: &str = "10.199.34.255";

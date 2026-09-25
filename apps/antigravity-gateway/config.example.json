@@ -1,0 +1,94 @@
+{
+  "port": 51120,
+  "host": "127.0.0.1",
+  "apiKeys": [],
+  "authDir": "./auth",
+  "providers": {
+    "codex-subscription": {
+      "type": "codex-oauth",
+      "baseUrl": "https://chatgpt.com/backend-api/codex",
+      "authFile": "~/.codex/auth.json",
+      "clientVersion": "0.147.0",
+      "originator": "codex_cli_rs",
+      "autoDiscoverModels": true,
+      "modelRefreshIntervalMs": 3600000
+    },
+    "openai-api": {
+      "type": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "sk-proj-xxxxxxxxxxxx",
+      "autoDiscoverModels": true,
+      "modelRefreshIntervalMs": 3600000
+    },
+    "official-anthropic": {
+      "type": "anthropic",
+      "baseUrl": "https://api.anthropic.com",
+      "apiKey": "sk-ant-xxxxxxxxxxxx",
+      "autoDiscoverModels": true
+    },
+    "super-relay": {
+      "type": "anthropic",
+      "baseUrl": "https://super-relay.byted.org",
+      "apiKeyFile": ".local/credentials/super-relay-token",
+      "models": [
+        "model_api/experimental_0812_256k",
+        "model_api/experimental_0812",
+        "model_hub/es1_orange_o48",
+        "auto_model/alwaysday1",
+        "opensource/glm5.2[1m]"
+      ]
+    },
+    "cpa": {
+      "type": "anthropic",
+      "baseUrl": "https://cpa.mjclouds.com",
+      "apiKeyFile": ".local/credentials/cpa-token",
+      "autoDiscoverModels": true,
+      "geminiSchemaConstraints": true,
+      "models": [
+        "gemini-3.7-flash-high",
+        "gemini-3-flash"
+      ]
+    },
+    "sub2api": {
+      "type": "openai",
+      "baseUrl": "https://sub2api.example.com/v1",
+      "apiKey": "sk-sub2api-token",
+      "models": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ]
+    },
+    "antigravity-oauth": {
+      "type": "google-oauth",
+      "authDir": "./auth",
+      "models": [
+        "gemini-3.7-flash-high",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-3-flash-preview"
+      ]
+    }
+  },
+  "routes": [
+    {
+      "match": "claude-sonnet-4-6",
+      "provider": "codex-subscription",
+      "targetModel": "gpt-5.6-sol"
+    },
+    {
+      "modelPrefix": "cpa/",
+      "provider": "cpa",
+      "stripPrefix": true
+    },
+    {
+      "modelPrefix": "relay/",
+      "provider": "super-relay",
+      "stripPrefix": true
+    },
+    {
+      "modelPrefix": "sub/",
+      "provider": "sub2api",
+      "stripPrefix": true
+    }
+  ]
+}

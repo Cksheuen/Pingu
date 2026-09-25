@@ -1,0 +1,15 @@
+[Unit]
+Description=Watch Pingu backup assets for changes
+# Shipped disabled: WS connection-counter churn would trigger full
+# snapshots. Manual backup is mandatory before any cutover; the daily
+# timer is the only enabled trigger.
+
+[Path]
+PathChanged=/var/lib/pingu-gate/devices.json
+PathChanged=/etc/pingu-gate.token
+PathChanged=/etc/pingu-gate.tokens
+PathChanged=/etc/mihomo/config.json
+Unit=pingu-backup.service
+
+[Install]
+WantedBy=paths.target

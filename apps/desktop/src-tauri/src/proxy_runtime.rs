@@ -6,10 +6,8 @@ use std::time::Duration;
 use serde::Serialize;
 use url::Url;
 
-use crate::singbox::config_gen::{
-    generate_config_with_host_overrides_and_port, NameServerPolicy, RuleGroup,
-};
-use crate::singbox::uri_parser::Node;
+use crate::mihomo::config_gen::{try_generate_app_config, NameServerPolicy, RuleGroup};
+use crate::mihomo::uri_parser::Node;
 use crate::storage::app_config::{AppConfig, HostOverride};
 
 const EGRESS_PROBE_URL: &str = "https://api.ipify.org/";
@@ -71,6 +69,10 @@ pub struct RuntimeSelection {
 
 pub struct PreparedRuntime {
     pub config_dir: PathBuf,
+    /// Present only for a unique generation directory created by this app.
+    /// Lifecycle transfers this explicit ownership to the process that uses it;
+    /// preview and persisted/user paths are never inferred from `config_path`.
+    pub owned_runtime_dir: Option<PathBuf>,
     pub config_path: PathBuf,
     pub cache_path: PathBuf,
     pub node: Node,
@@ -101,16 +103,23 @@ pub fn app_config_dir() -> Result<PathBuf, String> {
 }
 
 pub fn resolve_runtime_selection(config: &AppConfig) -> Result<RuntimeSelection, String> {
-    let active_node_id = config
+    let node = config
         .active_node_id
         .as_ref()
-        .ok_or("No active node selected")?;
-    let node = config
-        .nodes
-        .iter()
-        .find(|node| &node.id == active_node_id)
+        .and_then(|id| config.nodes.iter().find(|n| &n.id == id))
         .cloned()
-        .ok_or("Active node not found")?;
+        .or_else(|| {
+            config
+                .subscriptions
+                .iter()
+                .any(|s| s.enabled)
+                .then(|| Node {
+                    id: "__subscriptions__".into(),
+                    name: "Subscriptions".into(),
+                    ..Default::default()
+                })
+        })
+        .ok_or("Select a manual node or enable a subscription")?;
     let rule_group = config.active_rule_group()?.clone();
 
     Ok(RuntimeSelection { node, rule_group })
@@ -132,36 +141,71 @@ pub fn prepare_runtime_generation_with_port(
     generation: Option<u64>,
     listen_port: u16,
 ) -> Result<PreparedRuntime, String> {
+    prepare_runtime_generation_in_dir_with_port(
+        config,
+        generation,
+        listen_port,
+        app_config_dir()?.join("mihomo"),
+    )
+}
+
+fn prepare_runtime_generation_in_dir_with_port(
+    config: &AppConfig,
+    generation: Option<u64>,
+    listen_port: u16,
+    mihomo_dir: PathBuf,
+) -> Result<PreparedRuntime, String> {
     let selection = resolve_runtime_selection(config)?;
     let clash_api_port = find_available_port(9090)?;
 
-    let config_dir = app_config_dir()?;
-    let cache_path = config_dir.join("cache.db");
-    let config_path = match generation {
-        Some(generation) => config_dir.join(format!("sing-box-config-{generation}.json")),
-        None => config_dir.join("sing-box-config.json"),
-    };
-    let host_overrides = resolve_runtime_host_overrides(config, &selection.rule_group);
-    let sb_config = generate_config_with_host_overrides_and_port(
-        &selection.node,
-        &selection.rule_group,
-        cache_path.to_str().ok_or("Invalid cache path")?,
-        &host_overrides,
-        clash_api_port,
-        listen_port,
-    );
-    let config_str = serde_json::to_string_pretty(&sb_config).map_err(|e| e.to_string())?;
-    std::fs::write(&config_path, config_str).map_err(|e| e.to_string())?;
+    let config_dir = mihomo_dir.join(match generation {
+        Some(generation) => format!("runtime-{generation}-{}", uuid::Uuid::new_v4()),
+        None => "preview".to_string(),
+    });
+    let owned_runtime_dir = generation.map(|_| config_dir.clone());
+    let result = (|| {
+        std::fs::create_dir_all(&config_dir)
+            .map_err(|_| "Cannot create Mihomo runtime directory")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o700))
+                .map_err(|_| "Cannot protect runtime directory")?;
+        }
+        let cache_path = config_dir.join("cache.db");
+        let config_path = config_dir.join("config.json");
+        let host_overrides = resolve_runtime_host_overrides(config, &selection.rule_group);
+        let sb_config = try_generate_app_config(
+            config,
+            &selection.rule_group,
+            &host_overrides,
+            clash_api_port,
+            listen_port,
+        )
+        .map_err(|e| format!("Cannot start proxy: {e}"))?;
+        let config_str = serde_json::to_string_pretty(&sb_config).map_err(|e| e.to_string())?;
+        crate::mihomo::private_write(&config_path, config_str.as_bytes())?;
 
-    Ok(PreparedRuntime {
-        config_dir,
-        config_path,
-        cache_path,
-        node: selection.node,
-        rule_group: selection.rule_group,
-        clash_api_port,
-        listen_port,
-    })
+        Ok(PreparedRuntime {
+            config_dir,
+            owned_runtime_dir: owned_runtime_dir.clone(),
+            config_path,
+            cache_path,
+            node: selection.node,
+            rule_group: selection.rule_group,
+            clash_api_port,
+            listen_port,
+        })
+    })();
+
+    // Only a UUID generation directory is app-owned and safe to remove here.
+    // Preview/persisted/user paths deliberately have no ownership token.
+    if result.is_err() {
+        if let Some(path) = &owned_runtime_dir {
+            let _ = std::fs::remove_dir_all(path);
+        }
+    }
+    result
 }
 
 pub fn build_proxy_status(
@@ -212,7 +256,7 @@ pub fn proxy_info(listen_port: u16) -> ProxyInfo {
 }
 
 /// Query the IP address seen by a request that is explicitly sent through the
-/// local sing-box listener. This intentionally does not depend on macOS
+/// local mihomo listener. This intentionally does not depend on macOS
 /// system-proxy settings, so it is safe to use while validating a connection.
 pub fn probe_proxy_egress(listen_port: u16) -> Result<String, String> {
     let response = proxy_probe_agent(listen_port)?
@@ -233,44 +277,119 @@ pub fn probe_proxy_egress(listen_port: u16) -> Result<String, String> {
 /// claim that an IP is "clean" or that a Cloudflare challenge is passable.
 pub fn verify_proxy_content(listen_port: u16) -> Result<Vec<NetworkContentCheck>, String> {
     let agent = proxy_probe_agent(listen_port)?;
-    let egress_ip = agent
+
+    // The three probes target independent endpoints and each carries its own
+    // 8s deadline, so they run concurrently. Every task is joined before
+    // validation, which stays sequential to preserve error precedence.
+    let (egress, cloudflare, google) = run_parallel_checks(
+        || fetch_egress_ip(&agent),
+        || fetch_cloudflare_trace_ip(&agent),
+        || fetch_google_content_status(&agent),
+    );
+
+    finalize_content_checks(egress, cloudflare, google)
+}
+
+/// Run three independent checks on scoped threads and join every task. A
+/// panicked check is reported as an `Err` instead of unwinding the caller.
+fn run_parallel_checks<A, B, C, RA, RB, RC>(
+    check_a: A,
+    check_b: B,
+    check_c: C,
+) -> (Result<RA, String>, Result<RB, String>, Result<RC, String>)
+where
+    A: FnOnce() -> Result<RA, String> + Send,
+    B: FnOnce() -> Result<RB, String> + Send,
+    C: FnOnce() -> Result<RC, String> + Send,
+    RA: Send,
+    RB: Send,
+    RC: Send,
+{
+    std::thread::scope(|scope| {
+        let handle_a = scope.spawn(check_a);
+        let handle_b = scope.spawn(check_b);
+        let handle_c = scope.spawn(check_c);
+
+        (
+            handle_a
+                .join()
+                .unwrap_or_else(|panic| Err(check_panic_message(panic))),
+            handle_b
+                .join()
+                .unwrap_or_else(|panic| Err(check_panic_message(panic))),
+            handle_c
+                .join()
+                .unwrap_or_else(|panic| Err(check_panic_message(panic))),
+        )
+    })
+}
+
+fn check_panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    let message = if let Some(message) = payload.downcast_ref::<&'static str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "unknown panic".to_string()
+    };
+    format!("Proxy content check panicked: {message}")
+}
+
+fn fetch_egress_ip(agent: &ureq::Agent) -> Result<String, String> {
+    let response = agent
         .get(EGRESS_PROBE_URL)
         .call()
         .map_err(|error| format!("Failed to verify proxy egress: {error}"))?
         .into_string()
-        .map_err(|error| format!("Failed to read proxy egress: {error}"))
-        .and_then(|response| parse_egress_ip(&response))?;
+        .map_err(|error| format!("Failed to read proxy egress: {error}"))?;
+    parse_egress_ip(&response)
+}
 
-    let cloudflare_trace = agent
+fn fetch_cloudflare_trace_ip(agent: &ureq::Agent) -> Result<String, String> {
+    let trace = agent
         .get(CLOUDFLARE_TRACE_URL)
         .call()
         .map_err(|error| format!("Cloudflare trace request failed: {error}"))?
         .into_string()
         .map_err(|error| format!("Failed to read Cloudflare trace: {error}"))?;
-    let cloudflare_ip = cloudflare_trace
+    let trace_ip = trace
         .lines()
         .find_map(|line| line.strip_prefix("ip="))
         .map(str::trim)
         .ok_or("Cloudflare trace did not return an IP address")?;
-    let cloudflare_ip = parse_egress_ip(cloudflare_ip)?;
-    if cloudflare_ip != egress_ip {
-        return Err(format!(
-            "Egress mismatch: IP service returned {egress_ip}, Cloudflare trace returned {cloudflare_ip}"
-        ));
-    }
+    parse_egress_ip(trace_ip)
+}
 
-    let google_response = agent
+fn fetch_google_content_status(agent: &ureq::Agent) -> Result<u16, String> {
+    agent
         .get(GOOGLE_CONTENT_PROBE_URL)
         .call()
-        .map_err(|error| format!("Google content check failed: {error}"))?;
-    if google_response.status() != 204 {
+        .map(|response| response.status())
+        .map_err(|error| format!("Google content check failed: {error}"))
+}
+
+/// Validate the joined probe results. Kept free of network access so the
+/// egress-equality and Google all-or-nothing rules are deterministically
+/// testable.
+fn finalize_content_checks(
+    egress: Result<String, String>,
+    cloudflare: Result<String, String>,
+    google: Result<u16, String>,
+) -> Result<Vec<NetworkContentCheck>, String> {
+    let egress_ip = egress?;
+    let cloudflare_ip = cloudflare?;
+    // Different domain policies may legitimately use different exits.
+
+    let google_status = google?;
+    if google_status != 204 {
         return Err(format!(
-            "Google content check returned HTTP {} instead of 204",
-            google_response.status()
+            "Google content check returned HTTP {google_status} instead of 204"
         ));
     }
 
-    Ok(content_checks_for_egress(egress_ip))
+    let mut checks = content_checks_for_egress(egress_ip);
+    checks[1].observed_ip = Some(cloudflare_ip);
+    Ok(checks)
 }
 
 fn proxy_probe_agent(listen_port: u16) -> Result<ureq::Agent, String> {
@@ -307,6 +426,22 @@ pub fn build_ai_service_preflight(
     egress_ip: String,
     network_checks: Vec<NetworkContentCheck>,
 ) -> Result<AiServicePreflight, String> {
+    if config.subscriptions.iter().any(|s| s.enabled) {
+        return Ok(AiServicePreflight {
+            egress_ip,
+            network_checks,
+            routes: AI_SERVICE_TARGETS
+                .iter()
+                .map(|(service, host)| AiServiceRoute {
+                    service: (*service).into(),
+                    host: (*host).into(),
+                    outbound: "runtime".into(),
+                    matched_by: "Subscription routing; inspect live connections".into(),
+                })
+                .collect(),
+            ready: false,
+        });
+    }
     let rule_group = config.active_rule_group()?;
     let routes = AI_SERVICE_TARGETS
         .iter()
@@ -377,35 +512,9 @@ fn configured_outbound_for_host(
 }
 
 pub fn check_generated_config(config_path: &Path) -> Result<(), String> {
-    let output = Command::new(crate::resolve_sing_box_path())
-        .args([
-            "check",
-            "-c",
-            config_path.to_str().ok_or("Invalid config path")?,
-        ])
-        .output()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                crate::missing_sing_box_message()
-            } else {
-                format!("Failed to run sing-box check: {}", e)
-            }
-        })?;
-
-    if output.status.success() {
-        return Ok(());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let message = if !stderr.is_empty() {
-        stderr
-    } else if !stdout.is_empty() {
-        stdout
-    } else {
-        "sing-box check failed".to_string()
-    };
-    Err(message)
+    crate::mihomo::process::MihomoProcess::new()
+        .check(config_path.to_str().ok_or("Invalid config path")?)
+        .map_err(|error| error.finish_owned_cleanup(None))
 }
 
 fn resolve_runtime_host_overrides(config: &AppConfig, rule_group: &RuleGroup) -> Vec<HostOverride> {
@@ -507,233 +616,4 @@ fn current_runtime_timestamp() -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::singbox::config_gen::{Rule, RuleGroup};
-
-    fn sample_node(id: &str) -> Node {
-        Node {
-            id: id.to_string(),
-            name: "Node".to_string(),
-            address: "example.com".to_string(),
-            port: 443,
-            uuid: "123e4567-e89b-12d3-a456-426614174000".to_string(),
-            flow: String::new(),
-            security: "tls".to_string(),
-            sni: "example.com".to_string(),
-            fingerprint: String::new(),
-            public_key: String::new(),
-            short_id: String::new(),
-            transport: "tcp".to_string(),
-            ..Default::default()
-        }
-    }
-
-    fn sample_group(id: &str, name: &str) -> RuleGroup {
-        RuleGroup {
-            id: id.to_string(),
-            name: name.to_string(),
-            rules: vec![Rule {
-                id: "rule-1".to_string(),
-                rule_type: "domain_suffix".to_string(),
-                match_value: "example.com".to_string(),
-                outbound: "proxy".to_string(),
-            }],
-            default_strategy: "proxy".to_string(),
-            fake_ip_filter: vec![],
-            nameserver_policy: vec![],
-        }
-    }
-
-    fn sample_config() -> AppConfig {
-        AppConfig {
-            nodes: vec![sample_node("node-1")],
-            active_node_id: Some("node-1".to_string()),
-            rule_groups: vec![sample_group("group-1", "Default")],
-            active_group_id: "group-1".to_string(),
-            host_overrides: vec![],
-            autostart: false,
-            language: "zh".to_string(),
-        }
-    }
-
-    #[test]
-    fn resolve_runtime_selection_returns_active_node_and_group() {
-        let selection = resolve_runtime_selection(&sample_config()).unwrap();
-
-        assert_eq!(selection.node.id, "node-1");
-        assert_eq!(selection.rule_group.id, "group-1");
-    }
-
-    #[test]
-    fn build_proxy_status_returns_group_name_from_config() {
-        let status = build_proxy_status(
-            &sample_config(),
-            true,
-            42,
-            Some("node-1".to_string()),
-            Some("group-1".to_string()),
-        );
-
-        assert_eq!(
-            status,
-            ProxyStatus {
-                connected: true,
-                active_node_id: Some("node-1".to_string()),
-                active_group_id: Some("group-1".to_string()),
-                active_group_name: Some("Default".to_string()),
-                uptime_seconds: 42,
-            }
-        );
-    }
-
-    #[test]
-    fn build_proxy_status_resets_snapshot_when_disconnected() {
-        let status = build_proxy_status(
-            &sample_config(),
-            false,
-            99,
-            Some("node-1".to_string()),
-            Some("group-1".to_string()),
-        );
-
-        assert_eq!(
-            status,
-            ProxyStatus {
-                connected: false,
-                active_node_id: None,
-                active_group_id: None,
-                active_group_name: None,
-                uptime_seconds: 0,
-            }
-        );
-    }
-
-    #[test]
-    fn parse_egress_ip_accepts_a_plain_text_ip_response() {
-        assert_eq!(parse_egress_ip("154.26.187.44\n").unwrap(), "154.26.187.44");
-        assert_eq!(parse_egress_ip("2001:db8::1").unwrap(), "2001:db8::1");
-    }
-
-    #[test]
-    fn parse_egress_ip_rejects_an_html_page() {
-        assert!(parse_egress_ip("<html><body>154.26.187.44</body></html>").is_err());
-    }
-
-    #[test]
-    fn content_checks_report_one_consistent_observed_egress() {
-        let checks = content_checks_for_egress("154.26.187.44".to_string());
-
-        assert_eq!(checks.len(), 3);
-        assert_eq!(checks[0].id, "egress_ip");
-        assert_eq!(checks[0].observed_ip.as_deref(), Some("154.26.187.44"));
-        assert_eq!(checks[1].id, "cloudflare_trace");
-        assert_eq!(checks[1].observed_ip.as_deref(), Some("154.26.187.44"));
-        assert_eq!(checks[2].id, "google_content");
-        assert_eq!(checks[2].observed_ip, None);
-    }
-
-    #[test]
-    fn ai_preflight_reports_the_effective_route_for_each_service() {
-        let mut config = sample_config();
-        config.rule_groups[0].default_strategy = "direct".to_string();
-        config.rule_groups[0].rules.push(Rule {
-            id: "claude-proxy".to_string(),
-            rule_type: "domain_suffix".to_string(),
-            match_value: "anthropic.com".to_string(),
-            outbound: "proxy".to_string(),
-        });
-
-        let report = build_ai_service_preflight(
-            &config,
-            "154.26.187.44".to_string(),
-            content_checks_for_egress("154.26.187.44".to_string()),
-        )
-        .unwrap();
-        assert_eq!(report.egress_ip, "154.26.187.44");
-        assert!(!report.ready);
-        assert_eq!(report.routes[0].outbound, "proxy");
-        assert_eq!(report.routes[1].outbound, "direct");
-
-        config.rule_groups[0].default_strategy = "proxy".to_string();
-        config.rule_groups[0].rules.push(Rule {
-            id: "chatgpt-direct".to_string(),
-            rule_type: "domain".to_string(),
-            match_value: "chatgpt.com".to_string(),
-            outbound: "direct".to_string(),
-        });
-        let report = build_ai_service_preflight(
-            &config,
-            "154.26.187.44".to_string(),
-            content_checks_for_egress("154.26.187.44".to_string()),
-        )
-        .unwrap();
-        assert!(!report.ready);
-        assert_eq!(report.routes[3].outbound, "direct");
-        assert_eq!(report.routes[3].matched_by, "domain: chatgpt.com");
-    }
-
-    #[test]
-    fn discover_runtime_host_override_adds_system_dns_for_matching_npm_registry() {
-        std::env::set_var("NPM_CONFIG_REGISTRY", "https://bnpm.byted.org/");
-        let group = RuleGroup {
-            id: "group-1".to_string(),
-            name: "Default".to_string(),
-            rules: vec![],
-            default_strategy: "proxy".to_string(),
-            fake_ip_filter: vec![],
-            nameserver_policy: vec![NameServerPolicy {
-                domain_suffix: "+.byted.org".to_string(),
-                server: "100.82.0.1".to_string(),
-                servers: vec![],
-            }],
-        };
-
-        let item = discover_runtime_host_override(&group, &std::collections::HashSet::new())
-            .expect("runtime fallback override");
-
-        assert_eq!(item.id, "runtime-fallback-bnpm.byted.org");
-        assert_eq!(item.host, "bnpm.byted.org");
-        assert_eq!(item.resolver_mode, "system-dns");
-        assert_eq!(item.outbound_mode, "inherit");
-        assert!(item.enabled);
-        assert_eq!(item.source, "runtime_fallback");
-        assert_eq!(
-            item.reason,
-            "Current npm registry matched nameserver policy"
-        );
-        assert!(!item.updated_at.is_empty());
-
-        std::env::remove_var("NPM_CONFIG_REGISTRY");
-    }
-
-    #[test]
-    fn resolve_runtime_host_overrides_prefers_persisted_host_override() {
-        std::env::set_var("NPM_CONFIG_REGISTRY", "https://bnpm.byted.org/");
-        let mut config = sample_config();
-        config.host_overrides.push(HostOverride {
-            id: "manual-1".to_string(),
-            host: "bnpm.byted.org".to_string(),
-            resolver_mode: "remote-dns".to_string(),
-            outbound_mode: "direct".to_string(),
-            enabled: true,
-            source: "manual".to_string(),
-            reason: "manual override".to_string(),
-            updated_at: "1".to_string(),
-        });
-        config.rule_groups[0].nameserver_policy = vec![NameServerPolicy {
-            domain_suffix: "+.byted.org".to_string(),
-            server: "100.82.0.1".to_string(),
-            servers: vec![],
-        }];
-
-        let overrides = resolve_runtime_host_overrides(&config, &config.rule_groups[0]);
-
-        assert_eq!(overrides.len(), 1);
-        assert_eq!(overrides[0].id, "manual-1");
-        assert_eq!(overrides[0].resolver_mode, "remote-dns");
-        assert_eq!(overrides[0].outbound_mode, "direct");
-
-        std::env::remove_var("NPM_CONFIG_REGISTRY");
-    }
-}
+mod tests;

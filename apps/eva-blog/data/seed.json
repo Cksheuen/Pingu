@@ -67,10 +67,10 @@
       "artistNote": "A visual note about leaving enough room for the unfinished parts of a system.",
       "altText": "Warm paper grid with red and blue hand-drawn lines and a cyan circle.",
       "medium": "graphite, marker, digital paper",
-      "dimensions": { "width": 700, "height": 820 },
+      "dimensions": { "width": 900, "height": 640 },
       "tags": ["study", "grid", "memory"],
       "license": "All rights reserved",
-      "assets": [{ "id": "grid-display", "publicSrc": "/public/assets/sketch-grid.svg", "publicThumbSrc": "/public/assets/sketch-grid.svg", "altText": "Warm paper grid with red and blue hand-drawn lines and a cyan circle.", "width": 700, "height": 820, "kind": "image" }]
+      "assets": [{ "id": "grid-display", "publicSrc": "/public/assets/sketch-grid.svg", "publicThumbSrc": "/public/assets/sketch-grid.svg", "altText": "Warm paper grid with red and blue hand-drawn lines and a cyan circle.", "width": 900, "height": 640, "kind": "image" }]
     }
   ],
   "revisions": [],

@@ -1,0 +1,15 @@
+# Copy to /etc/pingu-backup.conf and keep it root-owned (0600).
+# RCLONE_REMOTE must point at an rclone crypt remote (the script refuses
+# non-crypt remotes), e.g. drive-crypt: . The rclone OAuth token and
+# crypt passwords in /root/.config/rclone/rclone.conf are secrets and
+# must never be copied into the repository.
+#
+# Each run creates one immutable complete snapshot under
+# REMOTE/snapshots/<id>/ and publishes REMOTE/LATEST.json only after
+# cryptcheck succeeds. Old snapshots are append-only; retention is
+# manual in this MVP (no automatic purge).
+RCLONE_REMOTE=drive-crypt:
+STATE_DIR=/var/lib/pingu-backup
+OUTPUT_DIR=/var/lib/pingu-backup/snapshots
+LOCK_FILE=/run/pingu-backup.lock
+SNAPSHOT_SOURCE_ROOT=/

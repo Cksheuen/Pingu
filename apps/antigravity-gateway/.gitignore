@@ -1,0 +1,5 @@
+auth/
+config.json
+.local/
+*.log
+.runtime/

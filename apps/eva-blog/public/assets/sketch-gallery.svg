@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-labelledby="title desc">
+  <title id="title">Field</title>
+  <desc id="desc">A slow violet drift over cool paper, with room to wander.</desc>
+  <rect width="900" height="640" fill="#e8ecf2"/>
+  <path d="M88 468C252 344 424 196 744 214" fill="none" stroke="#3a3560" stroke-width="8"/>
+  <path d="M142 524C306 404 524 268 792 306" fill="none" stroke="#7d6bb0" stroke-width="3" stroke-dasharray="8 16"/>
+  <circle cx="492" cy="296" r="122" fill="none" stroke="#7fa07a" stroke-width="12"/>
+  <circle cx="492" cy="296" r="28" fill="#2f2a52"/>
+  <circle cx="688" cy="214" r="15" fill="#d46b61"/>
+  <path d="M116 112H288M116 136H220M656 486H812M704 510H812" stroke="#26374d" stroke-width="4"/>
+  <path d="M92 84L92 558M808 84L808 558" stroke="#bcc6d4" stroke-width="2"/>
+  <text x="116" y="600" fill="#26374d" font-family="monospace" font-size="18" letter-spacing="4">FIELD / 04</text>
+</svg>

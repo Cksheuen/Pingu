@@ -4,26 +4,26 @@ import { useLocale } from "../hooks/useLocale";
 import { PublicNav } from "./PublicNav";
 import { LocaleSwitch } from "./LocaleSwitch";
 import type { Route } from "../types";
-import type { HeroMorphResult } from "../hooks/useHeroMorph";
+import type { HeaderMotion } from "../hooks/heroTypes";
 
 export interface SiteHeaderProps {
   route: Route;
-  isHome: boolean;
-  headerMotion: HeroMorphResult["header"];
+  hasHero: boolean;
+  headerMotion: HeaderMotion;
   brandSlotRef: RefObject<HTMLDivElement | null>;
   navLinkRefs: RefObject<(HTMLAnchorElement | null)[]>;
   artworkSrc: string;
   onBrandClick: (e: MouseEvent) => void;
 }
 
-export function SiteHeader({ route, isHome, headerMotion, brandSlotRef, navLinkRefs, artworkSrc, onBrandClick }: SiteHeaderProps) {
+export function SiteHeader({ route, hasHero, headerMotion, brandSlotRef, navLinkRefs, artworkSrc, onBrandClick }: SiteHeaderProps) {
   const { t } = useLocale();
   return (
     <motion.header
       className="topbar"
       style={{
-        opacity: isHome ? headerMotion.opacity : 1,
-        pointerEvents: isHome ? headerMotion.pointerEvents : "auto",
+        opacity: hasHero ? headerMotion.opacity : 1,
+        pointerEvents: hasHero ? headerMotion.pointerEvents : "auto",
       }}
     >
       <a className="brand" href="#/" aria-label={t("brand.home")} onClick={onBrandClick}>

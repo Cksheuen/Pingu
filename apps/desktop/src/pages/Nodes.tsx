@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { t } from "../lib/i18n";
 import Tooltip from "../components/Tooltip";
 import { ImportDialog } from "../components/nodes/ImportDialog";
@@ -56,6 +57,7 @@ export default function Nodes() {
 
       {switchError && <p className="node-switch-error" role="alert">{switchError}</p>}
 
+      <p className="network-hint">{t("nodes.subscription_hint")} <Link to="/subscriptions" className="network-text-link">{t("nav.subscriptions")} →</Link></p>
       {/* Node list */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-2">
         {nodes.length === 0 && (

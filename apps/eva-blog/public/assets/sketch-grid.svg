@@ -1,14 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 820" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-labelledby="title desc">
   <title id="title">Grid memory</title>
-  <desc id="desc">A warm editorial grid with hand-drawn marks and a small blue signal.</desc>
-  <rect width="700" height="820" fill="#f0e8d7"/>
-  <g stroke="#c9bfae" stroke-width="2" opacity=".8">
-    <path d="M56 0V820M128 0V820M200 0V820M272 0V820M344 0V820M416 0V820M488 0V820M560 0V820M632 0V820"/>
-    <path d="M0 76H700M0 148H700M0 220H700M0 292H700M0 364H700M0 436H700M0 508H700M0 580H700M0 652H700M0 724H700"/>
-  </g>
-  <path d="M126 604C180 390 318 238 510 158" fill="none" stroke="#d46b61" stroke-width="14"/>
-  <path d="M126 604C274 614 410 572 572 436" fill="none" stroke="#314f9b" stroke-width="7"/>
-  <circle cx="506" cy="160" r="34" fill="#69c9d8" stroke="#26374d" stroke-width="5"/>
-  <path d="M96 112h154M96 136h96M450 692h146" stroke="#26374d" stroke-width="5"/>
-  <text x="96" y="756" fill="#26374d" font-family="monospace" font-size="18" letter-spacing="4">GRID MEMORY / 02</text>
+  <desc id="desc">A warm paper field where a hand-drawn line remembers the grid it crossed.</desc>
+  <rect width="900" height="640" fill="#f0e8d7"/>
+  <path d="M96 472C210 250 384 128 700 146" fill="none" stroke="#2b3a55" stroke-width="8"/>
+  <path d="M150 508C292 306 500 206 772 246" fill="none" stroke="#b3402f" stroke-width="3" stroke-dasharray="8 16"/>
+  <circle cx="468" cy="258" r="108" fill="none" stroke="#69c9d8" stroke-width="12"/>
+  <circle cx="468" cy="258" r="26" fill="#314f9b"/>
+  <circle cx="652" cy="182" r="15" fill="#d46b61"/>
+  <path d="M118 118H296M118 142H232M638 470H800M682 494H800" stroke="#2b3a55" stroke-width="4"/>
+  <path d="M96 88L96 556M804 88L804 556" stroke="#c9bfae" stroke-width="2"/>
+  <text x="118" y="600" fill="#2b3a55" font-family="monospace" font-size="18" letter-spacing="4">GRID MEMORY / 02</text>
 </svg>

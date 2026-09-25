@@ -4,6 +4,10 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Home from "./pages/Home";
 import Nodes from "./pages/Nodes";
+import Subscriptions from "./pages/Subscriptions";
+import Strategies from "./pages/Strategies";
+import Connections from "./pages/Connections";
+import { useSubscriptionStore } from "./lib/subscription-store";
 import Rules from "./pages/Rules";
 import Logs from "./pages/Logs";
 import HostOverrides from "./pages/HostOverrides";
@@ -21,6 +25,9 @@ function RoutedContent() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/nodes" element={<Nodes />} />
+        <Route path="/subscriptions" element={<Subscriptions />} />
+        <Route path="/strategies" element={<Strategies />} />
+        <Route path="/connections" element={<Connections />} />
         <Route path="/rules" element={<Rules />} />
         <Route path="/host-overrides" element={<HostOverrides />} />
         <Route path="/logs" element={<Logs />} />
@@ -31,6 +38,8 @@ function RoutedContent() {
 }
 
 export default function App() {
+  const refreshSubscriptions = useSubscriptionStore((s) => s.refresh);
+  useEffect(() => { void refreshSubscriptions().catch(() => {}); }, [refreshSubscriptions]);
   const refreshAll = useConnectionStore((s) => s.refreshAll);
   const refreshStatus = useConnectionStore((s) => s.refreshStatus);
 

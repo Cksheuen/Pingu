@@ -31,7 +31,7 @@ function resolveTauriOverride(targetTriple, executableSuffix) {
   const bundledBinary = join(
     srcTauriDir,
     "binaries",
-    `sing-box-${targetTriple}${executableSuffix}`,
+    `mihomo-${targetTriple}${executableSuffix}`,
   );
 
   if (existsSync(bundledBinary)) {
@@ -39,13 +39,13 @@ function resolveTauriOverride(targetTriple, executableSuffix) {
   }
 
   const sourceBinary =
-    process.env.PINGU_SING_BOX_BIN ||
-    process.env.SING_BOX_BIN ||
-    findOnPath(`sing-box${executableSuffix}`);
+    process.env.PINGU_MIHOMO_BIN ||
+    process.env.MIHOMO_BIN ||
+    findOnPath(`mihomo${executableSuffix}`);
 
   if (!sourceBinary) {
     console.warn(
-      "[pingu] sing-box sidecar not found; building without bundled sing-box. Install sing-box on PATH or set PINGU_SING_BOX_BIN to bundle it.",
+      "[pingu] mihomo sidecar not found; building without bundled mihomo. Install mihomo on PATH or set PINGU_MIHOMO_BIN to bundle it.",
     );
     return {
       bundle: {
@@ -57,7 +57,7 @@ function resolveTauriOverride(targetTriple, executableSuffix) {
   const stageDir = mkdtempSync(join(tmpdir(), "pingu-tauri-"));
   mkdirSync(stageDir, { recursive: true });
 
-  const stagedBinary = join(stageDir, `sing-box-${targetTriple}${executableSuffix}`);
+  const stagedBinary = join(stageDir, `mihomo-${targetTriple}${executableSuffix}`);
   copyFileSync(sourceBinary, stagedBinary);
 
   if (!targetTriple.includes("windows")) {
@@ -66,7 +66,7 @@ function resolveTauriOverride(targetTriple, executableSuffix) {
 
   return {
     bundle: {
-      externalBin: [join(stageDir, "sing-box")],
+      externalBin: [join(stageDir, "mihomo")],
     },
   };
 }

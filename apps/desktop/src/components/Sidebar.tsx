@@ -13,6 +13,12 @@ function HomeIcon() {
   );
 }
 
+function NetworkIcon({ kind }: { kind: "subscriptions" | "strategies" | "connections" }) {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === "subscriptions" ? <><rect x="4" y="3" width="16" height="5" rx="1" /><rect x="4" y="10" width="16" height="5" rx="1" /><path d="M4 19h16M8 5.5h.01M8 12.5h.01" /></> : kind === "strategies" ? <><path d="M4 6h16M4 18h16M8 6v12M16 6v12" /><circle cx="8" cy="10" r="2" /><circle cx="16" cy="14" r="2" /></> : <><path d="M3 8h17l-4-4M21 16H4l4 4" /><circle cx="3" cy="8" r="1" /><circle cx="21" cy="16" r="1" /></>}
+  </svg>;
+}
+
 function NodesIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,7 +78,11 @@ export default function Sidebar() {
   const activeNodeId = useConnectionStore((s) => s.status.active_node_id);
   const nodes = useConnectionStore((s) => s.nodes);
   const activeNodeName =
-    nodes.find((node) => node.id === activeNodeId)?.name ?? null;
+    nodes.find((node) => node.id === activeNodeId)?.name ??
+    (activeNodeId === "__subscriptions__" ? t("home.subscription_route") : null);
+  // The rail hides the status text at narrow widths, so the link's name must
+  // carry the real state instead of the generic section label alone.
+  const statusLabel = `${t("sidebar.relay_status")}: ${connected ? t("home.connected") : t("home.disconnected")} · ${activeNodeName ?? t("home.no_node")}`;
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `sidebar-link ${isActive ? "sidebar-link-active" : ""}`;
@@ -88,27 +98,28 @@ export default function Sidebar() {
           </div>
         </div>
         <nav className="sidebar-nav">
-          <NavLink to="/" end className={navClass}>
+          <NavLink to="/" end className={navClass} aria-label={t("nav.home")} title={t("nav.home")}>
             <HomeIcon />
             <span className="sidebar-link-label">{t("nav.home")}</span>
           </NavLink>
-          <NavLink to="/nodes" className={navClass}>
+          {(["subscriptions", "strategies", "connections"] as const).map((page) => <NavLink key={page} to={`/${page}`} className={navClass} aria-label={t(`nav.${page}`)} title={t(`nav.${page}`)}><NetworkIcon kind={page} /><span className="sidebar-link-label">{t(`nav.${page}`)}</span></NavLink>)}
+          <NavLink to="/nodes" className={navClass} aria-label={t("nav.nodes")} title={t("nav.nodes")}>
             <NodesIcon />
             <span className="sidebar-link-label">{t("nav.nodes")}</span>
           </NavLink>
-          <NavLink to="/rules" className={navClass}>
+          <NavLink to="/rules" className={navClass} aria-label={t("nav.rules")} title={t("nav.rules")}>
             <RulesIcon />
             <span className="sidebar-link-label">{t("nav.rules")}</span>
           </NavLink>
-          <NavLink to="/host-overrides" className={navClass}>
+          <NavLink to="/host-overrides" className={navClass} aria-label={t("nav.host_overrides")} title={t("nav.host_overrides")}>
             <HostOverridesIcon />
             <span className="sidebar-link-label">{t("nav.host_overrides")}</span>
           </NavLink>
-          <NavLink to="/logs" className={navClass}>
+          <NavLink to="/logs" className={navClass} aria-label={t("nav.logs")} title={t("nav.logs")}>
             <LogsIcon />
             <span className="sidebar-link-label">{t("nav.logs")}</span>
           </NavLink>
-          <NavLink to="/settings" className={navClass}>
+          <NavLink to="/settings" className={navClass} aria-label={t("nav.settings")} title={t("nav.settings")}>
             <SettingsIcon />
             <span className="sidebar-link-label">{t("nav.settings")}</span>
           </NavLink>
@@ -119,7 +130,8 @@ export default function Sidebar() {
           to="/"
           className="sidebar-status"
           data-state={connected ? "active" : "idle"}
-          aria-label={t("sidebar.relay_status")}
+          aria-label={statusLabel}
+          title={statusLabel}
         >
           <span className="sidebar-status-dot" />
           <span className="sidebar-status-text">

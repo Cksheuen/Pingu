@@ -7,7 +7,7 @@ dist/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
 
-# Sidecar binaries (user must provide their own sing-box)
+# Sidecar binaries (user must provide their own Mihomo binary)
 apps/desktop/src-tauri/binaries/
 
 # Cache & DB
@@ -31,13 +31,16 @@ sing-box-config.json
 *.log
 heuen-ed25519./
 heuen-ed25519..zip
-ops/vps/*.env
-ops/vps/*.token
-ops/vps/*.tokens
-ops/vps/*.subscription.txt
+ops/vps/**/*.env
+ops/vps/**/*.token
+ops/vps/**/*.tokens
+ops/vps/**/*.subscription.txt
+ops/vps/**/*.conf
 ops/vps/remote-snapshots/
 .claude/tasks
 .claude/settings.json
 .claude/worktrees/
 .local/
 **/.test-dist/
+
+apps/deepseek-harness

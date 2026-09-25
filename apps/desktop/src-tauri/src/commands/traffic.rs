@@ -1,6 +1,8 @@
 use serde::Serialize;
 use tauri::State;
 
+use std::sync::Arc;
+
 use crate::commands::proxy::ProxyState;
 
 #[derive(Debug, Clone, Serialize)]
@@ -11,40 +13,24 @@ pub struct TrafficSnapshot {
     pub download_total: u64,
 }
 
+/// Latest cached sample from the lifecycle-owned background `/traffic`
+/// subscription. This command performs no network I/O: speeds/totals are
+/// published by at most one reader per runtime generation and reset to zero on
+/// disconnect or generation switch, so stale speeds can never survive a
+/// switch.
 #[tauri::command]
-pub fn get_traffic(proxy_state: State<ProxyState>) -> Result<TrafficSnapshot, String> {
-    let port = match proxy_state.runtime_snapshot()?.clash_api_port {
-        Some(port) => port,
-        None => {
-            return Ok(TrafficSnapshot {
-                upload_speed: 0,
-                download_speed: 0,
-                upload_total: 0,
-                download_total: 0,
-            });
-        }
-    };
-
-    let url = format!("http://127.0.0.1:{}/traffic", port);
-    let body: serde_json::Value = ureq::get(&url)
-        .timeout(std::time::Duration::from_millis(500))
-        .call()
-        .map_err(|e| format!("Failed to query clash API: {}", e))?
-        .into_json()
-        .map_err(|e| format!("Failed to parse traffic response: {}", e))?;
-    let up = body["up"].as_u64().unwrap_or(0);
-    let down = body["down"].as_u64().unwrap_or(0);
-
+pub fn get_traffic(proxy_state: State<Arc<ProxyState>>) -> Result<TrafficSnapshot, String> {
+    let sample = proxy_state.traffic_snapshot();
     Ok(TrafficSnapshot {
-        upload_speed: up,
-        download_speed: down,
-        upload_total: 0,
-        download_total: 0,
+        upload_speed: sample.upload_speed,
+        download_speed: sample.download_speed,
+        upload_total: sample.upload_total,
+        download_total: sample.download_total,
     })
 }
 
 #[tauri::command]
-pub fn get_clash_api_port(proxy_state: State<ProxyState>) -> Option<u16> {
+pub fn get_clash_api_port(proxy_state: State<Arc<ProxyState>>) -> Option<u16> {
     proxy_state
         .runtime_snapshot()
         .ok()

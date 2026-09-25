@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconId};
 use tauri::{AppHandle, Emitter, Manager};
@@ -44,21 +46,15 @@ fn format_speed(bytes_per_sec: u64) -> String {
     }
 }
 
+/// Traffic text straight from the lifecycle-owned background sample cache.
+/// Tray menu construction performs no network I/O; speeds reset to zero when
+/// the stream is quiet and to `--` only when there is no usable sample yet.
 fn get_traffic_text(proxy_state: &ProxyState) -> Option<String> {
-    let port = proxy_state.runtime_snapshot().ok()?.clash_api_port?;
-    let url = format!("http://127.0.0.1:{}/traffic", port);
-    let body: serde_json::Value = ureq::get(&url)
-        .timeout(std::time::Duration::from_millis(500))
-        .call()
-        .ok()?
-        .into_json()
-        .ok()?;
-    let up = body["up"].as_u64().unwrap_or(0);
-    let down = body["down"].as_u64().unwrap_or(0);
+    let sample = proxy_state.traffic_snapshot();
     Some(format!(
         "\u{2191} {}  \u{2193} {}",
-        format_speed(up),
-        format_speed(down)
+        format_speed(sample.upload_speed),
+        format_speed(sample.download_speed)
     ))
 }
 
@@ -87,8 +83,8 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 // ---------------------------------------------------------------------------
 
 fn build_tray_menu(app_handle: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
-    let app_state = app_handle.state::<AppState>();
-    let proxy_state = app_handle.state::<ProxyState>();
+    let app_state = app_handle.state::<Arc<AppState>>();
+    let proxy_state = app_handle.state::<Arc<ProxyState>>();
 
     let config = app_state.config.lock().map_err(|e| e.to_string())?;
     let connected = proxy_state.is_running();
@@ -272,7 +268,7 @@ pub fn rebuild_tray_menu(app_handle: &AppHandle) -> Result<(), String> {
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
 
         // Update tooltip based on connection status
-        let proxy_state = app_handle.state::<ProxyState>();
+        let proxy_state = app_handle.state::<Arc<ProxyState>>();
         let tooltip = if proxy_state.is_running() {
             "Pingu - Connected"
         } else {
@@ -282,6 +278,20 @@ pub fn rebuild_tray_menu(app_handle: &AppHandle) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Rebuild the tray menu on the main thread (AppKit menu APIs require it).
+/// Scheduling never blocks on a lifecycle operation and no state lock is held
+/// while the closure is queued; the closure re-reads state when it runs.
+pub fn rebuild_tray_menu_on_main(app_handle: AppHandle) -> Result<(), String> {
+    let inner = app_handle.clone();
+    app_handle
+        .run_on_main_thread(move || {
+            if let Err(error) = rebuild_tray_menu(&inner) {
+                eprintln!("Failed to rebuild tray menu: {error}");
+            }
+        })
+        .map_err(|error| format!("Failed to schedule tray rebuild: {error}"))
 }
 
 // ---------------------------------------------------------------------------
@@ -307,9 +317,9 @@ fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
             }
         }
         "tray-quit" => {
-            let proxy_state = app.state::<ProxyState>();
-            let _ = crate::commands::proxy::shutdown_core(proxy_state.inner());
-            app.exit(0);
+            // Route through the single coordinator: shutdown runs once, off
+            // the main thread, and Cmd-Q / repeated clicks cannot duplicate it.
+            crate::request_app_exit(app);
         }
         id if id.starts_with("tray-node-") => {
             let node_id = &id["tray-node-".len()..];
@@ -324,52 +334,86 @@ fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
 }
 
 fn handle_connect(app: &AppHandle) {
-    let app_state = app.state::<AppState>();
-    let proxy_state = app.state::<ProxyState>();
-    if crate::commands::proxy::connect_core(app_state.inner(), proxy_state.inner()).is_ok()
-        && rebuild_tray_menu(app).is_ok()
-    {
-        app.emit("tray-state-changed", "connect").ok();
-    }
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let app_state = app_handle.state::<Arc<AppState>>().inner().clone();
+        let proxy_state = app_handle.state::<Arc<ProxyState>>().inner().clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            crate::commands::proxy::connect_core(&app_state, &proxy_state)
+        })
+        .await;
+        let succeeded = matches!(result, Ok(Ok(())));
+        let main_handle = app_handle.clone();
+        app_handle
+            .run_on_main_thread(move || {
+                if succeeded {
+                    let _ = rebuild_tray_menu(&main_handle);
+                    main_handle.emit("tray-state-changed", "connect").ok();
+                }
+            })
+            .ok();
+    });
 }
 
 fn handle_disconnect(app: &AppHandle) {
-    let proxy_state = app.state::<ProxyState>();
-    if crate::commands::proxy::disconnect_core(proxy_state.inner()).is_ok()
-        && rebuild_tray_menu(app).is_ok()
-    {
-        app.emit("tray-state-changed", "disconnect").ok();
-    }
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let proxy_state = app_handle.state::<Arc<ProxyState>>().inner().clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            crate::commands::proxy::disconnect_core(&proxy_state)
+        })
+        .await;
+        let succeeded = matches!(result, Ok(Ok(())));
+        let main_handle = app_handle.clone();
+        app_handle
+            .run_on_main_thread(move || {
+                if succeeded {
+                    let _ = rebuild_tray_menu(&main_handle);
+                    main_handle.emit("tray-state-changed", "disconnect").ok();
+                }
+            })
+            .ok();
+    });
 }
 
 fn handle_switch_node(app: &AppHandle, node_id: &str) {
-    let app_state = app.state::<AppState>();
-    let proxy_state = app.state::<ProxyState>();
-
-    if crate::lifecycle::apply_runtime_config_change(
-        app_state.inner(),
-        proxy_state.inner(),
-        |config| config.set_active_node(node_id),
-    )
-    .is_ok()
-        && rebuild_tray_menu(app).is_ok()
-    {
-        app.emit("tray-state-changed", "switch-node").ok();
-    }
+    handle_config_switch(app, node_id, "switch-node", SwitchTarget::Node);
 }
 
 fn handle_switch_group(app: &AppHandle, group_id: &str) {
-    let app_state = app.state::<AppState>();
-    let proxy_state = app.state::<ProxyState>();
+    handle_config_switch(app, group_id, "switch-group", SwitchTarget::Group);
+}
 
-    if crate::lifecycle::apply_runtime_config_change(
-        app_state.inner(),
-        proxy_state.inner(),
-        |config| config.set_active_group(group_id),
-    )
-    .is_ok()
-        && rebuild_tray_menu(app).is_ok()
-    {
-        app.emit("tray-state-changed", "switch-group").ok();
-    }
+#[derive(Clone, Copy)]
+enum SwitchTarget {
+    Node,
+    Group,
+}
+
+fn handle_config_switch(app: &AppHandle, id: &str, event: &'static str, target: SwitchTarget) {
+    let app_handle = app.clone();
+    let id = id.to_string();
+    tauri::async_runtime::spawn(async move {
+        let app_state = app_handle.state::<Arc<AppState>>().inner().clone();
+        let proxy_state = app_handle.state::<Arc<ProxyState>>().inner().clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            crate::lifecycle::apply_runtime_config_change(&app_state, &proxy_state, |config| {
+                match target {
+                    SwitchTarget::Node => config.set_active_node(&id),
+                    SwitchTarget::Group => config.set_active_group(&id),
+                }
+            })
+        })
+        .await;
+        let succeeded = matches!(result, Ok(Ok(())));
+        let main_handle = app_handle.clone();
+        app_handle
+            .run_on_main_thread(move || {
+                if succeeded {
+                    let _ = rebuild_tray_menu(&main_handle);
+                    main_handle.emit("tray-state-changed", event).ok();
+                }
+            })
+            .ok();
+    });
 }

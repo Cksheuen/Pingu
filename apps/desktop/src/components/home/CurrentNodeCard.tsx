@@ -1,9 +1,11 @@
+import { Link } from "react-router-dom";
 import type { Node } from "../../lib/types";
 import { t } from "../../lib/i18n";
 import Tooltip from "../Tooltip";
 
 interface CurrentNodeCardProps {
   activeNode: Node | null;
+  subscriptionMode?: boolean;
   connected: boolean;
   activeRuleGroupId: string | null;
   activeRuleGroupName: string | null;
@@ -12,6 +14,7 @@ interface CurrentNodeCardProps {
 
 export function CurrentNodeCard({
   activeNode,
+  subscriptionMode = false,
   connected,
   activeRuleGroupId,
   activeRuleGroupName,
@@ -29,14 +32,15 @@ export function CurrentNodeCard({
         <span className="section-label">{t("home.current_node")}</span>
       </div>
       <div className="readout-primary">
-        <p>{activeNode ? activeNode.name : t("home.no_node")}</p>
+        <p>{subscriptionMode ? t("home.subscription_route") : activeNode ? activeNode.name : t("home.no_node")}</p>
         {activeNode && (
           <span className="protocol-tag">
             VLESS{activeNode.security ? ` / ${activeNode.security.toUpperCase()}` : ""}
           </span>
         )}
       </div>
-      {activeNode && (
+      {subscriptionMode && <Link className="network-text-link" to="/strategies">{t("home.manage_routes")} →</Link>}
+      {activeNode && !subscriptionMode && (
         <div className="readout-data">
           <span>{activeNode.address}:{activeNode.port}</span>
           {activeNode.security === "reality" && <Tooltip text={t("tooltip.reality")} />}

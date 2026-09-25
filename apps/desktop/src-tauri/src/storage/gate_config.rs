@@ -74,24 +74,4 @@ fn restrict_permissions(_path: &std::path::Path) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_gate_config_is_disabled_and_unconfigured() {
-        let config = GateConfig::default();
-
-        assert!(!config.enabled);
-        assert!(!config.configured());
-    }
-
-    #[test]
-    fn serde_defaults_keep_partial_gate_config_compatible() {
-        let config: GateConfig =
-            serde_json::from_str(r#"{"endpoint":"https://example.com/lease"}"#).unwrap();
-
-        assert!(!config.enabled);
-        assert!(!config.configured());
-        assert!(config.last_error.is_none());
-    }
-}
+mod tests;

@@ -23,8 +23,8 @@ FOREIGN_IP_ECHO_URLS = [
 ]
 
 CONFIG_CANDIDATES = [
-    Path.home() / "Library" / "Application Support" / "sing-proxy" / "sing-box-config.json",
-    Path.home() / ".config" / "sing-proxy" / "sing-box-config.json",
+    Path.home() / "Library" / "Application Support" / "sing-proxy" / "mihomo-config.json",
+    Path.home() / ".config" / "sing-proxy" / "mihomo-config.json",
 ]
 
 
@@ -136,7 +136,7 @@ def main() -> int:
         ensure_proxy_listening(args.proxy_host, args.proxy_port, args.timeout)
     except OSError as exc:
         print(f"FAIL: 本地代理未监听或无法连接: {exc}")
-        print("请先在应用内点击连接，确认 sing-box 已启动。")
+        print("请先在应用内点击连接，确认 mihomo 已启动。")
         return 1
 
     ip_probe_failed = False

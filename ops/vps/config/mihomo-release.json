@@ -1,0 +1,14 @@
+{
+  "version": "v1.19.31",
+  "published_at": "2026-09-14T13:34:02Z",
+  "assets": {
+    "darwin-arm64": {
+      "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-darwin-arm64-v1.19.31.gz",
+      "sha256": "d131f44b3deb2a8356f7ac75048ad67a10d53243323951c4f3cda7b672922963"
+    },
+    "linux-amd64": {
+      "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-amd64-v1-v1.19.31.gz",
+      "sha256": "d4304c546c3cddcb6fafd4b4fddb0ba1a95ffa36606fda56d75db2e59ad24114"
+    }
+  }
+}

@@ -2,20 +2,15 @@ import { useLocale } from "../hooks/useLocale";
 import { describeLocalizedStatus } from "../services/locale";
 import { ArticleCard } from "../components/ArticleCard";
 import { EmptyState } from "../components/EmptyState";
-import { HomeHero } from "../components/HomeHero";
+import { HeroSection } from "../components/HeroSection";
 import type { PublicArticle, PublicArtwork, PublicStatus } from "../types";
-import type { RefObject } from "react";
-import type { MotionValue } from "framer-motion";
-import type { HeroTextMotion } from "../hooks/useHeroMorph";
+import type { HeroProps } from "../hooks/heroTypes";
 
-interface HomeViewProps {
+interface HomeViewProps extends HeroProps {
   articles: PublicArticle[];
   artworks: PublicArtwork[];
   publicStatuses: PublicStatus[];
   loading: boolean;
-  heroRef: RefObject<HTMLElement | null>;
-  heroTabRefs: RefObject<(HTMLAnchorElement | null)[]>;
-  heroTextItems: HeroTextMotion[];
 }
 
 export function HomeView({ articles, artworks, publicStatuses, loading, heroRef, heroTabRefs, heroTextItems }: HomeViewProps) {
@@ -24,12 +19,19 @@ export function HomeView({ articles, artworks, publicStatuses, loading, heroRef,
 
   return (
     <>
-      <HomeHero
-        article={article}
+      <HeroSection
         heroRef={heroRef}
         heroTabRefs={heroTabRefs}
         heroTextItems={heroTextItems}
-      />      <section className="home-ledger route-enter">
+        kicker={t("home.kicker")}
+        titleHtml={t("home.title")}
+        intro={t("home.intro")}
+        primaryHref={article ? `#/article/${encodeURIComponent(article.slug)}` : "#/archive"}
+        primaryLabel={article ? t("home.latest") : t("home.archive")}
+        secondaryHref="#/gallery"
+        secondaryLabel={t("home.gallery")}
+      />
+      <section className="home-ledger route-enter">
         <div className="section-heading">
           <div>
             <p className="eyebrow">{t("home.recent")}</p>

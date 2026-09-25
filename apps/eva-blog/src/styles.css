@@ -300,6 +300,11 @@ small,
   background: var(--surface);
 }
 
+/* 有 hero 的 tab 页：确保内容高度足以滚动到 header 状态 */
+.page-main.has-hero {
+  min-height: 185vh;
+}
+
 .page-main > section.route-enter,
 .page-main > article.route-enter {
   animation: page-enter 420ms var(--ease-out) both;
@@ -1116,7 +1121,7 @@ button:disabled {
   background: var(--surface);
 }
 
-.home-hero {
+.route-hero {
   position: relative;
   display: flex;
   align-items: center;
@@ -1126,22 +1131,7 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
-.archive-intro,
-.now-intro,
-.gallery-intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.78fr);
-  gap: clamp(34px, 8vw, 140px);
-  align-items: end;
-  min-height: 500px;
-  padding: clamp(55px, 8vw, 120px) 0 clamp(48px, 7vw, 90px);
-  border-bottom: 1px solid var(--line);
-}
-
-.hero-copy .h1-line,
-.archive-intro h1,
-.now-intro h1,
-.gallery-intro h1 {
+.hero-copy .h1-line {
   max-width: 820px;
   margin-top: 18px;
   font-size: clamp(2.3rem, 6.5vw, 6.8rem);
@@ -1152,10 +1142,7 @@ button:disabled {
   margin-top: 18px;
 }
 
-.hero-copy .h1-line em,
-.archive-intro h1 em,
-.now-intro h1 em,
-.gallery-intro h1 em {
+.hero-copy .h1-line em {
   color: var(--accent);
   font-style: normal;
 }
@@ -1258,6 +1245,7 @@ button:disabled {
 /* 每个文字元素独立的退出动画层 */
 .hero-exit-layer {
   transform-origin: top left;
+  will-change: transform, opacity;
 }
 
 .h1-line {

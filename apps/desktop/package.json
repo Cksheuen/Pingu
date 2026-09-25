@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test:functional:ts": "tsc -p tsconfig.functional-tests.json && node --experimental-specifier-resolution=node --test .test-dist/tests/functional-chain.test.js",
+    "test:functional:ts": "pnpm test:frontend",
     "tauri": "node scripts/tauri-cli.mjs",
     "debug:proxy:status": "cargo run --manifest-path src-tauri/Cargo.toml --bin debug-proxy -- status",
     "debug:proxy:prepare": "bash scripts/debug-proxy-prepare.sh",
@@ -16,7 +16,10 @@
     "debug:proxy:reputation": "cargo run --manifest-path src-tauri/Cargo.toml --bin debug-proxy -- reputation",
     "check:config": "bash scripts/check-generated-config.sh",
     "test:routing": "python3 scripts/test-routing.py",
-    "verify:routing": "bash scripts/verify-routing.sh"
+    "verify:routing": "bash scripts/verify-routing.sh",
+    "test": "node scripts/test.mjs",
+    "test:all": "node scripts/test.mjs --all",
+    "test:frontend": "node scripts/test.mjs --scope frontend"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

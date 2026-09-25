@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import type { ProxyInfo } from "../../lib/types";
 import type { AiServicePreflightModel } from "../../hooks/useAiServicePreflight";
@@ -27,13 +28,16 @@ export function AiPreflightCard({ connected, proxyInfo, preflight }: AiPreflight
     }
   }
 
+  const dynamicRouting = report?.routes.some((route) => route.outbound === "runtime") ?? false;
   const description = error
     ? error
     : !connected
       ? t("home.preflight_connect")
       : checking && !report
         ? t("home.preflight_checking")
-        : report?.ready
+        : dynamicRouting
+          ? t("home.preflight_dynamic")
+          : report?.ready
           ? t("home.preflight_ready")
           : t("home.preflight_route_error");
 
@@ -68,10 +72,11 @@ export function AiPreflightCard({ connected, proxyInfo, preflight }: AiPreflight
           </ul>
         </>
       )}
-      <p className={error || (report && !report.ready) ? "egress-note egress-note-error" : "egress-note"}>
+      <p className={error || (report && !report.ready && !dynamicRouting) ? "egress-note egress-note-error" : "egress-note"}>
         {description}
       </p>
       <div className="preflight-actions">
+        {dynamicRouting && <Link className="network-text-link" to="/connections">{t("nav.connections")} →</Link>}
         {report?.ready && claudeCommand && (
           <button type="button" onClick={() => void copyClaudeCommand()}>
             {copied ? t("home.copied") : t("home.preflight_copy_claude")}

@@ -1,0 +1,38 @@
+{
+  "name": "antigravity-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted Gemini OAuth proxy exposing Anthropic and OpenAI compatible APIs.",
+  "bin": {
+    "pcpa": "./bin/pcpa.mjs"
+  },
+  "scripts": {
+    "dev": "tsx scripts/dev-server.ts",
+    "serve": "tsx scripts/dev-server.ts",
+    "gateway": "tsx src/cli.ts",
+    "start": "tsx src/cli.ts start",
+    "stop": "tsx src/cli.ts stop",
+    "restart-daemon": "tsx src/cli.ts restart",
+    "status": "tsx src/cli.ts status",
+    "logs": "tsx src/cli.ts logs",
+    "login": "tsx src/cli.ts login",
+    "accounts": "tsx src/cli.ts accounts",
+    "build": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "verify": "pnpm test && pnpm build && pnpm smoke"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.12.1",
+  "dependencies": {
+    "undici": "^7.29.0"
+  }
+}

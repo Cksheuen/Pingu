@@ -1,6 +1,9 @@
 // SVG 矢量场景引擎：解析 SVG → 场景描述 → 按滚动进度逐元素绘制到 Canvas 2D。
 // 不做任何光栅化：所有元素以矢量命令绘制，任意尺寸下保持清晰。
 // 末态（s=1）与 <img class="brand-mark"> 的 object-fit: cover 渲染逐像素对齐。
+// 支持路由切换时的 liquid morph：两个同构场景之间逐元素连续插值。
+
+import { lerpColor, lerpPathD } from "./liquidMorph";
 
 // ── 场景元素类型 ──────────────────────────────────────────
 
@@ -453,6 +456,133 @@ function drawElement(ctx: DrawContext, spec: SceneElement, st: ElementState, sce
       return;
     }
   }
+}
+
+// ── Morph：路由切换时的场景连续变形 ────────────────────────
+// 两个同构场景（相同元素数量、相同 kind 序列）之间逐元素 lerp。
+// 使用模块级 scratch scene，避免每帧分配。
+
+let morphScratch: Scene | null = null;
+
+function getMorphScratch(from: Scene, to: Scene): Scene {
+  const count = Math.min(from.elements.length, to.elements.length);
+  if (!morphScratch) {
+    morphScratch = { width: 0, height: 0, elements: [] };
+  }
+  // 确保 scratch 中有正确 kind 的元素（首次或 kind 变化时分配）
+  for (let i = 0; i < count; i++) {
+    const kind = to.elements[i].kind;
+    const existing = morphScratch.elements[i];
+    if (!existing || existing.kind !== kind) {
+      switch (kind) {
+        case "rect":
+          morphScratch.elements[i] = { kind: "rect", x: 0, y: 0, w: 0, h: 0, fill: "" };
+          break;
+        case "circle":
+          morphScratch.elements[i] = { kind: "circle", cx: 0, cy: 0, r: 0, fill: "", stroke: "", width: 0, ride: false };
+          break;
+        case "path":
+          morphScratch.elements[i] = { kind: "path", d: "", stroke: "", width: 0, dash: null };
+          break;
+        case "text":
+          morphScratch.elements[i] = { kind: "text", x: 0, y: 0, text: null, fontFamily: "", size: 0, letterSpacing: "", fill: "" };
+          break;
+      }
+    }
+  }
+  morphScratch.elements.length = count;
+  return morphScratch;
+}
+
+function morphElementInto(from: SceneElement, to: SceneElement, t: number, scratch: SceneElement): void {
+  // "none" 颜色不参与插值，离散切换（t=0.5）
+  const morphColor = (a: string, b: string): string =>
+    a === "none" || b === "none" ? (t < 0.5 ? a : b) : lerpColor(a, b, t);
+
+  switch (to.kind) {
+    case "rect": {
+      const f = from as RectSpec;
+      const s = scratch as RectSpec;
+      s.x = lerp(f.x, to.x, t);
+      s.y = lerp(f.y, to.y, t);
+      s.w = lerp(f.w, to.w, t);
+      s.h = lerp(f.h, to.h, t);
+      s.fill = morphColor(f.fill, to.fill);
+      return;
+    }
+    case "circle": {
+      const f = from as CircleSpec;
+      const s = scratch as CircleSpec;
+      s.cx = lerp(f.cx, to.cx, t);
+      s.cy = lerp(f.cy, to.cy, t);
+      s.r = lerp(f.r, to.r, t);
+      s.fill = morphColor(f.fill, to.fill);
+      s.stroke = morphColor(f.stroke, to.stroke);
+      s.width = lerp(f.width, to.width, t);
+      s.ride = to.ride;
+      return;
+    }
+    case "path": {
+      const f = from as PathSpec;
+      const s = scratch as PathSpec;
+      // 路径几何：lerpPathD 数值插值；拓扑不匹配时 lerpPathD 内部降级为离散切换
+      const morphed = lerpPathD(f.d, to.d, t);
+      s.d = morphed.d;
+      s.stroke = morphColor(f.stroke, to.stroke);
+      s.width = lerp(f.width, to.width, t);
+      // dash：t=0.5 离散切换
+      s.dash = t < 0.5 ? f.dash : to.dash;
+      // 复用 to 的运行时数据（ride marker 采样等）
+      s.el = to.el;
+      s.length = to.length;
+      s.samples = to.samples;
+      // morph 期间 d 每帧变化，重建 Path2D
+      if (typeof Path2D !== "undefined") {
+        s.path2d = new Path2D(morphed.d);
+      } else {
+        s.path2d = undefined;
+      }
+      return;
+    }
+    case "text": {
+      const f = from as TextSpec;
+      const s = scratch as TextSpec;
+      s.x = lerp(f.x, to.x, t);
+      s.y = lerp(f.y, to.y, t);
+      s.fill = morphColor(f.fill, to.fill);
+      s.fontFamily = to.fontFamily;
+      s.size = lerp(f.size, to.size, t);
+      s.letterSpacing = to.letterSpacing;
+      // 文字：t=0.5 离散切换字符串
+      s.text = t < 0.5 ? f.text : to.text;
+      return;
+    }
+  }
+}
+
+/**
+ * 路由切换时的场景 morph 渲染。
+ * from/to 必须是同构场景（相同元素数量、相同 kind 序列）。
+ * t ∈ [0,1] 为 morph 进度，s 为滚动进度。
+ * 不修改 from/to 场景（fetchScene 缓存的共享对象）。
+ */
+export function renderSceneMorph(
+  ctx: DrawContext,
+  from: Scene,
+  to: Scene,
+  t: number,
+  s: number,
+  dest: DestRect
+): void {
+  const count = Math.min(from.elements.length, to.elements.length);
+  const scratch = getMorphScratch(from, to);
+  scratch.width = lerp(from.width, to.width, t);
+  scratch.height = lerp(from.height, to.height, t);
+  for (let i = 0; i < count; i++) {
+    morphElementInto(from.elements[i], to.elements[i], t, scratch.elements[i]);
+  }
+  const state = sceneState(scratch, s);
+  renderScene(ctx, scratch, state, dest);
 }
 
 // ── 抓取 + 缓存 ───────────────────────────────────────────

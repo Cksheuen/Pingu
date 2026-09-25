@@ -1,16 +1,17 @@
 import { useLocale } from "../hooks/useLocale";
 import { ArtworkCard, ArtworkImage } from "../components/ArtworkCard";
 import { EmptyState } from "../components/EmptyState";
-import { RichText } from "../components/RichText";
+import { HeroSection } from "../components/HeroSection";
 import type { PublicArtwork } from "../types";
+import type { HeroProps } from "../hooks/heroTypes";
 
-interface GalleryViewProps {
+interface GalleryViewProps extends HeroProps {
   artworks: PublicArtwork[];
   artworkSlug: string | null;
   loading: boolean;
 }
 
-export function GalleryView({ artworks, artworkSlug, loading }: GalleryViewProps) {
+export function GalleryView({ artworks, artworkSlug, loading, heroRef, heroTabRefs, heroTextItems }: GalleryViewProps) {
   const { t, formatDate } = useLocale();
 
   if (artworkSlug) {
@@ -44,23 +45,30 @@ export function GalleryView({ artworks, artworkSlug, loading }: GalleryViewProps
   }
 
   return (
-    <section className="gallery-view route-enter">
-      <div className="gallery-intro">
-        <div>
-          <p className="eyebrow">{t("gallery.kicker")}</p>
-          <h1><RichText html={t("gallery.title")} /></h1>
+    <>
+      <HeroSection
+        heroRef={heroRef}
+        heroTabRefs={heroTabRefs}
+        heroTextItems={heroTextItems}
+        kicker={t("gallery.kicker")}
+        titleHtml={t("gallery.title")}
+        intro={t("gallery.intro")}
+        primaryHref="#/archive"
+        primaryLabel={t("gallery.heroCta")}
+        secondaryHref="#/now"
+        secondaryLabel={t("gallery.heroCtaSecondary")}
+      />
+      <section className="gallery-view route-enter">
+        <div className="gallery-grid">
+          {artworks.length ? (
+            artworks.map((artwork, index) => (
+              <ArtworkCard key={artwork.id} artwork={artwork} variant={index === 0 ? "gallery-feature" : ""} />
+            ))
+          ) : (
+            <EmptyState text={t("gallery.empty")} />
+          )}
         </div>
-        <p>{t("gallery.intro")}</p>
-      </div>
-      <div className="gallery-grid">
-        {artworks.length ? (
-          artworks.map((artwork, index) => (
-            <ArtworkCard key={artwork.id} artwork={artwork} variant={index === 0 ? "gallery-feature" : ""} />
-          ))
-        ) : (
-          <EmptyState text={t("gallery.empty")} />
-        )}
-      </div>
-    </section>
+      </section>
+    </>
   );
 }

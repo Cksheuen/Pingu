@@ -1,0 +1,22 @@
+[Unit]
+Description=Pingu encrypted off-site backup
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/pingu-backup.conf
+StartLimitIntervalSec=120
+StartLimitBurst=1
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pingu-backup
+StateDirectory=pingu-backup
+StateDirectoryMode=0700
+# Hardening: the backup reads secrets but must not be able to alter the system.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+# StateDirectory makes /var/lib/pingu-backup writable.  /root stays readable
+# (pingu-secrets, rclone.conf) while the rclone config dir is writable so
+# OAuth token refresh works; /run is writable for the lock file.
+ReadWritePaths=/root/.config/rclone /run

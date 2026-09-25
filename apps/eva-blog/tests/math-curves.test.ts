@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMathCurves, drawMathCurves, curveEnvelope } from "../src/lib/mathCurves";
+import { createMathCurves, drawMathCurves, curveEnvelope, DEFAULT_TUNING } from "../src/lib/mathCurves";
 
 // 与 orbit-scene.test.mjs 同款的 mock ctx：记录调用、允许属性赋值
 function makeCtx(): { ctx: CanvasRenderingContext2D; calls: Array<Array<string | symbol | unknown>> } {
@@ -146,4 +146,129 @@ test("drawMathCurves 粒子数随 s 递减（由多到少）", () => {
   assert.ok(mid < early, `s=0.4 时粒子数应减少：${mid} < ${early}`);
   assert.ok(late < mid, `s=0.7 时粒子数应更少：${late} < ${mid}`);
   assert.equal(late, 0, "s=0.7 时粒子应全部消失");
+});
+
+// ── 参数化测试 ───────────────────────────────────────────
+
+test("createMathCurves 默认参数与 900×640 一致", () => {
+  const def = createMathCurves();
+  const explicit = createMathCurves(900, 640);
+  assert.deepEqual(Array.from(def.harmonograph), Array.from(explicit.harmonograph));
+  assert.deepEqual(Array.from(def.flowField), Array.from(explicit.flowField));
+  assert.deepEqual(Array.from(def.spiral), Array.from(explicit.spiral));
+  assert.equal(def.sceneW, 900);
+  assert.equal(def.sceneH, 640);
+});
+
+test("createMathCurves 自定义尺寸：首点映射到新场景中心", () => {
+  const curves = createMathCurves(800, 600);
+  // Harmonograph t=0: x=sin(π/4), y=1+sin(3π/4)
+  const x0 = Math.SQRT1_2 * (800 / 3) + 400;
+  const y0 = (1 + Math.SQRT1_2) * (600 / 3.2) + 300;
+  assert.ok(Math.abs(curves.harmonograph[0] - x0) < 1e-4);
+  assert.ok(Math.abs(curves.harmonograph[1] - y0) < 1e-4);
+  assert.equal(curves.sceneW, 800);
+  assert.equal(curves.sceneH, 600);
+});
+
+test("createMathCurves 自定义颜色写入 colors 字段", () => {
+  const curves = createMathCurves(900, 640, {
+    colors: { harmonograph: "#ff0000", lissajous: "#00ff00", flowField: "#0000ff", spiral: "#ffffff" },
+  });
+  assert.equal(curves.colors.harmonograph, "#ff0000");
+  assert.equal(curves.colors.lissajous, "#00ff00");
+  assert.equal(curves.colors.flowField, "#0000ff");
+  assert.equal(curves.colors.spiral, "#ffffff");
+});
+
+test("createMathCurves 自定义 Lissajous 参数", () => {
+  const curves = createMathCurves(900, 640, {
+    lissajous: { a: 5, b: 7, delta0: 1.5, k: 2.0 },
+  });
+  assert.equal(curves.lissajous.a, 5);
+  assert.equal(curves.lissajous.b, 7);
+  assert.equal(curves.lissajous.delta0, 1.5);
+  assert.equal(curves.lissajous.k, 2.0);
+  // samples 和 tMax 保持默认
+  assert.equal(curves.lissajous.samples, 300);
+});
+
+test("createMathCurves 部分 tuning 合并默认值", () => {
+  const curves = createMathCurves(900, 640, {
+    colors: { harmonograph: "#ff0000" },
+  });
+  // 只覆盖了 harmonograph，其他保持默认
+  assert.equal(curves.colors.harmonograph, "#ff0000");
+  assert.equal(curves.colors.lissajous, DEFAULT_TUNING.colors.lissajous);
+  assert.equal(curves.colors.flowField, DEFAULT_TUNING.colors.flowField);
+  assert.equal(curves.colors.spiral, DEFAULT_TUNING.colors.spiral);
+  // Lissajous 参数也保持默认
+  assert.equal(curves.lissajous.a, DEFAULT_TUNING.lissajous.a);
+});
+
+// ── Morph 测试 ───────────────────────────────────────────
+
+test("drawMathCurves morph t=0 与 from 曲线一致", () => {
+  const from = createMathCurves(900, 640, {
+    colors: { harmonograph: "#ff0000", lissajous: "#00ff00", flowField: "#0000ff", spiral: "#ffffff" },
+  });
+  const to = createMathCurves(900, 640);
+  const { ctx: ctxMorph, calls: callsMorph } = makeCtx();
+  drawMathCurves(ctxMorph, to, 0.1, undefined, undefined, { from, t: 0 });
+  const { ctx: ctxFrom, calls: callsFrom } = makeCtx();
+  drawMathCurves(ctxFrom, from, 0.1);
+  // 调用序列应一致（相同的绘制命令数）
+  assert.equal(callsMorph.length, callsFrom.length);
+  // strokeStyle 最后被 spiral 设置，fillStyle 被 flowField 设置
+  // lerpColor 始终返回 rgb() 格式，即使 t=0/1
+  assert.equal(ctxMorph.strokeStyle, "rgb(255,255,255)", "spiral 颜色应为 from 的 #ffffff");
+  assert.equal(ctxMorph.fillStyle, "rgb(0,0,255)", "flowField 颜色应为 from 的 #0000ff");
+});
+
+test("drawMathCurves morph t=1 与 to 曲线一致", () => {
+  const from = createMathCurves(900, 640, {
+    colors: { harmonograph: "#ff0000", lissajous: "#00ff00", flowField: "#0000ff", spiral: "#ffffff" },
+  });
+  const to = createMathCurves(900, 640);
+  const { ctx } = makeCtx();
+  drawMathCurves(ctx, to, 0.1, undefined, undefined, { from, t: 1 });
+  assert.equal(ctx.strokeStyle, "rgb(38,55,77)", "spiral 颜色应为 to 的 #26374d");
+  assert.equal(ctx.fillStyle, "rgb(212,107,97)", "flowField 颜色应为 to 的 #d46b61");
+});
+
+test("drawMathCurves morph t=0.5 颜色为中间值", () => {
+  const from = createMathCurves(900, 640, {
+    colors: { harmonograph: "#000000", lissajous: "#000000", flowField: "#000000", spiral: "#000000" },
+  });
+  const to = createMathCurves(900, 640, {
+    colors: { harmonograph: "#ffffff", lissajous: "#ffffff", flowField: "#ffffff", spiral: "#ffffff" },
+  });
+  const { ctx } = makeCtx();
+  drawMathCurves(ctx, to, 0.1, undefined, undefined, { from, t: 0.5 });
+  // 黑色→白色 t=0.5 应为 rgb(128,128,128)
+  assert.equal(ctx.strokeStyle, "rgb(128,128,128)", "spiral morph 颜色应为中间值");
+  assert.equal(ctx.fillStyle, "rgb(128,128,128)", "flowField morph 颜色应为中间值");
+});
+
+test("drawMathCurves morph 后 scratch 被缓存", () => {
+  const from = createMathCurves(900, 640);
+  const to = createMathCurves(900, 640);
+  const { ctx } = makeCtx();
+  drawMathCurves(ctx, to, 0.1, undefined, undefined, { from, t: 0.5 });
+  const scratch = to._scratch;
+  assert.ok(scratch, "morph 后 scratch 被缓存");
+  assert.ok(scratch.harmonograph instanceof Float32Array);
+  assert.ok(scratch.flowField instanceof Float32Array);
+  assert.ok(scratch.spiral instanceof Float32Array);
+});
+
+test("drawMathCurves morph 不修改 from/to 的原始数据", () => {
+  const from = createMathCurves(900, 640);
+  const to = createMathCurves(900, 640);
+  const fromSnapshot = Array.from(from.harmonograph);
+  const toSnapshot = Array.from(to.harmonograph);
+  const { ctx } = makeCtx();
+  drawMathCurves(ctx, to, 0.1, undefined, undefined, { from, t: 0.5 });
+  assert.deepEqual(Array.from(from.harmonograph), fromSnapshot, "from 数据不被修改");
+  assert.deepEqual(Array.from(to.harmonograph), toSnapshot, "to 数据不被修改");
 });

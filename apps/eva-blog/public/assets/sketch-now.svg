@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-labelledby="title desc">
+  <title id="title">Signal</title>
+  <desc id="desc">An urgent ink signal climbing across warm cream paper.</desc>
+  <rect width="900" height="640" fill="#f5f0e1"/>
+  <path d="M84 528C156 196 408 96 724 118" fill="none" stroke="#c05a3e" stroke-width="8"/>
+  <path d="M138 566C238 268 486 168 786 204" fill="none" stroke="#7a8450" stroke-width="3" stroke-dasharray="8 16"/>
+  <circle cx="424" cy="232" r="104" fill="none" stroke="#96684a" stroke-width="12"/>
+  <circle cx="424" cy="232" r="26" fill="#6e4a32"/>
+  <circle cx="668" cy="158" r="15" fill="#d46b61"/>
+  <path d="M112 116H272M112 140H196M648 478H808M696 502H808" stroke="#3d2f22" stroke-width="4"/>
+  <path d="M88 84L88 560M810 84L810 560" stroke="#d8cdb4" stroke-width="2"/>
+  <text x="112" y="600" fill="#3d2f22" font-family="monospace" font-size="18" letter-spacing="4">SIGNAL / 03</text>
+</svg>

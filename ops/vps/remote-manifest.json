@@ -5,7 +5,8 @@
   "portal_release": {
     "remote_path": "/var/www/cksheuen-portal/releases/20260811-032313",
     "local_path": "apps/portal/dist",
-    "validation": "recursive_sha256_aligned",
+    "validation": "remote_audited_local_alignment_unverified",
+    "note": "Re-read from the live host in the 2026-09-24 audit: all six remote files are unchanged and still authoritative. No local `apps/portal/dist` build exists in this migration worktree, so no recursive local-to-remote comparison was performed and none is claimed.",
     "files": {
       "assets/atkinson-hyperlegible-next-regular-BaUiGrIm.ttf": "833b4e79c549e3f407fecf03b5c9e6dbfb94a80c86f35fe4f12d32b5936eccba",
       "assets/atkinson-hyperlegible-next-semibold-CNJl23hA.ttf": "b8ee2866e707e26b26aca96741b756cfda3e44b1ede220d8c986bd0bc6eaac6d",
@@ -18,70 +19,128 @@
   "artifacts": [
     {
       "remote_path": "/usr/local/sbin/pingu-gate",
-      "local_path": "ops/vps/pingu_gate.py",
-      "remote_sha256": "31bd7b37ebdd2c73b64417c8599c6378e23f16fcdab037c70b763e400cdc9d86",
+      "local_path": "ops/vps/sbin/pingu_gate.py",
+      "remote_sha256": "03c6c9eb7461cdb2c218459463e05eea0187c16f3447ec3f6c546244598fd31f",
       "import_policy": "exact"
     },
     {
       "remote_path": "/usr/local/sbin/pingu_device_access.py",
-      "local_path": "ops/vps/pingu_device_access.py",
-      "remote_sha256": "929665a993ce36c6b64b541219304ccb2a861a24d3d5f4cbe5fb6d03c0b23db4",
+      "local_path": "ops/vps/sbin/pingu_device_access.py",
+      "remote_sha256": "d9bc39d55ef3d1ad8393979937849c9f0a906422460f214bbd9240d64ae176d4",
       "import_policy": "exact"
     },
     {
       "remote_path": "/usr/local/sbin/pingu-traffic-guard",
-      "local_path": "ops/vps/pingu_traffic_guard.py",
+      "local_path": "ops/vps/sbin/pingu_traffic_guard.py",
       "remote_sha256": "047d4dd0415c76b2c697af5ccea9bcdb555bd11d10059c386434c3f99e0b5b8c",
       "import_policy": "normalized",
-      "note": "Personal alert address moved from source defaults to configuration."
+      "note": "The live guard implementation is retained as-is and deliberately NOT overwritten from this baseline: the hash sweep is normalized, `audit-remote.sh` reports it as a custom/normalized entry instead of an exact mismatch, and the source here is never rewritten to match. Only `WATCH_SERVICE` in the live `/etc/pingu-traffic-guard.conf` was changed to `mihomo` during the 2026-09-24 cutover, separately from this file."
     },
     {
       "remote_path": "/usr/local/sbin/pingu-traffic-report",
-      "local_path": "ops/vps/pingu_traffic_report.py",
-      "remote_sha256": "6689bcd6a5bad106491ad495d54074645474fc1f4e190af886126b0df90e31a1",
-      "import_policy": "normalized",
-      "note": "Formatting normalized; behavior retained and covered by local tests."
+      "local_path": "ops/vps/sbin/pingu_traffic_report.py",
+      "remote_sha256": "8462b1e0b44a63d7e91df6f4e25a907d0da26d0aa5e53945f963e0ce34d532c2",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu_snapshot.py",
+      "local_path": "ops/vps/sbin/pingu_snapshot.py",
+      "remote_sha256": "5c2b3618bb6e648b9d74f923704663e4c9be9e0266ba6f2846bd40fbd4d33c17",
+      "import_policy": "exact",
+      "previous_remote_sha256": "cfa3440ca106aca030a51ee7fe109522b6fdcb843e86427a3d3379a86aa89d74",
+      "original_remote_sha256": "c8a7c0dd4f94a94ed88db2449b2739b7221ecc19654e54b2adf6851cf0445a08",
+      "deployment_status": "deployed",
+      "deployed_at": "2026-09-25T12:05:50Z",
+      "note": "Second atomic deployment completed with rollback backup /var/lib/pingu-migration/release-20260925T120550Z. The live hash matches remote_sha256, both corrupt and truncated archive regressions passed on the VPS, service PIDs were unchanged, and the final read-only remote audit passed all 20 artifacts."
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu-backup",
+      "local_path": "ops/vps/sbin/pingu_backup.py",
+      "remote_sha256": "f4139a3215da1d84f12bc450bede206634609d0870f52dcae1bb67f248fd0047",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu_mihomo.py",
+      "local_path": "ops/vps/sbin/pingu_mihomo.py",
+      "remote_sha256": "02666ba2d1029e63febbd71c35180e7e5a7a2ea4b04a3c1b462ad69afb57979d",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu_connections.py",
+      "local_path": "ops/vps/sbin/pingu_connections.py",
+      "remote_sha256": "868a7cf4e640e32276878b09361cd8484e21f22ec68dfb76be7be8651b4ccc18",
+      "import_policy": "exact"
     },
     {
       "remote_path": "/etc/nftables.d/pingu-guard.nft",
-      "local_path": "ops/vps/pingu-guard.nft",
+      "local_path": "ops/vps/nftables/pingu-guard.nft",
       "remote_sha256": "48c1af089c49e5a751446b0bb8784c47f53e5243c6852a39cda8c59dbb9e3323",
       "import_policy": "exact"
     },
     {
       "remote_path": "/etc/systemd/system/cksheuen-portal.service",
-      "local_path": "ops/vps/cksheuen-portal.service",
+      "local_path": "ops/vps/systemd/cksheuen-portal.service",
       "remote_sha256": "0aeed9c85cffb3ee223336c15884dd4184fab1af993d36a69f467795ae868bc8",
       "import_policy": "exact"
     },
     {
       "remote_path": "/etc/systemd/system/pingu-gate.service",
-      "local_path": "ops/vps/pingu-gate.service",
+      "local_path": "ops/vps/systemd/pingu-gate.service",
       "remote_sha256": "ec0e613e70e6b0d85b43eb69dffe197f38bc62fb8fd2aa3cd25e3da9c773ca99",
       "import_policy": "exact"
     },
     {
+      "remote_path": "/etc/systemd/system/pingu-gate.service.d/lease.conf",
+      "local_path": "ops/vps/systemd/pingu-gate.service.d/lease.conf",
+      "remote_sha256": "12ffac1a3ca0f43ba7eff12c577b3a0e3ea7306bcac5da38ef784a3b68d04f1e",
+      "import_policy": "exact"
+    },
+    {
       "remote_path": "/etc/systemd/system/pingu-traffic-guard.service",
-      "local_path": "ops/vps/pingu-traffic-guard.service",
+      "local_path": "ops/vps/systemd/pingu-traffic-guard.service",
       "remote_sha256": "7d4932acaae444ca3a8e8aa982ebd31521c77bb1a28d97242f38f78c99867794",
       "import_policy": "exact"
     },
     {
       "remote_path": "/etc/systemd/system/pingu-traffic-guard.timer",
-      "local_path": "ops/vps/pingu-traffic-guard.timer",
+      "local_path": "ops/vps/systemd/pingu-traffic-guard.timer",
       "remote_sha256": "9a492b2fa4c431939fcfaf6f27a5e4676de0a0ccaaa45ec4e3668b312d8523e4",
       "import_policy": "exact"
     },
     {
       "remote_path": "/etc/systemd/system/pingu-traffic-report.service",
-      "local_path": "ops/vps/pingu-traffic-report.service",
+      "local_path": "ops/vps/systemd/pingu-traffic-report.service",
       "remote_sha256": "b88dfff495b4fad5ea66265a47a21d2ee8d0218b5c38f8678fffa52ed5354814",
       "import_policy": "exact"
     },
     {
       "remote_path": "/etc/systemd/system/pingu-traffic-report.timer",
-      "local_path": "ops/vps/pingu-traffic-report.timer",
+      "local_path": "ops/vps/systemd/pingu-traffic-report.timer",
       "remote_sha256": "5f3a2896564930f64cb777a048c6bbfec9c8a7d86f48c364f61c6039463c4af9",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-backup.service",
+      "local_path": "ops/vps/systemd/pingu-backup.service",
+      "remote_sha256": "7cba53eb3b9cf77b86aa18afa8bb74167d49d9fc230b901569304d6009f668e4",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-backup.timer",
+      "local_path": "ops/vps/systemd/pingu-backup.timer",
+      "remote_sha256": "c54ab77c93eb000d4054a4056c9b357bac4784bc3ebbd4a3d2980028a1cc17de",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-backup.path",
+      "local_path": "ops/vps/systemd/pingu-backup.path",
+      "remote_sha256": "3ee593144c6c0fb25c3dcf93bcd51edc5f3670e511f5bb07f12f1a606f3326ae",
+      "import_policy": "exact"
+    },
+    {
+      "remote_path": "/etc/systemd/system/mihomo.service",
+      "local_path": "ops/vps/systemd/mihomo.service",
+      "remote_sha256": "c0bc8c941e415725c4bc22b5501c9fcafce3388a44314c017ee2034977a0f606",
       "import_policy": "exact"
     }
   ],
@@ -89,19 +148,108 @@
     "/etc/pingu-gate.token",
     "/etc/pingu-gate.tokens",
     "/etc/pingu-gate.subscription.txt",
+    "/etc/pingu-gate.env",
     "/etc/pingu-traffic-guard.conf",
+    "/etc/pingu-backup.conf",
+    "/etc/mihomo/config.json",
+    "/etc/pingu-gate/certs/cksheuen.site.key",
     "/usr/local/etc/xray/config.json",
     "/usr/local/etc/xray/certs/cksheuen.site.key",
+    "/root/.config/rclone/rclone.conf",
     "/root/pingu-secrets",
     "/var/lib/pingu-gate/devices.json",
     "/var/lib/pingu-traffic-guard",
-    "/var/log/pingu-traffic-reports"
+    "/var/lib/pingu-backup",
+    "/var/log/pingu-traffic-reports",
+    "/var/log/pingu-migration"
   ],
   "runtime_packages": [
     {
       "name": "qrencode",
       "version": "4.1.1-1build2",
       "role": "Local SVG generation for one-time device subscription QR codes"
+    },
+    {
+      "name": "mihomo",
+      "version": "1.19.31",
+      "path": "/usr/local/bin/mihomo",
+      "role": "Proxy core after the 2026-09-24 Xray→Mihomo cutover",
+      "release_metadata": "ops/vps/config/mihomo-release.json",
+      "pinned_release_asset": {
+        "platform": "linux-amd64",
+        "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-amd64-v1-v1.19.31.gz",
+        "sha256": "d4304c546c3cddcb6fafd4b4fddb0ba1a95ffa36606fda56d75db2e59ad24114"
+      },
+      "installed_binary_sha256": "12d97b7b7fa22cb4456e62c6e35db4be952dbb1c53eacaa9ef437c95d5068a9d",
+      "note": "The binary is not committed, so it is tracked here rather than in `artifacts`. `installed_binary_sha256` is the digest of the deployed /usr/local/bin/mihomo observed during the 2026-09-24 live audit; it is the unpacked binary, not the release .gz asset, and therefore differs by design from the pinned asset sha256."
     }
-  ]
+  ],
+  "last_verified_at": "2026-09-24T09:19:40+00:00",
+  "cutover": {
+    "kind": "same_host_in_place_migration",
+    "date": "2026-09-24",
+    "runtime_profile": "mihomo",
+    "mihomo_version": "1.19.31",
+    "result": "success",
+    "root_cause_fixed": "localhost 443 health probe",
+    "attempts": 2,
+    "retry_count": 1,
+    "first_attempt_failed_and_rolled_back": true,
+    "xray_stopped_and_disabled_old_assets_retained": true,
+    "verify_command": "PINGU_VPS_IDENTITY=/path/to/operator-private-key bash ops/vps/audit-remote.sh",
+    "verify_note": "`audit-remote.sh` is a plain Bash script — no sudo and no root on the local side. It shells out to `ssh -i \"$PINGU_VPS_IDENTITY\"`, so the identity must be an operator-supplied private key: the worktree deliberately excludes private keys.",
+    "evidence": [
+      ".local/herdr/live-audit.json",
+      ".local/herdr/live-probe-result.json",
+      ".local/herdr/restore-verification.json",
+      ".local/herdr/mihomo-backup-output.json"
+    ],
+    "rollback_baseline": {
+      "retry1": "/var/lib/pingu-migration/mihomo-20260924T025738Z-retry1/rollback",
+      "original_attempt": "/var/lib/pingu-migration/mihomo-20260924T025738Z",
+      "scope": "Private on-host root-only copies of every changed/created path plus pre-existing service state. This, not the encrypted snapshot, is the actual same-host rollback material — the old Xray encrypted snapshot is recovery material for a rebuild/restore, not an in-place revert command.",
+      "note": "The pre-cutover Xray snapshot is recovery material, not a same-host rollback command: `vps.py deploy` refuses the live host, so no shipped command reverts the current host in place."
+    },
+    "rollback_exercised": {
+      "pre_success_automatic_rollback": true,
+      "post_success_manual_rollback_with_active_users": false,
+      "note": "Only the first (failed) attempt's automatic rollback was exercised and verified. A rollback after the successful cutover, with real users active, has NOT been exercised and is not claimed."
+    },
+    "note": "Real same-host Xray→Mihomo cutover observed on the live host. This is NOT fresh-host deployment proof; the fresh-host path (`vps.py deploy` / `bootstrap.sh`) remains unverified.",
+    "certificate_paths": {
+      "crt": "/etc/pingu-gate/certs/cksheuen.site.crt",
+      "key": "/etc/pingu-gate/certs/cksheuen.site.key"
+    }
+  },
+  "backup": {
+    "protocol": "pingu-vps-snapshot/v2",
+    "runtime_profile": "mihomo",
+    "remote": "drive-crypt:",
+    "google_drive_folder": "https://drive.google.com/drive/folders/1pDxPpNPL47ZN5PW1BMfyW9QhXoS4Nngh",
+    "latest_verified_snapshot": "20260924T090935Z-921e0ea9",
+    "sha256": "5695e86c2d7ec7f9e1eba55c04cc4f0305dd112fc36aa8e4b4f1d7202cd59290",
+    "files_count": 43,
+    "archive_bytes": 30499622,
+    "schedule": "daily 00:30 UTC plus up to 5 minutes random delay",
+    "path_watcher_enabled": false,
+    "previous_verified_snapshot": {
+      "id": "20260924T075857Z-70cd9ce9",
+      "sha256": "72f628b88052925494116f11e080b3d6613ee9abb54783704b67b2868b553617",
+      "files_count": 40,
+      "archive_bytes": 21444021,
+      "protocol": "pingu-vps-snapshot/v1",
+      "runtime_profile": "xray",
+      "role": "Pre-cutover Xray profile snapshot taken before any canonical Mihomo asset was installed. Recovery material: it is the supported way to rebuild the pre-Mihomo runtime, and because `vps.py deploy` refuses the live host there is no shipped in-place revert command for the current host."
+    },
+    "restore_verified": {
+      "snapshot_id": "20260924T090935Z-921e0ea9",
+      "files_verified": 43,
+      "restored_core_config_valid": true,
+      "temporary_secrets_cleaned": true,
+      "live_service_pids_unchanged": true,
+      "test_lease_expired": true,
+      "verified_on": "2026-09-24",
+      "evidence": ".local/herdr/restore-verification.json"
+    }
+  }
 }
