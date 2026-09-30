@@ -152,7 +152,13 @@ fn for_suffix<'a>(value: &'a str, suffixes: &[&str]) -> Option<&'a str> {
 }
 
 fn request_lease(config: &GateConfig) -> Result<GateLease, String> {
-    let agent = ureq::AgentBuilder::new()
+    request_lease_via(config, None)
+}
+
+fn request_lease_via(config: &GateConfig, proxy_port: Option<u16>) -> Result<GateLease, String> {
+    let mut builder = ureq::AgentBuilder::new()
+        .try_proxy_from_env(false)
+        .redirects(0)
         // The active Reality node uses the VPS IPv4 address. Request the Gate
         // lease over IPv4 as well, otherwise a dual-stack client may only add
         // its IPv6 address to `reality_allow6` while its IPv4 Reality traffic
@@ -160,8 +166,14 @@ fn request_lease(config: &GateConfig) -> Result<GateLease, String> {
         .resolver(resolve_ipv4)
         .timeout_connect(Duration::from_secs(8))
         .timeout_read(Duration::from_secs(8))
-        .timeout_write(Duration::from_secs(8))
-        .build();
+        .timeout_write(Duration::from_secs(8));
+    if let Some(port) = proxy_port {
+        builder = builder.proxy(
+            ureq::Proxy::new(&format!("http://127.0.0.1:{port}"))
+                .map_err(|_| "Invalid Gate proxy")?,
+        );
+    }
+    let agent = builder.build();
     let authorization = format!("Bearer {}", config.token);
     let response = agent
         .post(&config.endpoint)
@@ -209,62 +221,17 @@ fn record_lease(config: &mut GateConfig, lease: &GateLease) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod tests;
 
-    #[test]
-    fn access_link_is_normalized_to_secret_free_lease_endpoint() {
-        let (endpoint, token) = parse_access_link(
-            "https://cksheuen.site/__pingu_gate__/allow?token=secret-value&ttl=7d",
-        )
-        .unwrap();
-
-        assert_eq!(endpoint, "https://cksheuen.site/__pingu_gate__/lease");
-        assert_eq!(token, "secret-value");
-        assert!(!endpoint.contains("secret-value"));
+/// Authorize the ingress egress IP without replacing the direct lease UI state.
+pub fn renew_through_proxy(port: u16) -> Result<Option<GateLease>, String> {
+    let _guard = operation_lock()?;
+    let config = GateConfig::load()?;
+    if !config.enabled {
+        return Ok(None);
     }
-
-    #[test]
-    fn base_access_link_is_normalized_to_lease_endpoint() {
-        let (endpoint, _) =
-            parse_access_link("https://cksheuen.site/__pingu_gate__/?token=secret-value").unwrap();
-
-        assert_eq!(endpoint, "https://cksheuen.site/__pingu_gate__/lease");
+    if !config.configured() {
+        return Err("Gate access link is not configured".into());
     }
-
-    #[test]
-    fn insecure_or_tokenless_links_are_rejected() {
-        assert!(parse_access_link("http://example.com/gate?token=secret").is_err());
-        assert!(parse_access_link("https://example.com/gate").is_err());
-    }
-
-    #[test]
-    fn settings_contract_does_not_expose_token() {
-        let config = GateConfig {
-            enabled: true,
-            endpoint: "https://example.com/lease".to_string(),
-            token: "never-return-this".to_string(),
-            last_ip: Some("198.51.100.10".to_string()),
-            lease_expires_at: Some("2026-08-10T15:30:00+00:00".to_string()),
-            last_error: None,
-        };
-
-        let serialized = serde_json::to_string(&GateSettings::from(&config)).unwrap();
-        assert!(!serialized.contains("never-return-this"));
-    }
-
-    #[test]
-    fn gate_lease_resolver_keeps_only_ipv4_addresses() {
-        let addresses = vec![
-            "[2001:db8::1]:443".parse::<SocketAddr>().unwrap(),
-            "198.51.100.27:443".parse::<SocketAddr>().unwrap(),
-        ];
-
-        let ipv4 = addresses
-            .into_iter()
-            .filter(SocketAddr::is_ipv4)
-            .collect::<Vec<_>>();
-
-        assert_eq!(ipv4, vec!["198.51.100.27:443".parse().unwrap()]);
-    }
+    request_lease_via(&config, Some(port)).map(Some)
 }

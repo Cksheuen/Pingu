@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import type { ProxyInfo } from "../../lib/types";
 import type { AiServicePreflightModel } from "../../hooks/useAiServicePreflight";
@@ -27,20 +28,23 @@ export function AiPreflightCard({ connected, proxyInfo, preflight }: AiPreflight
     }
   }
 
+  const dynamicRouting = report?.routes.some((route) => route.outbound === "runtime") ?? false;
   const description = error
     ? error
     : !connected
       ? t("home.preflight_connect")
       : checking && !report
         ? t("home.preflight_checking")
-        : report?.ready
+        : dynamicRouting
+          ? t("home.preflight_dynamic")
+          : report?.ready
           ? t("home.preflight_ready")
           : t("home.preflight_route_error");
 
   return (
     <section className="surface readout-card preflight-readout">
       <div className="readout-card-head">
-        <span className="section-label">{t("home.ai_preflight")}</span>
+        <span className="section-label">{t("chain.egress")}</span>
       </div>
       <div className="egress-value-row">
         <strong>{connected ? report?.egress_ip ?? (checking ? t("home.preflight_checking") : "—") : "—"}</strong>
@@ -49,7 +53,7 @@ export function AiPreflightCard({ connected, proxyInfo, preflight }: AiPreflight
         </button>
       </div>
       {report && (
-        <>
+        <details className="preflight-details"><summary>{t("workspace.check_details")}</summary>
           <ul className="preflight-route-list preflight-content-list">
             {report.network_checks.map((check) => (
               <li key={check.id} data-outbound="proxy">
@@ -66,19 +70,19 @@ export function AiPreflightCard({ connected, proxyInfo, preflight }: AiPreflight
               </li>
             ))}
           </ul>
-        </>
-      )}
-      <p className={error || (report && !report.ready) ? "egress-note egress-note-error" : "egress-note"}>
-        {description}
-      </p>
+          <p className="egress-note">{t("home.preflight_scope_note")}</p>
       <div className="preflight-actions">
+        {dynamicRouting && <Link className="network-text-link" to="/connections">{t("nav.connections")} →</Link>}
         {report?.ready && claudeCommand && (
           <button type="button" onClick={() => void copyClaudeCommand()}>
             {copied ? t("home.copied") : t("home.preflight_copy_claude")}
           </button>
         )}
       </div>
-      <p className="egress-note">{t("home.preflight_scope_note")}</p>
+        </details>
+      )}
+      {(error || (report && !report.ready && !dynamicRouting)) && <p className="egress-note egress-note-error" role="status">{description}</p>}
+
     </section>
   );
 }

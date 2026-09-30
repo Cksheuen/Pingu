@@ -4,8 +4,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=PINGU_MIHOMO_BIN");
+    println!("cargo:rerun-if-env-changed=MIHOMO_BIN");
+    println!("cargo:rerun-if-changed=binaries");
     let target = env::var("TARGET").expect("TARGET should be set by Cargo");
-    let external_bin = prepare_sing_box_sidecar(&target);
+    let external_bin = prepare_mihomo_sidecar(&target);
 
     match external_bin {
         Some(path) => apply_tauri_config_override(json!({
@@ -15,7 +18,7 @@ fn main() {
         })),
         None => {
             println!(
-                "cargo:warning=sing-box sidecar not found; building without bundled sing-box. Install sing-box on PATH or set PINGU_SING_BOX_BIN to bundle it."
+                "cargo:warning=mihomo sidecar not found; building without bundled mihomo. Install mihomo on PATH or set PINGU_MIHOMO_BIN to bundle it."
             );
             apply_tauri_config_override(json!({
                 "bundle": {
@@ -28,20 +31,20 @@ fn main() {
     tauri_build::build()
 }
 
-fn prepare_sing_box_sidecar(target: &str) -> Option<PathBuf> {
+fn prepare_mihomo_sidecar(target: &str) -> Option<PathBuf> {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR")?);
     let binaries_dir = manifest_dir.join("binaries");
     let suffix = executable_suffix(target);
-    let expected_filename = format!("sing-box-{target}{suffix}");
+    let expected_filename = format!("mihomo-{target}{suffix}");
 
     if binaries_dir.join(&expected_filename).exists() {
-        return Some(binaries_dir.join("sing-box"));
+        return Some(binaries_dir.join("mihomo"));
     }
 
-    let source = env::var_os("PINGU_SING_BOX_BIN")
+    let source = env::var_os("PINGU_MIHOMO_BIN")
         .map(PathBuf::from)
-        .or_else(|| env::var_os("SING_BOX_BIN").map(PathBuf::from))
-        .or_else(|| find_sing_box_on_path(target))?;
+        .or_else(|| env::var_os("MIHOMO_BIN").map(PathBuf::from))
+        .or_else(|| find_mihomo_on_path(target))?;
 
     let out_dir = PathBuf::from(env::var_os("OUT_DIR")?);
     let stage_dir = out_dir.join("pingu-sidecars");
@@ -51,7 +54,7 @@ fn prepare_sing_box_sidecar(target: &str) -> Option<PathBuf> {
     fs::copy(&source, &staged_binary).ok()?;
     ensure_executable(&staged_binary);
 
-    Some(stage_dir.join("sing-box"))
+    Some(stage_dir.join("mihomo"))
 }
 
 fn executable_suffix(target: &str) -> &'static str {
@@ -62,8 +65,8 @@ fn executable_suffix(target: &str) -> &'static str {
     }
 }
 
-fn find_sing_box_on_path(target: &str) -> Option<PathBuf> {
-    let executable = format!("sing-box{}", executable_suffix(target));
+fn find_mihomo_on_path(target: &str) -> Option<PathBuf> {
+    let executable = format!("mihomo{}", executable_suffix(target));
     env::var_os("PATH").and_then(|paths| {
         env::split_paths(&paths)
             .map(|dir| dir.join(&executable))

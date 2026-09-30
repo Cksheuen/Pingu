@@ -64,9 +64,6 @@ export function TrafficCard() {
 
   return (
     <section className="surface readout-card traffic-readout">
-      <div className="readout-card-head">
-        <span className="section-label">{t("home.traffic")}</span>
-      </div>
       <div className="traffic-grid">
         <div>
           <span>↑ {t("home.upload")}</span>

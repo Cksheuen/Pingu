@@ -2,11 +2,11 @@ use std::net::{SocketAddr, TcpStream};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+use pingu_lib::mihomo::process::MihomoProcess;
 use pingu_lib::proxy_runtime::{
     check_generated_config, find_available_port, prepare_runtime,
-    prepare_runtime_generation_with_port, verify_proxy_content,
+    prepare_runtime_generation_with_port, verify_startup_proxy_content,
 };
-use pingu_lib::singbox::process::SingBoxProcess;
 use pingu_lib::storage::app_config::AppConfig;
 
 fn print_usage() {
@@ -71,7 +71,7 @@ fn with_explicit_proxy<T>(
     let prepared = prepare_runtime_generation_with_port(config, Some(generation), listen_port)?;
     check_generated_config(&prepared.config_path)?;
 
-    let process = SingBoxProcess::new();
+    let process = MihomoProcess::new();
     process.start(prepared.config_path.to_str().ok_or("Invalid config path")?)?;
     let result = (|| {
         wait_for_listener(&process, listen_port)?;
@@ -86,7 +86,7 @@ fn with_explicit_proxy<T>(
 }
 
 fn print_content_checks(listen_port: u16) -> Result<String, String> {
-    let checks = verify_proxy_content(listen_port)?;
+    let checks = verify_startup_proxy_content(listen_port)?;
     let egress_ip = checks
         .iter()
         .find(|check| check.id == "egress_ip")
@@ -163,7 +163,7 @@ fn extract_metric_context(name: &str, body: &str) -> Option<String> {
     )
 }
 
-fn wait_for_listener(process: &SingBoxProcess, listen_port: u16) -> Result<(), String> {
+fn wait_for_listener(process: &MihomoProcess, listen_port: u16) -> Result<(), String> {
     let address = SocketAddr::from(([127, 0, 0, 1], listen_port));
     let started_at = Instant::now();
     let poll_interval = Duration::from_millis(100);
@@ -174,7 +174,7 @@ fn wait_for_listener(process: &SingBoxProcess, listen_port: u16) -> Result<(), S
             return Ok(());
         }
         if !process.is_running() {
-            return Err("sing-box exited during diagnostic startup".to_string());
+            return Err("mihomo exited during diagnostic startup".to_string());
         }
         if started_at.elapsed() >= timeout {
             return Err(format!(
@@ -232,27 +232,28 @@ fn main() -> Result<(), String> {
             println!("config_path: {}", prepared.config_path.display());
             println!("prepared_node: {}", prepared.node.name);
             println!("prepared_group: {}", prepared.rule_group.name);
-            println!("sing-box config check: ok");
+            println!("mihomo config check: ok");
             Ok(())
         }
         "start" => {
             print_status(&config);
             let prepared = prepare_runtime(&config)?;
             check_generated_config(&prepared.config_path)?;
-            println!("starting sing-box with: {}", prepared.config_path.display());
+            println!("starting mihomo with: {}", prepared.config_path.display());
             println!("listen: http://127.0.0.1:2080");
-            let status = Command::new("sing-box")
+            let status = Command::new(pingu_lib::resolve_mihomo_path())
                 .args([
-                    "run",
-                    "-c",
+                    "-f",
                     prepared.config_path.to_str().ok_or("Invalid config path")?,
+                    "-d",
+                    prepared.config_dir.to_str().ok_or("Invalid config dir")?,
                 ])
                 .status()
-                .map_err(|e| format!("Failed to start sing-box: {}", e))?;
+                .map_err(|e| format!("Failed to start mihomo: {}", e))?;
             if status.success() {
                 Ok(())
             } else {
-                Err(format!("sing-box exited with status: {}", status))
+                Err(format!("mihomo exited with status: {}", status))
             }
         }
         "verify" => {

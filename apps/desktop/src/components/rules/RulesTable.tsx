@@ -81,7 +81,7 @@ export function RulesTable({ rules, onDeleteRule }: RulesTableProps) {
             className="rules-table-row grid items-center"
             style={{
               gridTemplateColumns: "140px 1fr 120px 40px",
-              padding: "12px 16px",
+              padding: "6px 14px",
               borderBottom: "1px solid var(--line)",
             }}
           >

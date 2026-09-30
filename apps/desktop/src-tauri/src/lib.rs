@@ -1,56 +1,110 @@
+pub mod chain;
 pub mod commands;
 pub mod gate;
 pub mod lifecycle;
+pub mod mihomo;
 pub mod proxy_runtime;
-pub mod singbox;
 pub mod storage;
 pub mod system;
+pub mod traffic_monitor;
 pub mod tray;
-
-#[cfg(test)]
-mod functional_chain_generated_tests;
 
 use commands::config::AppState;
 use commands::proxy::ProxyState;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
 use storage::app_config::AppConfig;
-#[cfg(debug_assertions)]
-use tauri::Emitter;
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 
-/// Resolve the path to the bundled `sing-box` sidecar binary.
+// ---------------------------------------------------------------------------
+// Central quit coordination
+// ---------------------------------------------------------------------------
+//
+// Normal shutdown can take several seconds (mihomo stop + system-proxy
+// clear). It must run off the main thread but exactly once: Quit, window
+// close-then-quit, or a second Cmd-Q arriving while shutdown is in flight must
+// never spawn duplicate shutdown work or leave a freshly started runtime
+// behind.
+const EXIT_IDLE: u8 = 0;
+const EXIT_SHUTTING: u8 = 1;
+const EXIT_COMPLETE: u8 = 2;
+static EXIT_STATE: AtomicU8 = AtomicU8::new(EXIT_IDLE);
+
+/// Transition idle -> shutting. Returns true exactly once until shutdown
+/// completes; a repeat Quit while pending gets false and starts no work.
+fn begin_exit_if_idle() -> bool {
+    EXIT_STATE
+        .compare_exchange(EXIT_IDLE, EXIT_SHUTTING, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+}
+
+fn mark_exit_complete() {
+    EXIT_STATE.store(EXIT_COMPLETE, Ordering::SeqCst);
+}
+
+/// Begin the single coordinated shutdown. Safe to call from the tray Quit
+/// item or any other exit path; repeat calls while shutdown is pending are
+/// no-ops. Once shutdown completes the app exits normally.
+pub fn request_app_exit(app_handle: &AppHandle) {
+    // Only the idle -> shutting transition starts work.
+    if !begin_exit_if_idle() {
+        return;
+    }
+    let app_handle = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        let proxy_state = app_handle.state::<Arc<ProxyState>>().inner().clone();
+        // shutdown_core latches shutdown intent (rejecting queued connects)
+        // and stops the runtime off the main thread.
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            commands::proxy::shutdown_core(&proxy_state)
+        })
+        .await;
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => eprintln!("Pingu shutdown reported an error: {error}"),
+            Err(error) => eprintln!("Pingu shutdown task failed: {error}"),
+        }
+        mark_exit_complete();
+        // Triggers ExitRequested again; with state complete it is allowed.
+        app_handle.exit(0);
+    });
+}
+
+/// Resolve the path to the bundled `mihomo` sidecar binary.
 /// In dev mode this falls back to the system PATH version.
-pub fn resolve_sing_box_path() -> String {
-    if let Some(path) = std::env::var_os("PINGU_SING_BOX_BIN") {
+pub fn resolve_mihomo_path() -> String {
+    if let Some(path) = std::env::var_os("PINGU_MIHOMO_BIN") {
         return path.to_string_lossy().to_string();
     }
 
     // Tauri places sidecar binaries next to the main executable.
     if let Ok(exe) = std::env::current_exe() {
-        let sidecar = exe.parent().unwrap_or(exe.as_ref()).join("sing-box");
+        let sidecar = exe.parent().unwrap_or(exe.as_ref()).join("mihomo");
         if sidecar.exists() {
             return sidecar.to_string_lossy().to_string();
         }
         // macOS .app bundle: also check in MacOS/ directory
         if let Some(parent) = exe.parent() {
-            let macos_sidecar = parent.join("sing-box");
+            let macos_sidecar = parent.join("mihomo");
             if macos_sidecar.exists() {
                 return macos_sidecar.to_string_lossy().to_string();
             }
         }
     }
     // Fallback: system PATH (dev mode)
-    "sing-box".to_string()
+    "mihomo".to_string()
 }
 
-pub fn missing_sing_box_message() -> String {
-    "sing-box binary not found. Install `sing-box` on your PATH, or set `PINGU_SING_BOX_BIN` before building so Tauri can bundle it as a sidecar.".to_string()
+pub fn missing_mihomo_message() -> String {
+    "mihomo binary not found. Install `mihomo` on your PATH, or set `PINGU_MIHOMO_BIN` before building so Tauri can bundle it as a sidecar.".to_string()
 }
 
 pub fn run() {
-    let system_proxy = system::production_system_proxy();
-    let _ = system_proxy.clear();
     let app_config = AppConfig::load();
+
+    let operation_lock = Arc::new(Mutex::new(()));
+    let app_state = Arc::new(AppState::new(app_config, Arc::clone(&operation_lock)));
+    let proxy_state = Arc::new(ProxyState::production_with_lock(operation_lock));
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -58,10 +112,8 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .manage(AppState {
-            config: Mutex::new(app_config),
-        })
-        .manage(ProxyState::production())
+        .manage(Arc::clone(&app_state))
+        .manage(Arc::clone(&proxy_state))
         .setup(|app| {
             tray::setup_tray(app)?;
             let app_handle = app.handle().clone();
@@ -70,32 +122,48 @@ pub fn run() {
                 interval.tick().await;
                 loop {
                     interval.tick().await;
-                    let proxy_state = app_handle.state::<ProxyState>();
+                    let proxy_state = app_handle.state::<Arc<ProxyState>>();
                     if proxy_state.is_running() {
-                        let _ = crate::gate::renew_if_enabled();
+                        let app_state = app_handle.state::<Arc<AppState>>().inner().clone();
+                        let _ = tauri::async_runtime::spawn_blocking(move || {
+                            let _operation = app_state
+                                .operation_lock
+                                .lock()
+                                .map_err(|_| "Operation unavailable".to_string())?;
+                            let config = app_state
+                                .config
+                                .lock()
+                                .map_err(|_| "Configuration unavailable".to_string())?
+                                .clone();
+                            crate::chain::prepare_gate(&config)
+                        })
+                        .await;
                     }
                 }
             });
 
-            #[cfg(debug_assertions)]
-            if std::env::var_os("PINGU_SMOKE_AUTOCONNECT").is_some() {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    let app_state = app_handle.state::<AppState>();
-                    let proxy_state = app_handle.state::<ProxyState>();
-                    match commands::proxy::connect_core(app_state.inner(), proxy_state.inner()) {
-                        Ok(()) => {
-                            let _ = tray::rebuild_tray_menu(&app_handle);
-                            let _ = app_handle.emit("tray-state-changed", "connect");
-                        }
-                        Err(error) => eprintln!("Pingu smoke autoconnect failed: {error}"),
-                    }
-                });
-            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::chain::get_proxy_chain,
+            commands::chain::get_chain_runtime,
+            commands::chain::get_chain_probe_progress,
+            commands::chain::auto_select_chain,
+            commands::chain::save_proxy_chain,
+            commands::chain::compare_proxy_chain,
+            commands::chain::cancel_chain_comparison,
             commands::config::import_node,
+            commands::network::list_subscriptions,
+            commands::network::import_subscription,
+            commands::network::refresh_subscription,
+            commands::network::update_subscription,
+            commands::network::delete_subscription,
+            commands::network::list_strategy_groups,
+            commands::network::select_strategy_proxy,
+            commands::network::test_strategy_delay,
+            commands::network::list_connections,
+            commands::network::close_connection,
+            commands::network::close_all_connections,
             commands::config::delete_node,
             commands::config::list_nodes,
             commands::config::set_active_node,
@@ -156,10 +224,27 @@ pub fn run() {
                 }
             }
         }
-        RunEvent::ExitRequested { .. } | RunEvent::Exit => {
-            let proxy_state = app_handle.state::<ProxyState>();
-            let _ = commands::proxy::shutdown_core(proxy_state.inner());
+        RunEvent::ExitRequested { api, .. } => {
+            if EXIT_STATE.load(Ordering::SeqCst) == EXIT_COMPLETE {
+                // Our coordinated shutdown finished; let the process exit.
+                return;
+            }
+            // Prevent the immediate exit and run shutdown off the main
+            // thread exactly once.
+            api.prevent_exit();
+            request_app_exit(app_handle);
+        }
+        RunEvent::Exit => {
+            // Fallback for unusual termination paths that did not pass
+            // through ExitRequested coordination.
+            if EXIT_STATE.load(Ordering::SeqCst) != EXIT_COMPLETE {
+                let proxy_state = app_handle.state::<Arc<ProxyState>>();
+                let _ = commands::proxy::shutdown_core(proxy_state.inner());
+            }
         }
         _ => {}
     });
 }
+
+#[cfg(test)]
+mod exit_coordination_tests;

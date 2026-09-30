@@ -1,3 +1,4 @@
+import Select from "../Select";
 import { t } from "../../lib/i18n";
 import type {
   HostOverrideDraft,
@@ -73,46 +74,14 @@ export function OverrideForm({
           <span className={labelClass} style={{ fontSize: "11px" }}>
             {t("host_overrides.resolver")}
           </span>
-          <select
-            value={draft.resolver}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                resolver: event.target.value as HostOverrideResolver,
-              })
-            }
-            className={inputClass}
-            style={{ padding: "11px 12px", fontSize: "14px" }}
-          >
-            {resolverOptions.map((option) => (
-              <option key={option} value={option}>
-                {t(`host_overrides.resolver_value.${option}`)}
-              </option>
-            ))}
-          </select>
+          <Select label={t("host_overrides.resolver")} value={draft.resolver} onChange={value => onChange({...draft, resolver: value as HostOverrideResolver})} options={resolverOptions.map(option => ({value:option,label:t(`host_overrides.resolver_value.${option}`)}))} />
         </label>
 
         <label className="flex flex-col" style={{ gap: "6px" }}>
           <span className={labelClass} style={{ fontSize: "11px" }}>
             {t("host_overrides.outbound")}
           </span>
-          <select
-            value={draft.outbound}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                outbound: event.target.value as HostOverrideOutbound,
-              })
-            }
-            className={inputClass}
-            style={{ padding: "11px 12px", fontSize: "14px" }}
-          >
-            {outboundOptions.map((option) => (
-              <option key={option} value={option}>
-                {t(`host_overrides.outbound_value.${option}`)}
-              </option>
-            ))}
-          </select>
+          <Select label={t("host_overrides.outbound")} value={draft.outbound} onChange={value => onChange({...draft, outbound: value as HostOverrideOutbound})} options={outboundOptions.map(option => ({value:option,label:t(`host_overrides.outbound_value.${option}`)}))} />
         </label>
 
         <label className="flex flex-col" style={{ gap: "6px", gridColumn: "1 / -1" }}>

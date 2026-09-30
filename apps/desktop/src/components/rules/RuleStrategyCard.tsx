@@ -8,7 +8,7 @@ interface RuleStrategyCardProps {
 
 export function RuleStrategyCard({ strategy, onChangeStrategy }: RuleStrategyCardProps) {
   return (
-    <div className="surface rule-strategy-card flex items-center justify-between" style={{ padding: "16px", boxShadow: "none" }}>
+    <div className="surface rule-strategy-card flex items-center justify-between" style={{ padding: "10px 14px", boxShadow: "none" }}>
       <div>
         <span className="flex items-center mb-1">
           <p className="font-mono text-text-muted tracking-[2px] uppercase" style={{ fontSize: "10px" }}>
@@ -16,9 +16,6 @@ export function RuleStrategyCard({ strategy, onChangeStrategy }: RuleStrategyCar
           </p>
           <Tooltip text={t("tooltip.default_strategy")} />
         </span>
-        <p className="font-sans text-text-secondary" style={{ fontSize: "13px" }}>
-          {strategy === "proxy" ? t("rules.default_desc_proxy") : t("rules.default_desc_direct")}
-        </p>
       </div>
       <div className="strategy-selector">
         {(["direct", "proxy"] as const).map((option) => (

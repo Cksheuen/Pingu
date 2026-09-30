@@ -1,3 +1,4 @@
+import { SectionHeader } from "../components/SectionHeader";
 import { t } from "../lib/i18n";
 import Tooltip from "../components/Tooltip";
 import { ImportDialog } from "../components/nodes/ImportDialog";
@@ -22,7 +23,7 @@ function XIcon() {
   );
 }
 
-export default function Nodes() {
+export default function Nodes({ embedded = false }: { embedded?: boolean }) {
   const {
     activeNodeId,
     nodes,
@@ -38,13 +39,8 @@ export default function Nodes() {
   useI18nRerender();
 
   return (
-    <div className="page-shell">
-      <header className="page-header">
-        <div>
-          <p className="page-kicker">{t("nodes.kicker")}</p>
-          <h1 className="page-title">{t("nodes.title")}</h1>
-          <p className="page-description">{t("nodes.desc")}</p>
-        </div>
+    <div className={embedded ? "workspace-section" : "page-shell"}>
+      <SectionHeader title={t("workspace.manual_nodes")} embedded={embedded}>
         <button
           onClick={openImportDialog}
           className="action-primary"
@@ -52,12 +48,12 @@ export default function Nodes() {
           <PlusIcon />
           {t("nodes.import")}
         </button>
-      </header>
+      </SectionHeader>
 
       {switchError && <p className="node-switch-error" role="alert">{switchError}</p>}
 
       {/* Node list */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+      <div className="node-list flex flex-col gap-2">
         {nodes.length === 0 && (
           <div className="empty-state">
             <p>{t("nodes.empty")}</p>

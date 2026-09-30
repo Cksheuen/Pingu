@@ -60,7 +60,7 @@ export interface ProxyInfo {
 export interface AiServiceRoute {
   service: string;
   host: string;
-  outbound: Outbound;
+  outbound: Outbound | "runtime";
   matched_by: string;
 }
 
