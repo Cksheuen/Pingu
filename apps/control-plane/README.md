@@ -12,7 +12,12 @@ Use ignored `.dev.vars` for local test keys. Never deploy those development keys
 
 ## Configuration
 
-- `ADMIN_KEY`: random 32-byte base64url operator login key, stored as a Worker secret.
+- `ADMIN_KEY`: strong operator API/session key (at least 32 characters), stored as
+  a Worker secret. During migration, reuse the existing Gate's strong access key.
+- `ADMIN_PASSWORD`: optional existing operator password for browser login, stored
+  as a Worker secret. Reuse the old management password during migration instead
+  of generating a new user-facing password. The strong key remains accepted for
+  compatibility; passwords do not replace the API/session signing key.
 - `DATA_KEY`: random 32-byte base64url AES-GCM key, stored as a Worker secret.
 - D1 binding `DB`: create `pingu-control`, apply `migrations/0001_control.sql`.
 - Copy `wrangler.jsonc` to ignored `wrangler.production.json`, set the actual D1 ID

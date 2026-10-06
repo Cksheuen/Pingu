@@ -186,6 +186,66 @@ test("cookie authentication, CSRF, rate limit and no secret data in state", asyn
     429,
   );
 });
+test("legacy password migration preserves login and rejects replaced credentials", async () => {
+  const t = setup();
+  const origin = { Authorization: "", Origin: "https://control.example.com" };
+  const replacedKey = t.env.ADMIN_KEY;
+  const prior = await t.request("/api/login", { key: replacedKey }, origin);
+  const priorCookie = prior.headers.get("Set-Cookie");
+  t.env.ADMIN_KEY = randomToken();
+  t.env.ADMIN_PASSWORD = "legacy-pass!";
+  const login = await t.request(
+    "/api/login",
+    { key: "  " + t.env.ADMIN_PASSWORD + "  " },
+    origin,
+  );
+  assert.equal(login.status, 200);
+  const cookie = login.headers.get("Set-Cookie");
+  assert.ok(!cookie.includes(t.env.ADMIN_PASSWORD));
+  assert.equal(
+    (
+      await t.request("/api/state", undefined, {
+        Authorization: "",
+        Cookie: cookie,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await t.request("/api/login", { key: replacedKey }, origin)).status,
+    401,
+  );
+  assert.equal(
+    (
+      await t.request("/api/state", undefined, {
+        Authorization: "",
+        Cookie: priorCookie,
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await t.request("/api/state", undefined, {
+        Authorization: "Bearer " + replacedKey,
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await t.request("/api/state", undefined, {
+        Authorization: "Bearer " + t.env.ADMIN_PASSWORD,
+      })
+    ).status,
+    401,
+  );
+  assert.equal((await t.request("/api/state")).status, 200);
+  assert.equal(
+    (await t.request("/api/login", { key: t.env.ADMIN_KEY }, origin)).status,
+    200,
+  );
+});
 test("node array validation is atomic and credentials stay bound to their record", async () => {
   const t = setup();
   const a = t.node("a"),

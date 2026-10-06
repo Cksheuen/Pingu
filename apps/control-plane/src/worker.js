@@ -313,12 +313,16 @@ async function dispatch(req, env, fetcher) {
     );
     if (limits.attempts > 20) fail(429, "登录尝试过多，请稍后再试");
     const data = await body(req);
+    const loginKey = typeof data.key === "string" ? data.key.trim() : "";
+    const loginDigest = await digest(loginKey);
     if (
-      typeof data.key !== "string" ||
-      data.key.length > 256 ||
-      (await digest(data.key)) !== (await digest(env.ADMIN_KEY))
+      !loginKey ||
+      loginKey.length > 256 ||
+      (loginDigest !== (await digest(env.ADMIN_KEY)) &&
+        (!env.ADMIN_PASSWORD ||
+          loginDigest !== (await digest(env.ADMIN_PASSWORD))))
     )
-      fail(401, "管理密钥无效");
+      fail(401, "管理密码无效");
     return json({ ok: true }, 200, {
       "Set-Cookie": `pingu_control=${await session(env.ADMIN_KEY)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`,
     });
