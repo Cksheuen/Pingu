@@ -3,6 +3,7 @@ pub mod commands;
 pub mod gate;
 pub mod lifecycle;
 pub mod mihomo;
+pub mod mesh;
 pub mod proxy_runtime;
 pub mod storage;
 pub mod system;
@@ -53,9 +54,11 @@ pub fn request_app_exit(app_handle: &AppHandle) {
     let app_handle = app_handle.clone();
     tauri::async_runtime::spawn(async move {
         let proxy_state = app_handle.state::<Arc<ProxyState>>().inner().clone();
+        let mesh_state = app_handle.state::<Arc<mesh::MeshState>>().inner().clone();
         // shutdown_core latches shutdown intent (rejecting queued connects)
         // and stops the runtime off the main thread.
         let result = tauri::async_runtime::spawn_blocking(move || {
+            mesh_state.shutdown();
             commands::proxy::shutdown_core(&proxy_state)
         })
         .await;
@@ -114,8 +117,16 @@ pub fn run() {
         ))
         .manage(Arc::clone(&app_state))
         .manage(Arc::clone(&proxy_state))
+        .manage(Arc::new(mesh::MeshState::default()))
         .setup(|app| {
             tray::setup_tray(app)?;
+            let mesh_app = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let a = mesh_app.state::<Arc<AppState>>();
+                let p = mesh_app.state::<Arc<ProxyState>>();
+                let m = mesh_app.state::<Arc<mesh::MeshState>>();
+                let _ = mesh::start_saved(&a, &p, &m);
+            });
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
@@ -145,6 +156,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            mesh::get_mesh_status,
+            mesh::configure_mesh,
+            mesh::ping_mesh_peer,
             commands::chain::get_proxy_chain,
             commands::chain::get_chain_runtime,
             commands::chain::get_chain_probe_progress,

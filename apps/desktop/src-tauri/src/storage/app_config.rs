@@ -17,6 +17,10 @@ use crate::mihomo::uri_parser::{parse_vless_uri, Node};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
+    pub mesh: crate::mesh::MeshSettings,
+    #[serde(skip)]
+    pub mesh_runtime: Option<crate::mesh::MeshRoute>,
+    #[serde(default)]
     pub proxy_chain: crate::chain::ChainSettings,
     #[serde(default)]
     pub subscriptions: Vec<crate::mihomo::profiles::Subscription>,
@@ -81,7 +85,9 @@ impl AppConfig {
                     };
                     let active_id = group.id.clone();
                     let config = Self {
-                        proxy_chain: Default::default(),
+                        mesh: Default::default(),
+            mesh_runtime: None,
+            proxy_chain: Default::default(),
                         subscriptions: vec![],
                         strategy_selections: Default::default(),
                         nodes: old.nodes,
@@ -288,6 +294,8 @@ impl AppConfig {
         };
         let active_id = default_group.id.clone();
         Self {
+            mesh: Default::default(),
+            mesh_runtime: None,
             proxy_chain: Default::default(),
             subscriptions: vec![],
             strategy_selections: Default::default(),

@@ -809,6 +809,7 @@ pub fn try_generate_app_config(
     });
     let mut value = json!({"mixed-port":port,"allow-lan":false,"bind-address":"127.0.0.1","mode":"rule","log-level":"info","ipv6":false,"external-controller":format!("127.0.0.1:{api}"),"secret":super::controller::secret(),"profile":{"store-selected":false,"store-fake-ip":false},"find-process-mode":"strict","dns":dns,"proxies":proxies,"proxy-groups":groups,"proxy-providers":proxy_providers,"rule-providers":rule_providers,"rules":rules});
     crate::chain::apply(config, &mut value)?;
+    crate::mesh::apply(config, &mut value)?;
     Ok(value)
 }
 #[cfg(test)]

@@ -114,7 +114,7 @@ pub fn load_input(input: &str) -> Result<(Value, Vec<String>), String> {
     }
 }
 
-pub(super) fn validate_https_url(input: &str, label: &str) -> Result<Url, String> {
+pub(crate) fn validate_https_url(input: &str, label: &str) -> Result<Url, String> {
     let url = Url::parse(input).map_err(|_| format!("Invalid {label} HTTPS URL."))?;
     let host = url
         .host_str()
@@ -131,7 +131,7 @@ pub(super) fn validate_https_url(input: &str, label: &str) -> Result<Url, String
     Ok(url)
 }
 
-pub(super) fn subscription_fetch_agent(timeout: Duration) -> ureq::Agent {
+pub(crate) fn subscription_fetch_agent(timeout: Duration) -> ureq::Agent {
     ureq::AgentBuilder::new()
         .redirects(0)
         .timeout(timeout)

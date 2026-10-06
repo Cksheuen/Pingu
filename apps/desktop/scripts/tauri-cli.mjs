@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdtempSync, mkdirSync, chmodSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, delimiter } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -28,47 +28,21 @@ if (result.error) {
 process.exit(result.status ?? 1);
 
 function resolveTauriOverride(targetTriple, executableSuffix) {
-  const bundledBinary = join(
-    srcTauriDir,
-    "binaries",
-    `mihomo-${targetTriple}${executableSuffix}`,
-  );
-
-  if (existsSync(bundledBinary)) {
-    return null;
-  }
-
-  const sourceBinary =
-    process.env.PINGU_MIHOMO_BIN ||
-    process.env.MIHOMO_BIN ||
-    findOnPath(`mihomo${executableSuffix}`);
-
-  if (!sourceBinary) {
-    console.warn(
-      "[pingu] mihomo sidecar not found; building without bundled mihomo. Install mihomo on PATH or set PINGU_MIHOMO_BIN to bundle it.",
-    );
-    return {
-      bundle: {
-        externalBin: null,
-      },
-    };
-  }
-
   const stageDir = mkdtempSync(join(tmpdir(), "pingu-tauri-"));
-  mkdirSync(stageDir, { recursive: true });
-
-  const stagedBinary = join(stageDir, `mihomo-${targetTriple}${executableSuffix}`);
-  copyFileSync(sourceBinary, stagedBinary);
-
-  if (!targetTriple.includes("windows")) {
-    chmodSync(stagedBinary, 0o755);
+  const binaries = [];
+  for (const [name, source] of [
+    ["mihomo", process.env.PINGU_MIHOMO_BIN || process.env.MIHOMO_BIN || findOnPath(`mihomo${executableSuffix}`)],
+    ["pingu-mesh", process.env.PINGU_MESH_BIN],
+  ]) {
+    const bundled = join(srcTauriDir, "binaries", `${name}-${targetTriple}${executableSuffix}`);
+    const input = existsSync(bundled) ? bundled : source;
+    if (!input) { console.warn(`[pingu] ${name} is not bundled in this build.`); continue; }
+    const output = join(stageDir, `${name}-${targetTriple}${executableSuffix}`);
+    copyFileSync(input, output);
+    if (!targetTriple.includes("windows")) chmodSync(output, 0o755);
+    binaries.push(join(stageDir, name));
   }
-
-  return {
-    bundle: {
-      externalBin: [join(stageDir, "mihomo")],
-    },
-  };
+  return { bundle: { externalBin: binaries.length ? binaries : null } };
 }
 
 function resolveTargetTriple(cliArgs) {

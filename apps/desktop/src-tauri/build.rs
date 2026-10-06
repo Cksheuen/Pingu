@@ -8,25 +8,11 @@ fn main() {
     println!("cargo:rerun-if-env-changed=MIHOMO_BIN");
     println!("cargo:rerun-if-changed=binaries");
     let target = env::var("TARGET").expect("TARGET should be set by Cargo");
-    let external_bin = prepare_mihomo_sidecar(&target);
-
-    match external_bin {
-        Some(path) => apply_tauri_config_override(json!({
-            "bundle": {
-                "externalBin": [path.to_string_lossy().to_string()]
-            }
-        })),
-        None => {
-            println!(
-                "cargo:warning=mihomo sidecar not found; building without bundled mihomo. Install mihomo on PATH or set PINGU_MIHOMO_BIN to bundle it."
-            );
-            apply_tauri_config_override(json!({
-                "bundle": {
-                    "externalBin": Value::Null
-                }
-            }));
-        }
-    }
+    println!("cargo:rerun-if-env-changed=PINGU_MESH_BIN");
+    let mut bins = Vec::new();
+    if let Some(path) = prepare_mihomo_sidecar(&target) { bins.push(path.to_string_lossy().to_string()); }
+    if let Some(path) = prepare_mesh_sidecar(&target) { bins.push(path.to_string_lossy().to_string()); }
+    apply_tauri_config_override(json!({"bundle":{"externalBin":if bins.is_empty() { Value::Null } else { json!(bins) }}}));
 
     tauri_build::build()
 }
@@ -105,4 +91,13 @@ fn ensure_executable(path: &Path) {
             let _ = fs::set_permissions(path, permissions);
         }
     }
+}
+
+fn prepare_mesh_sidecar(target: &str) -> Option<PathBuf> {
+    let source = PathBuf::from(env::var_os("PINGU_MESH_BIN")?);
+    let stage = PathBuf::from(env::var_os("OUT_DIR")?).join("pingu-sidecars");
+    fs::create_dir_all(&stage).ok()?;
+    let dest = stage.join(format!("pingu-mesh-{target}{}",executable_suffix(target)));
+    fs::copy(source,&dest).ok()?; ensure_executable(&dest);
+    Some(stage.join("pingu-mesh"))
 }

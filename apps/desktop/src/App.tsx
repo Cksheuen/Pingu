@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import { Sources, Routing, Activity } from "./pages/WorkspacePages";
 import { useSubscriptionStore } from "./lib/subscription-store";
 import Settings from "./pages/Settings";
+import Mesh from "./pages/Mesh";
 import { useConnectionStore } from "./lib/connection-store";
 
 const STATUS_POLL_INTERVAL_MS = 5_000;
@@ -34,6 +35,7 @@ export function RoutedContent() {
         <Route path="/rules" element={<Navigate to="/routing" replace />} />
         <Route path="/host-overrides" element={<Navigate to="/routing#host-overrides" replace />} />
         <Route path="/logs" element={<Navigate to="/activity#logs" replace />} />
+        <Route path="/mesh" element={<Mesh />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </div>

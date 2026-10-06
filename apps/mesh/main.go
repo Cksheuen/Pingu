@@ -167,7 +167,7 @@ func run(ctx context.Context, cfg launchConfig) error {
 		return err
 	}
 	app := &meshApp{server: srv, client: lc, gate: gate, token: cfg.APIToken, socksPort: socksPort}
-	socks := &socks5.Server{Dialer: app.dialPeer, Logf: quiet}
+	socks := &socks5.Server{Dialer: app.dialPeer, Logf: quiet, Username: "pingu", Password: cfg.APIToken}
 	httpServer := &http.Server{
 		Handler: app, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second,
 		WriteTimeout: 15 * time.Second, IdleTimeout: 15 * time.Second, MaxHeaderBytes: 4096,
@@ -230,7 +230,7 @@ func (a *meshApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
 	provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if r.Header.Get("Origin") != "" || subtle.ConstantTimeCompare([]byte(provided), []byte(a.token)) != 1 {
+	if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") || r.Header.Get("Origin") != "" || subtle.ConstantTimeCompare([]byte(provided), []byte(a.token)) != 1 {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}

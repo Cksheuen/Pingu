@@ -6,6 +6,7 @@ const rust = (files, filters, dependencies = []) => ({
 // Dependencies are production inputs only: changing one module's tests does
 // not invalidate its consumers. Add a new module here with its real consumers.
 export const scopes = {
+  mesh: rust(['mesh.rs'], ['mesh::']),
   traffic: rust(['traffic_monitor.rs', 'commands/traffic.rs'], ['traffic_monitor::']),
   logs: rust(['mihomo/log_writer.rs', 'mihomo/process.rs', 'commands/logs.rs'], ['mihomo::log_writer::', 'mihomo::process::']),
   nodes: {
@@ -20,7 +21,7 @@ export const scopes = {
   },
   config: rust(['storage/app_config.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::'], ['nodes']),
   subscriptions: rust(['mihomo/profiles.rs', 'mihomo/controller.rs', 'commands/network.rs'], ['mihomo::profiles::', 'mihomo::controller::'], ['nodes']),
-  routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions', 'chain']),
+  routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions', 'chain', 'mesh']),
   runtime: rust(['proxy_runtime.rs'], ['proxy_runtime::'], ['routing']),
   gate: rust(['gate.rs', 'storage/gate_config.rs', 'commands/gate.rs'], ['gate::', 'storage::gate_config::']),
   system: rust(['system/mod.rs', 'system/proxy_macos.rs'], ['system::proxy_macos::']),

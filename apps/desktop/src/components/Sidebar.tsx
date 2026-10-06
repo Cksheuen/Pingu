@@ -8,6 +8,7 @@ const sections = [
   { path: "/sources", label: "workspace.sources", icon: "M4 3h16v7H4zM4 14h16v7H4zM8 6h.01M8 17h.01" },
   { path: "/routing", label: "workspace.routing", icon: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" },
   { path: "/activity", label: "workspace.activity", icon: "M3 12h4l3-8 4 16 3-8h4" },
+  { path: "/mesh", label: "workspace.mesh", icon: "M6 6h4v4H6zM16 6h4v4h-4zM11 17h4v4h-4zM8 10v3h10v-3M13 13v4" },
   { path: "/settings", label: "nav.settings", icon: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M5.6 18.4l1.5-1.5M16.9 7.1l1.5-1.5" },
 ];
 

@@ -3,6 +3,7 @@ type Lang = "en" | "zh";
 const translations: Record<string, Record<Lang, string>> = {
 
   "workspace.connection": { en: "Connection", zh: "连接与线路" },
+  "workspace.mesh": { en: "Device mesh", zh: "设备组网" },
   "workspace.sources": { en: "Sources", zh: "订阅与节点" },
   "workspace.routing": { en: "Routing", zh: "分流规则" },
   "workspace.activity": { en: "Activity", zh: "连接与日志" },

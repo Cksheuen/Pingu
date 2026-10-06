@@ -72,6 +72,8 @@ fn sample_group(id: &str, name: &str) -> RuleGroup {
 
 fn sample_config() -> AppConfig {
     AppConfig {
+        mesh: Default::default(),
+        mesh_runtime: None,
         proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),
