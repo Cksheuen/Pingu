@@ -312,7 +312,7 @@ pub fn start_saved(app: &AppState, proxy: &ProxyState, mesh: &MeshState) -> Resu
         .mesh
         .clone();
     if settings.enabled {
-        configure(app, proxy, mesh, settings)?;
+        configure(app, proxy, mesh, settings, true)?;
     }
     Ok(())
 }
@@ -321,8 +321,8 @@ pub fn configure(
     proxy: &ProxyState,
     mesh: &MeshState,
     mut settings: MeshSettings,
+    reconnect: bool,
 ) -> Result<(), String> {
-    check_ports(&settings.exposed_ports)?;
     let mut rt = mesh.runtime.lock().map_err(|_| "Mesh unavailable.")?;
     if mesh.shutting_down.load(Ordering::SeqCst) {
         return Err("Pingu is shutting down.".into());
@@ -332,6 +332,10 @@ pub fn configure(
         .lock()
         .map_err(|_| "Configuration unavailable.")?
         .clone();
+    // Closing access must not be blocked by an unfinished/invalid port edit.
+    if (!settings.enabled || !settings.allow_inbound) && check_ports(&settings.exposed_ports).is_err() {
+        settings.exposed_ports = Vec::new();
+    }
     if !settings.enabled {
         rt.process.take();
         rt.error = None;
@@ -349,6 +353,7 @@ pub fn configure(
         }
         return Ok(());
     }
+    check_ports(&settings.exposed_ports)?;
     if cfg.mesh.subscription_id == settings.subscription_id {
         if let Some(process) = rt.process.as_mut() {
             if process
@@ -366,6 +371,15 @@ pub fn configure(
                 );
                 if let Err(error) = changed {
                     rt.process.take();
+                    if !settings.allow_inbound {
+                        // Kill is the fail-closed fallback when IPC is unavailable;
+                        // remember the user's refusal before any future reconnect.
+                        let _ = mutate_config_only(app, |c| {
+                            c.mesh.allow_inbound = false;
+                            c.mesh_runtime = None;
+                            Ok(())
+                        });
+                    }
                     rt.error = Some(error.clone());
                     return Err(error);
                 }
@@ -386,6 +400,12 @@ pub fn configure(
     }
     // Any previous identity is stopped before a new source may grant exposure.
     rt.process.take();
+    if !reconnect {
+        settings.ipv4_cidr = cfg.mesh.ipv4_cidr;
+        // Preference edits remain available while enrollment/control is offline.
+        // Only explicit Connect or app startup may start a new identity process.
+        return publish(app, proxy, settings, None);
+    }
     let result: Result<Process, String> = (|| {
         let grant = enrollment(&cfg, &settings.subscription_id)?;
         settings.ipv4_cidr = grant.ipv4_cidr.clone();
@@ -466,6 +486,7 @@ pub async fn get_mesh_status(
 #[tauri::command]
 pub async fn configure_mesh(
     settings: MeshSettings,
+    reconnect: Option<bool>,
     state: State<'_, Arc<AppState>>,
     proxy_state: State<'_, Arc<ProxyState>>,
     mesh: State<'_, Arc<MeshState>>,
@@ -475,7 +496,7 @@ pub async fn configure_mesh(
         proxy_state.inner().clone(),
         mesh.inner().clone(),
     );
-    tauri::async_runtime::spawn_blocking(move || configure(&a, &p, &m, settings))
+    tauri::async_runtime::spawn_blocking(move || configure(&a, &p, &m, settings, reconnect.unwrap_or(false)))
         .await
         .map_err(|_| "Mesh configuration task failed.".to_string())?
 }

@@ -35,14 +35,15 @@ export default function Mesh() {
       if (active.current) timer = setTimeout(poll, 5000); }
     void poll(); return () => { active.current = false; clearTimeout(timer); };
   }, []);
-  async function save(change: Partial<Settings>) {
+  async function save(change: Partial<Settings>, reconnect = false) {
     if (!snapshot) return;
     setBusy(true); setError("");
     try {
-      const selectedPorts = ports.trim() ? ports.split(/[\s,，]+/).map(Number) : [];
+      const closing = change.enabled === false || change.allow_inbound === false;
+      const selectedPorts = closing ? snapshot.settings.exposed_ports : ports.trim() ? ports.split(/[\s,，]+/).map(Number) : [];
       if (selectedPorts.some(p => !Number.isInteger(p) || p < 1 || p > 65535) || selectedPorts.length > 32)
         throw new Error(words("请输入 1–65535 的 TCP 端口，最多 32 个。", "Enter up to 32 TCP ports between 1 and 65535."));
-      await tauriInvoke("configure_mesh", { settings: { ...snapshot.settings, subscription_id: source,
+      await tauriInvoke("configure_mesh", { reconnect, settings: { ...snapshot.settings, subscription_id: source,
         exposed_ports: [...new Set(selectedPorts)], ...change } });
     } catch (e) { setError(message(e)); }
     finally { await refresh().catch(e => setError(message(e))); setBusy(false); }
@@ -71,7 +72,7 @@ export default function Mesh() {
         {subscriptions.filter(s => s.enabled && s.source_kind === "url").map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
       <p className="mesh-help">{words("需先在云端管理页为这台设备允许组网。每台设备使用自己的订阅。", "Allow mesh for this device in the cloud manager first. Use a separate subscription for each device.")}</p>
-      <div className="mesh-actions"><button className="btn btn-primary" disabled={busy || !snapshot || !source} onClick={() => void save({ enabled: !runtime })}>
+      <div className="mesh-actions"><button className="btn btn-primary" disabled={busy || !snapshot || !source} onClick={() => void save({ enabled: !runtime }, !runtime)}>
         {busy ? words("处理中…", "Working…") : runtime ? words("断开组网", "Disconnect mesh") : words("连接组网", "Connect mesh")}</button></div>
     </section>
     <section className="surface mesh-card">
