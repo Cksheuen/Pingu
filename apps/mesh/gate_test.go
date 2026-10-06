@@ -19,8 +19,12 @@ func TestGateDefaultDeniesAndOnlySharesSelectedLoopbackPort(t *testing.T) {
 	if err := g.configure(true, []uint16{45000}); err == nil {
 		t.Fatal("private control port was exposed")
 	}
-	if err := g.configure(true, []uint16{8080}); err != nil { t.Fatal(err) }
-	if g.allowed(22) { t.Fatal("an unselected port was exposed") }
+	if err := g.configure(true, []uint16{8080}); err != nil {
+		t.Fatal(err)
+	}
+	if g.allowed(22) {
+		t.Fatal("an unselected port was exposed")
+	}
 	called := make(chan string, 1)
 	local, service := net.Pipe()
 	defer service.Close()
@@ -31,22 +35,40 @@ func TestGateDefaultDeniesAndOnlySharesSelectedLoopbackPort(t *testing.T) {
 	accepted, remote := net.Pipe()
 	defer remote.Close()
 	handler, handled := g.handler(peer, destination)
-	if handler == nil || !handled { t.Fatal("enabled service rejected") }
+	if handler == nil || !handled {
+		t.Fatal("enabled service rejected")
+	}
 	finished := make(chan struct{})
 	go func() { handler(accepted); close(finished) }()
-	if address := <-called; address != "tcp 127.0.0.1:8080" { t.Fatalf("unsafe destination: %s", address) }
+	if address := <-called; address != "tcp 127.0.0.1:8080" {
+		t.Fatalf("unsafe destination: %s", address)
+	}
 	go func() { _, _ = service.Write([]byte("visible")) }()
-	if err := remote.SetReadDeadline(time.Now().Add(time.Second)); err != nil { t.Fatal(err) }
+	if err := remote.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	data := make([]byte, 7)
-	if _, err := io.ReadFull(remote, data); err != nil || string(data) != "visible" { t.Fatalf("bridge failed: %v", err) }
-	if err := g.configure(false, []uint16{8080}); err != nil { t.Fatal(err) }
-	if _, err := remote.Read(make([]byte, 1)); err == nil { t.Fatal("existing inbound connection survived switch-off") }
-	select { case <-finished: case <-time.After(time.Second): t.Fatal("bridge leaked after switch-off") }
+	if _, err := io.ReadFull(remote, data); err != nil || string(data) != "visible" {
+		t.Fatalf("bridge failed: %v", err)
+	}
+	if err := g.configure(false, []uint16{8080}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := remote.Read(make([]byte, 1)); err == nil {
+		t.Fatal("existing inbound connection survived switch-off")
+	}
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("bridge leaked after switch-off")
+	}
 }
 
 func TestDisableWinsAgainstPendingLocalDial(t *testing.T) {
 	g := newInboundGate()
-	if err := g.configure(true, []uint16{8080}); err != nil { t.Fatal(err) }
+	if err := g.configure(true, []uint16{8080}); err != nil {
+		t.Fatal(err)
+	}
 	started, release := make(chan struct{}), make(chan struct{})
 	local, service := net.Pipe()
 	defer service.Close()
@@ -60,9 +82,17 @@ func TestDisableWinsAgainstPendingLocalDial(t *testing.T) {
 	finished := make(chan struct{})
 	go func() { g.bridge(accepted, 8080); close(finished) }()
 	<-started
-	if err := g.configure(false, []uint16{8080}); err != nil { t.Fatal(err) }
+	if err := g.configure(false, []uint16{8080}); err != nil {
+		t.Fatal(err)
+	}
 	close(release)
-	select { case <-finished: case <-time.After(time.Second): t.Fatal("pending dial resurrected disabled access") }
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("pending dial resurrected disabled access")
+	}
 	_, _, active := g.snapshot()
-	if active != 0 { t.Fatal("inbound bridge was retained") }
+	if active != 0 {
+		t.Fatal("inbound bridge was retained")
+	}
 }

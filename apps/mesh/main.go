@@ -288,7 +288,9 @@ func (a *meshApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]bool{"ok": true})
 	case r.Method == "POST" && r.URL.Path == "/ping":
-		var data struct { IP string `json:"ip"` }
+		var data struct {
+			IP string `json:"ip"`
+		}
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 			writeJSON(w, 400, map[string]string{"error": "invalid peer"})
 			return
@@ -306,7 +308,11 @@ func (a *meshApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		path := "relay"
-		if result.Endpoint != "" { path = "direct" } else if result.PeerRelay != "" { path = "peer-relay" }
+		if result.Endpoint != "" {
+			path = "direct"
+		} else if result.PeerRelay != "" {
+			path = "peer-relay"
+		}
 		writeJSON(w, 200, map[string]any{"path": path, "latency_ms": result.LatencySeconds * 1000})
 	default:
 		writeJSON(w, 404, map[string]string{"error": "not found"})
