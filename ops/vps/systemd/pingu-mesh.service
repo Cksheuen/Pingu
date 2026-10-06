@@ -1,0 +1,35 @@
+[Unit]
+Description=Pingu mesh coordination and authenticated relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pingu-mesh
+Group=pingu-mesh
+ExecStart=/usr/local/bin/headscale -c /etc/pingu-mesh/config.yaml serve
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=pingu-mesh
+StateDirectoryMode=0700
+RuntimeDirectory=pingu-mesh
+RuntimeDirectoryMode=0750
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=384M
+TasksMax=256
+Environment=GOMEMLIMIT=256MiB
+Environment=GOMAXPROCS=2
+
+[Install]
+WantedBy=multi-user.target

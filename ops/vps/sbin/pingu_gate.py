@@ -760,8 +760,8 @@ class GateHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == PATH_PREFIX + "/control/v1/devices":
-            self.handle_control_device()
+        if parsed.path in (PATH_PREFIX + "/control/v1/devices", PATH_PREFIX + "/control/v1/mesh"):
+            self.handle_control_device(mesh=parsed.path.endswith("/mesh"))
             return
         if parsed.path == PATH_PREFIX + "/devices/connections/close":
             params = parse_form_body(self)
@@ -794,7 +794,7 @@ class GateHandler(http.server.BaseHTTPRequestHandler):
             return
         self.handle_allow(parse_form_body(self))
 
-    def handle_control_device(self):
+    def handle_control_device(self, mesh=False):
         # A separate, optional credential grants device provisioning only. It cannot
         # use the operator login, Reality source leases, or Mihomo controller API.
         try:
@@ -812,6 +812,13 @@ class GateHandler(http.server.BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError("invalid body")
+            if mesh:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("pingu_mesh", Path(__file__).with_name("pingu_mesh.py"))
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                self.send_json(HTTPStatus.OK, module.control(data))
+                return
             device_id = str(data.get("id", ""))
             if data.get("action") == "revoke":
                 DEVICE_REGISTRY.revoke_managed(device_id)
@@ -829,6 +836,8 @@ class GateHandler(http.server.BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, {"id": device_id, "state": "active", "subscription": subscription})
         except (ValueError, TypeError, UnicodeError):
             self.send_json(HTTPStatus.CONFLICT, {"error": "invalid or conflicting managed device"})
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "node control unavailable"})
 
     def show_form(self):
         ip = client_ip_from_headers(self)

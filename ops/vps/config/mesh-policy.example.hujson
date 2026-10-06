@@ -1,0 +1,5 @@
+{
+  // Enrollment is restricted by Pingu's device grants. Each app independently
+  // defaults to denying host-service access and forwards only selected ports.
+  "acls": [{"action":"accept","src":["*"],"dst":["*:*"]}]
+}

@@ -1,0 +1,67 @@
+# Dedicated public DNS-only name; do not put this behind the Cloudflare proxy.
+server_url: https://mesh.example.com:8444
+listen_addr: 0.0.0.0:8444
+metrics_listen_addr: 127.0.0.1:19091
+grpc_listen_addr: 127.0.0.1:50443
+grpc_allow_insecure: false
+trusted_proxies: []
+noise:
+  private_key_path: /var/lib/pingu-mesh/noise_private.key
+prefixes:
+  v4: 100.117.234.0/24
+  v6: fd7a:115c:a1e0:7a34::/64
+  allocation: sequential
+derp:
+  server:
+    enabled: true
+    region_id: 999
+    region_code: pingu
+    region_name: Pingu VPS
+    verify_clients: true
+    stun_listen_addr: 0.0.0.0:3478
+    private_key_path: /var/lib/pingu-mesh/derp_private.key
+    automatically_add_embedded_derp_region: true
+    ipv4: 203.0.113.10
+  urls: []
+  paths: []
+  auto_update_enabled: false
+disable_check_updates: true
+node:
+  expiry: 4320h
+  ephemeral:
+    inactivity_timeout: 30m
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/pingu-mesh/db.sqlite
+    write_ahead_log: true
+    wal_autocheckpoint: 1000
+acme_url: https://acme-v02.api.letsencrypt.org/directory
+acme_email: ""
+tls_letsencrypt_hostname: mesh.example.com
+tls_letsencrypt_cache_dir: /var/lib/pingu-mesh/acme
+tls_letsencrypt_challenge_type: HTTP-01
+tls_letsencrypt_listen: :80
+log:
+  level: warn
+  format: json
+policy:
+  mode: file
+  path: /etc/pingu-mesh/policy.hujson
+dns:
+  magic_dns: false
+  base_domain: ""
+  override_local_dns: false
+  nameservers:
+    global: []
+    split: {}
+  search_domains: []
+  extra_records: []
+unix_socket: /run/pingu-mesh/headscale.sock
+unix_socket_permission: "0660"
+logtail:
+  enabled: false
+taildrop:
+  enabled: false
+auto_update:
+  enabled: false
