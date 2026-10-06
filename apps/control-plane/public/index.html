@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pingu · 节点与订阅</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <span class="eyebrow">PINGU CONTROL</span>
+          <h1>节点与订阅</h1>
+          <p>一个固定订阅，连接你的多个节点。</p>
+        </div>
+        <button id="logout" class="secondary" hidden>退出登录</button>
+      </header>
+      <div id="message" role="status" aria-live="polite"></div>
+      <section id="login">
+        <h2>管理登录</h2>
+        <form id="login-form">
+          <label
+            >管理密钥<input
+              id="admin-key"
+              type="password"
+              required
+              autocomplete="current-password" /></label
+          ><button>进入管理</button>
+        </form>
+        <p class="hint">密钥仅用于登录，不写入浏览器本地存储。</p>
+      </section>
+      <div id="dashboard" hidden>
+        <div class="stats">
+          <div><strong id="node-count">—</strong><span>启用的节点</span></div>
+          <div><strong id="device-count">—</strong><span>有效的设备</span></div>
+          <div><strong id="pending-count">—</strong><span>需要处理</span></div>
+        </div>
+        <section>
+          <div class="section-title">
+            <h2>节点</h2>
+            <button id="edit-nodes" class="secondary">批量配置 JSON</button>
+          </div>
+          <div id="nodes"></div>
+          <form id="nodes-form" hidden>
+            <label
+              >节点数组<textarea
+                id="nodes-json"
+                rows="13"
+                spellcheck="false"
+              ></textarea>
+            </label>
+            <p class="hint">
+              新节点填写 key；已有节点不填 key 会保留原密钥。enabled=false
+              从订阅中暂时隐藏节点。保存后点击“同步全部设备”，把新节点加入已有订阅。
+            </p>
+            <button>保存节点</button>
+          </form>
+          <button id="sync-all" class="secondary">同步全部设备</button>
+        </section>
+        <section>
+          <h2>分配订阅</h2>
+          <form id="device-form" class="inline-form">
+            <label
+              >用户<input
+                id="owner"
+                required
+                maxlength="80"
+                placeholder="例如：自己" /></label
+            ><label
+              >设备名称<input
+                id="device-name"
+                required
+                maxlength="80"
+                placeholder="例如：MacBook" /></label
+            ><button>创建订阅</button>
+          </form>
+          <div id="created" hidden>
+            <label>固定订阅链接<input id="subscription" readonly /></label>
+            <div class="actions">
+              <button id="copy-link" type="button">复制通用链接</button
+              ><button id="copy-clash" type="button" class="secondary">
+                复制 Clash 链接
+              </button>
+            </div>
+            <p class="hint">
+              在 Pingu
+              的“订阅”页面添加通用链接，可一次导入多个节点。节点暂时离线不会影响下载已有配置。链接含访问凭据，请勿公开分享。
+            </p>
+          </div>
+        </section>
+        <section>
+          <div class="section-title">
+            <h2>设备</h2>
+            <button id="refresh" class="secondary">刷新</button>
+          </div>
+          <div id="devices"></div>
+          <p class="hint">
+            撤销会立即禁止下载订阅，并在所有关联节点禁止新连接。节点不可达时显示“撤销中”，恢复后需重试；已经建立的连接会按原节点行为结束。
+          </p>
+        </section>
+      </div>
+      <footer>管理与订阅由 Cloudflare 承载 · 连接由各 VPS 提供</footer>
+    </main>
+  </body>
+</html>
