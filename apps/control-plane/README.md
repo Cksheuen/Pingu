@@ -84,3 +84,7 @@ credentials. To remove a device's access, use device revocation.
 multi-node subscription generation, storage confidentiality, retry, revocation,
 CSRF, and concurrent delayed provisioning. `pnpm --dir apps/control-plane build` validates the Worker
 bundle with Wrangler. Node-side tests live alongside the existing Gate tests.
+
+## 私有组网
+
+`0002_mesh.sql` 为每台设备增加独立的组网权限，现有和新设备默认关闭。配置 `MESH_NODE_ID` 指向已部署 Headscale 适配器的节点后，可在设备行中允许或撤销组网。客户端通过自身 `/s/<token>/mesh` 领取短期、单次入网凭据；云端不会替设备打开本机端口。关闭组网不影响订阅；撤销整台设备需要所有代理及组网节点确认，失败会保留待重试状态。服务器部署、备份与恢复见 `ops/vps/MESH.md`。

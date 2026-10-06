@@ -14,7 +14,7 @@ sidecar writes a single public readiness record (protocol/API/SOCKS ports), then
 exposes a bearer-authenticated loopback API. Parent EOF or termination shuts down
 the sidecar. Auth keys and browser registration links are never written to logs.
 
-The SOCKS listener only dials addresses of current mesh peers. It does not forward
+The SOCKS listener requires an ephemeral app-owned username/password and only dials addresses of current mesh peers. It does not forward
 arbitrary internet or LAN destinations. The initial version carries TCP services.
 Pingu can use this listener for SSH, development web servers and remote desktops.
 No relay or exit-node role is advertised by a desktop.
