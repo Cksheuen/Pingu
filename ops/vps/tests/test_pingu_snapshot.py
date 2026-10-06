@@ -812,8 +812,9 @@ def add_runtime_controls(root, settings):
     path.write_text(json.dumps(value))
     for rel in snap.RUNTIME_CONTROL_PATHS:
         target=root/rel;target.parent.mkdir(parents=True,exist_ok=True)
-        source=Path(__file__).resolve().parents[1]/('sbin/pingu_runtime_controls.py' if rel.startswith('usr/') else 'systemd/pingu-runtime-controls.service')
-        target.write_bytes(source.read_bytes());target.chmod(0o755 if rel.startswith('usr/') else 0o644)
+        # Snapshot tests preserve opaque asset bytes; they do not execute the controller.
+        target.write_text('# runtime-controls test fixture\n' if rel.startswith('usr/') else '[Service]\nExecStart=/usr/local/sbin/pingu-runtime-controls\n')
+        target.chmod(0o755 if rel.startswith('usr/') else 0o644)
 
 
 class MihomoSnapshotTests(unittest.TestCase):
@@ -973,8 +974,6 @@ class MihomoSnapshotTests(unittest.TestCase):
             snap.verify_snapshot(evil)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class MeshSnapshotTests(unittest.TestCase):
@@ -999,3 +998,7 @@ class MeshSnapshotTests(unittest.TestCase):
                 self.assertFalse((target/"var/lib/pingu-mesh/db.sqlite-wal").exists())
                 self.assertEqual((target/"var/lib/pingu-mesh/noise_private.key").read_text(),"private-test-fixture")
                 self.assertEqual(stat.S_IMODE((target/"var/lib/pingu-mesh/db.sqlite").stat().st_mode),0o600)
+
+
+if __name__ == "__main__":
+    unittest.main()

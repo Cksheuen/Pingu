@@ -13,6 +13,7 @@ manifest or logs.
 """
 
 import datetime as dt
+from contextlib import closing
 import hashlib
 import ipaddress
 import json
@@ -205,9 +206,10 @@ def _stage_mesh(source_root, rootfs, present):
     if not src.is_file() or src.is_symlink():
         raise SnapshotError("missing or unsafe mesh database")
     try:
-        with sqlite3.connect(src.resolve().as_uri() + "?mode=ro", uri=True, timeout=10) as source:
-            with sqlite3.connect(dst) as target:
+        with closing(sqlite3.connect(src.resolve().as_uri() + "?mode=ro", uri=True, timeout=10)) as source:
+            with closing(sqlite3.connect(dst)) as target:
                 source.backup(target, pages=128, sleep=0.05)
+                target.execute("PRAGMA journal_mode=DELETE")
                 if target.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                     raise SnapshotError("mesh database integrity check failed")
         os.chmod(dst, 0o600)
