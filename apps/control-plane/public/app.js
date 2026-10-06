@@ -126,6 +126,14 @@ function render() {
         }),
       );
     }
+    const meshPending = state.mesh_assignments?.some(a => a.device_id === d.id && a.error);
+    left.append(el("div", d.mesh_allowed ? "组网：已允许（本机端口仍由设备自行控制）" : meshPending ? "组网：撤销待重试" : "组网：未允许", "meta"));
+    if (d.status === "active") actions.append(button(d.mesh_allowed ? "关闭组网" : meshPending ? "重试关闭组网" : "允许组网", async () => {
+      const enabled = !d.mesh_allowed && !meshPending;
+      if (enabled && !confirm(`允许 ${d.owner} / ${d.name} 加入你的私有组网？只有设备本地打开的端口可以被其他成员访问。`)) return;
+      const result = await api(`/devices/${d.id}/mesh`,{enabled}); await refresh();
+      message(result.ok ? (enabled ? "组网已允许，请在这台设备的 Pingu 中连接。" : "组网权限已撤销。") : "组网撤销尚未完成，请重试。",!result.ok);
+    }));
     if (d.status !== "revoked")
       actions.append(
         button(
@@ -134,7 +142,7 @@ function render() {
             if (
               d.status !== "revoking" &&
               !confirm(
-                `撤销 ${d.owner} / ${d.name} 的订阅和新连接权限？此设备无法恢复，可重新创建。`,
+                `撤销 ${d.owner} / ${d.name} 的订阅、组网和新连接权限？此设备无法恢复，可重新创建。`,
               )
             )
               return;

@@ -183,7 +183,7 @@ pub fn configure(app: &AppState, proxy: &ProxyState, mesh: &MeshState, mut setti
     }
     // Any previous identity is stopped before a new source may grant exposure.
     rt.process.take();
-    let result = (|| {
+    let result: Result<Process, String> = (|| {
         let grant = enrollment(&cfg, &settings.subscription_id)?;
         settings.ipv4_cidr = grant.ipv4_cidr.clone();
         let snap = proxy.runtime_snapshot()?;

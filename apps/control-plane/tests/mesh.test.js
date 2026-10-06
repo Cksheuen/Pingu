@@ -1,0 +1,42 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { setup } from "./helpers.js";
+test("mesh is opt-in, rejects browser enrollment, rotates revoked identities, leaves subscriptions independent", async () => {
+  const t=setup(); t.env.MESH_NODE_ID="a";
+  await t.add([t.node("a")]); const d=await t.create();
+  const path=new URL(d.subscription).pathname;
+  assert.equal((await t.request(path+"/mesh",{})).status,403);
+  assert.equal((await t.request(`/api/devices/${d.id}/mesh`,{enabled:true})).status,200);
+  assert.equal((await t.request(path+"/mesh",{}, {Origin:"https://evil.example"})).status,403);
+  let r=await t.request(path+"/mesh",{}); assert.equal(r.status,200);
+  assert.equal((await r.json()).ipv4_cidr,"100.117.234.0/24");
+  assert.equal(r.headers.get("cache-control"),"no-store");
+  const before=t.calls.find(c=>c.action==="enroll").id;
+  r=await t.request(`/api/devices/${d.id}/mesh`,{enabled:false}); assert.equal((await r.json()).ok,true);
+  assert.equal((await t.request(path+"/mesh",{})).status,403);
+  assert.equal((await t.request(path)).status,200);
+  await t.request(`/api/devices/${d.id}/mesh`,{enabled:true}); await t.request(path+"/mesh",{});
+  assert.notEqual(t.calls.filter(c=>c.action==="enroll").at(-1).id,before);
+  assert.ok(t.revoked.has("a.example.com:"+before));
+});
+test("full device revocation waits for mesh issuer even after VLESS nodes were removed", async () => {
+  const t=setup(); t.env.MESH_NODE_ID="a";
+  await t.add([t.node("a"),t.node("b")]); const d=await t.create();
+  await t.request(`/api/devices/${d.id}/mesh`,{enabled:true});
+  t.sql.prepare("UPDATE assignments SET state='revoked'").run();
+  t.setDown(["a.example.com"]);
+  let r=await (await t.request(`/api/devices/${d.id}/revoke`,{})).json(); assert.equal(r.status,"revoking");
+  assert.equal(t.sql.prepare("SELECT mesh_allowed FROM devices").get().mesh_allowed,0);
+  assert.equal(t.sql.prepare("SELECT error FROM mesh_assignments").get().error,"revoke_pending");
+  t.setDown([]); r=await (await t.request(`/api/devices/${d.id}/revoke`,{})).json(); assert.equal(r.status,"revoked");
+});
+test("delayed mesh enrollment cannot revive a revoked identity", async () => {
+  const t=setup(); t.env.MESH_NODE_ID="a"; await t.add([t.node("a")]); const d=await t.create();
+  await t.request(`/api/devices/${d.id}/mesh`,{enabled:true});
+  let release; t.setPause(new Promise(resolve=>release=resolve));
+  const enrolling=t.request(new URL(d.subscription).pathname+"/mesh",{});
+  while (!t.calls.some(c=>c.action==="enroll")) await new Promise(resolve=>setImmediate(resolve));
+  await t.request(`/api/devices/${d.id}/revoke`,{}); release();
+  assert.notEqual((await enrolling).status,200);
+  assert.equal(t.sql.prepare("SELECT state FROM mesh_assignments").get().state,"revoked");
+});

@@ -114,6 +114,62 @@ async function control(env, node, data, fetcher) {
     throw new Error("invalid_node_response");
   return result;
 }
+async function meshControl(env, node, data, fetcher) {
+  const key = await open(node.key_cipher, env.DATA_KEY, `node:${node.id}`);
+  const res = await fetcher(`${node.origin}/__pingu_gate__/control/v1/mesh`, {
+    method: "POST", redirect: "manual", signal: AbortSignal.timeout(12000),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "User-Agent": "Pingu-Control/0.1" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("mesh_unavailable");
+  const result = await res.json();
+  if (result.id !== data.id || result.state !== (data.action === "revoke" ? "revoked" : "active"))
+    throw new Error("invalid_mesh_response");
+  return result;
+}
+async function revokeMesh(env, id, fetcher) {
+  await run(env, "UPDATE devices SET mesh_allowed=0 WHERE id=?", id);
+  await run(env, "UPDATE mesh_assignments SET state='revoking' WHERE device_id=? AND state!='revoked'", id);
+  const rows = await all(env, "SELECT a.generation,n.* FROM mesh_assignments a JOIN nodes n ON n.id=a.node_id WHERE a.device_id=? AND a.state!='revoked'", id);
+  for (const row of rows) {
+    try {
+      await meshControl(env, row, { action: "revoke", id: `mesh-${id}-${row.generation}` }, fetcher);
+      await run(env, "UPDATE mesh_assignments SET state='revoked',error=NULL,updated_at=? WHERE device_id=? AND generation=?", now(),id,row.generation);
+    } catch {
+      await run(env, "UPDATE mesh_assignments SET error='revoke_pending',updated_at=? WHERE device_id=? AND generation=?", now(),id,row.generation);
+    }
+  }
+  return !(await one(env, "SELECT 1 FROM mesh_assignments WHERE device_id=? AND state!='revoked'",id));
+}
+async function allowMesh(env, id, fetcher) {
+  const device = await one(env,"SELECT * FROM devices WHERE id=? AND status='active'",id);
+  if (!device) fail(409,"只有活跃设备可以加入组网");
+  if (!env.MESH_NODE_ID || !(await one(env,"SELECT id FROM nodes WHERE id=? AND enabled=1",env.MESH_NODE_ID))) fail(503,"组网控制节点尚未配置");
+  if (device.mesh_allowed) return;
+  if (!(await revokeMesh(env,id,fetcher))) fail(409,"之前的组网权限尚未完全撤销，请重试");
+  const generation = crypto.randomUUID().replaceAll("-", "");
+  // The assignment and permission are one transaction, before remote I/O.
+  // A concurrent device revoke either sees this responsibility or prevents it.
+  await env.DB.batch([
+    env.DB.prepare("UPDATE devices SET mesh_allowed=1,mesh_generation=? WHERE id=? AND status='active' AND mesh_allowed=0").bind(generation,id),
+    env.DB.prepare("INSERT OR IGNORE INTO mesh_assignments(device_id,generation,node_id,state,updated_at) SELECT ?,?,?,'active',? WHERE EXISTS(SELECT 1 FROM devices WHERE id=? AND mesh_allowed=1 AND mesh_generation=? AND status='active')").bind(id,generation,env.MESH_NODE_ID,now(),id,generation),
+  ]);
+}
+async function enrollMesh(req,env,token,fetcher) {
+  if (req.method !== "POST" || req.headers.has("Origin")) fail(403,"组网注册仅限设备客户端");
+  const d = await one(env,"SELECT * FROM devices WHERE token_hash=? AND status='active' AND mesh_allowed=1",await digest(token));
+  if (!d) fail(403,"此设备未被允许组网，或已撤销");
+  const node = await one(env,"SELECT n.* FROM nodes n JOIN mesh_assignments a ON n.id=a.node_id WHERE a.device_id=? AND a.generation=? AND a.state='active' AND n.enabled=1",d.id,d.mesh_generation);
+  if (!node) fail(503,"组网控制节点不可用");
+  const grant = await meshControl(env,node,{ action:"enroll",id:`mesh-${d.id}-${d.mesh_generation}` },fetcher);
+  const current = await one(env,"SELECT id FROM devices WHERE id=? AND status='active' AND mesh_allowed=1 AND mesh_generation=?",d.id,d.mesh_generation);
+  if (!current) { await revokeMesh(env,d.id,fetcher); fail(403,"组网权限已撤销"); }
+  const control = new URL(grant.control_url);
+  if (control.protocol !== "https:" || control.username || control.password || !["", "/"].includes(control.pathname) || control.search || control.hash
+    || typeof grant.auth_key !== "string" || !grant.auth_key || !/^pingu-[a-f0-9-]+$/.test(grant.hostname)
+    || !/^100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.0\/24$/.test(grant.ipv4_cidr)) fail(503,"组网控制响应无效");
+  return json({ control_url:grant.control_url, auth_key:grant.auth_key, hostname:grant.hostname, ipv4_cidr:grant.ipv4_cidr });
+}
 export async function syncDevice(env, id, fetcher = fetch) {
   const device = await one(env, "SELECT * FROM devices WHERE id=?", id);
   if (!device || !["pending", "active"].includes(device.status))
@@ -206,6 +262,7 @@ export async function revokeDevice(env, id, fetcher = fetch) {
     "UPDATE devices SET status='revoking' WHERE id=? AND status!='revoked'",
     id,
   );
+  await revokeMesh(env,id,fetcher);
   const nodes = await all(
     env,
     "SELECT n.* FROM nodes n JOIN assignments a ON n.id=a.node_id WHERE a.device_id=? AND a.state!='revoked'",
@@ -240,7 +297,7 @@ export async function revokeDevice(env, id, fetcher = fetch) {
   );
   await run(
     env,
-    "UPDATE devices SET status='revoked' WHERE id=? AND NOT EXISTS(SELECT 1 FROM assignments WHERE device_id=? AND state!='revoked')",
+    "UPDATE devices SET status='revoked' WHERE id=? AND NOT EXISTS(SELECT 1 FROM assignments WHERE device_id=? AND state!='revoked') AND NOT EXISTS(SELECT 1 FROM mesh_assignments WHERE device_id=devices.id AND state!='revoked')",
     id,
     id,
   );
@@ -252,6 +309,8 @@ async function dispatch(req, env, fetcher) {
   if (path === "/health") return json({ ok: true, service: "pingu-control" });
   if (!env.ADMIN_KEY || env.ADMIN_KEY.length < 32 || !env.DATA_KEY)
     fail(503, "服务尚未完成密钥配置");
+  const meshPath = path.match(/^\/s\/([\w-]{43})\/mesh$/);
+  if (meshPath) return enrollMesh(req,env,meshPath[1],fetcher);
   if (path.startsWith("/s/")) {
     if (req.method !== "GET") fail(405, "method not allowed");
     const token = path.slice(3),
@@ -345,8 +404,9 @@ async function dispatch(req, env, fetcher) {
       ),
       devices: await all(
         env,
-        "SELECT id,owner,name,status,created_at FROM devices ORDER BY created_at DESC",
+        "SELECT id,owner,name,status,created_at,mesh_allowed FROM devices ORDER BY created_at DESC",
       ),
+      mesh_assignments: await all(env,"SELECT device_id,state,error FROM mesh_assignments"),
       assignments: await all(
         env,
         "SELECT device_id,node_id,state,error,updated_at FROM assignments",
@@ -431,8 +491,16 @@ async function dispatch(req, env, fetcher) {
       201,
     );
   }
-  const m = path.match(/^\/api\/devices\/([a-f0-9]{32})\/(sync|revoke|link)$/);
+  const m = path.match(/^\/api\/devices\/([a-f0-9]{32})\/(sync|revoke|link|mesh)$/);
   if (m && req.method === "POST") {
+    if (m[2] === "mesh") {
+      const data = await body(req);
+      if (typeof data.enabled !== "boolean") fail(400,"enabled 必须为布尔值");
+      if (data.enabled) { await allowMesh(env,m[1],fetcher); return json({ok:true}); }
+      if (!(await one(env,"SELECT id FROM devices WHERE id=?",m[1]))) fail(404,"设备不存在");
+      return json({ok:await revokeMesh(env,m[1],fetcher)});
+    }
+
     if (m[2] === "sync")
       return json({ assignments: await syncDevice(env, m[1], fetcher) });
     if (m[2] === "revoke") return json(await revokeDevice(env, m[1], fetcher));

@@ -11,6 +11,7 @@ export function setup() {
       "utf8",
     ),
   );
+  sql.exec(readFileSync(new URL("../migrations/0002_mesh.sql", import.meta.url), "utf8"));
   class Statement {
     constructor(query, values = []) {
       this.query = query;
@@ -68,6 +69,7 @@ export function setup() {
     if (pause) await pause;
     if (revoked.has(key))
       return Response.json({ error: "revoked" }, { status: 409 });
+    if (data.action === "enroll") return Response.json({id:data.id,state:"active",control_url:"https://mesh.example.com:8444",auth_key:"single-use-test-key",hostname:"pingu-"+data.id.slice(5,17),ipv4_cidr:"100.117.234.0/24"});
     provisioned.add(key);
     return Response.json({
       id: data.id,
