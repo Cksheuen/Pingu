@@ -20,6 +20,7 @@ export default function Mesh() {
   const [ports, setPorts] = useState("22, 3000, 5173");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [statusError, setStatusError] = useState("");
   const [measures, setMeasures] = useState<Record<string, string>>({});
   const initialized = useRef(false);
   const active = useRef(true);
@@ -31,7 +32,7 @@ export default function Mesh() {
   }
   useEffect(() => {
     active.current = true; let timer: ReturnType<typeof setTimeout>;
-    async function poll() { try { await refresh(); } catch (e) { if (active.current) setError(message(e)); }
+    async function poll() { try { await refresh(); if (active.current) setStatusError(""); } catch (e) { if (active.current) setStatusError(message(e)); }
       if (active.current) timer = setTimeout(poll, 5000); }
     void poll(); return () => { active.current = false; clearTimeout(timer); };
   }, []);
@@ -62,7 +63,7 @@ export default function Mesh() {
   return <div className="page-shell mesh-page">
     <header className="page-header"><div><h1 className="page-title">{words("设备组网", "Device mesh")}</h1>
       <p>{words("通过 Pingu 访问自己的设备。优先尝试直连，无法穿透时使用加密中继。", "Reach your devices through Pingu. Direct connections are preferred, with encrypted relay fallback.")}</p></div></header>
-    {(error || snapshot?.error) && <div className="mesh-error" role="alert">{error || snapshot?.error}</div>}
+    {(error || statusError || snapshot?.error) && <div className="network-error" role="alert">{error || statusError || snapshot?.error}</div>}
     <section className="surface mesh-card">
       <div className="mesh-row"><div><h2>{words("组网连接", "Mesh connection")}</h2><p aria-live="polite">{connected ? words("已连接", "Connected") : runtime ? runtime.state : words("未连接", "Disconnected")}</p></div>
         <span className="mesh-state" data-online={connected}>{runtime?.addresses.filter(a => !a.includes(":" )).join(" · ") || "—"}</span></div>
@@ -72,7 +73,7 @@ export default function Mesh() {
         {subscriptions.filter(s => s.enabled && s.source_kind === "url").map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
       <p className="mesh-help">{words("需先在云端管理页为这台设备允许组网。每台设备使用自己的订阅。", "Allow mesh for this device in the cloud manager first. Use a separate subscription for each device.")}</p>
-      <div className="mesh-actions"><button className="btn btn-primary" disabled={busy || !snapshot || !source} onClick={() => void save({ enabled: !runtime }, !runtime)}>
+      <div className="mesh-actions"><button className="action-primary" disabled={busy || !snapshot || !source} onClick={() => void save({ enabled: !runtime }, !runtime)}>
         {busy ? words("处理中…", "Working…") : runtime ? words("断开组网", "Disconnect mesh") : words("连接组网", "Connect mesh")}</button></div>
     </section>
     <section className="surface mesh-card">
@@ -83,7 +84,7 @@ export default function Mesh() {
           onClick={() => void save({ allow_inbound: !inbound, enabled: snapshot?.settings.enabled ?? false })}><span /></button></div>
       <label htmlFor="mesh-ports">{words("允许访问的本机 TCP 端口", "Allowed local TCP ports")}</label>
       <div className="mesh-port-row"><input id="mesh-ports" value={ports} onChange={e => setPorts(e.target.value)} disabled={busy} placeholder="22, 3000, 5173" />
-        <button className="btn btn-secondary" disabled={busy || !snapshot} onClick={() => void save({})}>{words("保存端口", "Save ports")}</button></div>
+        <button className="action-secondary" disabled={busy || !snapshot} onClick={() => void save({})}>{words("保存端口", "Save ports")}</button></div>
       <p className="mesh-help">{words("例如 22 为 SSH，3000 / 5173 为开发页面。只转发到本机；关闭开关会断开现有入站连接。", "For example, 22 for SSH and 3000 / 5173 for dev pages. Ports forward only to this device. Switching off closes existing inbound connections.")}</p>
       <p>{runtime ? (runtime.allow_inbound ? words(`当前已开放：${runtime.exposed_ports.join(", ")}；入站连接 ${runtime.inbound_connections} 个`, `Open ports: ${runtime.exposed_ports.join(", ")} · ${runtime.inbound_connections} inbound connections`) : words("当前拒绝所有入站连接", "All inbound connections are blocked")) : words("组网未运行，当前没有开放端口", "Mesh is stopped; no ports are exposed")}</p>
     </section>
@@ -92,7 +93,7 @@ export default function Mesh() {
       {runtime?.peers.length ? runtime.peers.map(peer => {
         const ip = peer.addresses.find(a => !a.includes(":"));
         return <article className="mesh-peer" key={peer.id}><div className="mesh-row"><div><strong>{peer.name}</strong><p><code>{ip}</code> · {peer.online ? words("在线", "Online") : words("离线", "Offline")} · {paths[peer.path] || peer.path}</p></div>
-          <button className="btn btn-secondary" disabled={busy || !peer.online} onClick={() => void ping(peer)}>{words("检测路径", "Check path")}</button></div>
+          <button className="action-secondary" disabled={busy || !peer.online} onClick={() => void ping(peer)}>{words("检测路径", "Check path")}</button></div>
           {measures[peer.id] && <p aria-live="polite">{measures[peer.id]}</p>}
           {snapshot?.proxy_port && ip && <code className="mesh-command">{`ssh -o 'ProxyCommand=nc -X 5 -x 127.0.0.1:${snapshot.proxy_port} %h %p' USER@${ip}`}</code>}
         </article>;

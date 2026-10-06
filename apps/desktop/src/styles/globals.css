@@ -2618,13 +2618,12 @@ body { font-size: 13px; }
 .mesh-card h2 { font-size: 18px; margin: 0; }
 .mesh-card p, .mesh-page .page-header p { line-height: 1.6; margin: 4px 0; }
 .mesh-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.mesh-help { opacity: .72; font-size: 13px; }
-.mesh-card select, .mesh-card input { min-height: 42px; border: 1px solid var(--border, #d5d5cf); border-radius: 8px; padding: 8px 12px; color: inherit; background: var(--surface, #fff); font: inherit; min-width: 0; }
+.mesh-help { color: var(--color-text-secondary); font-size: 13px; }
+.mesh-card select, .mesh-card input { min-height: 42px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 12px; color: inherit; background: var(--surface-soft); font: inherit; min-width: 0; }
 .mesh-port-row { display: flex; gap: 12px; }
 .mesh-port-row input { flex: 1; }
-.mesh-peer { border-top: 1px solid var(--border, #ddd); padding-top: 16px; }
-.mesh-command { display: block; overflow-wrap: anywhere; background: rgba(100,100,100,.07); padding: 12px; border-radius: 8px; font-size: 12px; }
-.mesh-error { border: 1px solid #b95037; border-radius: 8px; padding: 14px; color: #b95037; }
+.mesh-peer { border-top: 1px solid var(--line); padding-top: 16px; }
+.mesh-command { display: block; overflow-wrap: anywhere; background: var(--surface-soft); user-select: all; padding: 12px; border-radius: 8px; font-size: 12px; }
 .mesh-state { font-family: monospace; white-space: nowrap; }
-.mesh-state[data-online="true"] { color: #237a57; }
+.mesh-state[data-online="true"] { color: var(--color-success); }
 @media(max-width: 700px) { .mesh-row, .mesh-port-row { flex-wrap: wrap; } .mesh-card { padding: 18px; } }
