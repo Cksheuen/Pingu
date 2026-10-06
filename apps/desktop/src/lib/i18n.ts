@@ -204,8 +204,8 @@ const translations: Record<string, Record<Lang, string>> = {
   "connections.process": { en: "Application", zh: "应用进程" },
   "connections.close_all_desc": { en: "This closes every active connection, including ones hidden by your filters. Apps may reconnect automatically.", zh: "这将关闭所有活动连接，包括被筛选隐藏的连接。应用可能会自动重新连接。" },
 
-  "home.preflight_dynamic": { en: "Your subscription routes each destination separately. Inspect live connections to see the actual route.", zh: "订阅会为不同目标分别选择出口，可在实时连接中查看实际路由。" },
-  "home.preflight_route_runtime": { en: "Subscription routing", zh: "订阅路由" },
+  "home.preflight_dynamic": { en: "Rules select the route for each destination. Inspect live connections to see the actual route.", zh: "规则会为不同目标选择出口，可在实时连接中查看实际路由。" },
+  "home.preflight_route_runtime": { en: "Runtime routing", zh: "运行时路由" },
   // Sidebar
   "nav.home": { en: "Home", zh: "首页" },
   "nav.nodes": { en: "Nodes", zh: "节点" },
@@ -396,8 +396,8 @@ const translations: Record<string, Record<Lang, string>> = {
     zh: "私有 IP：匹配私有/保留 IP 地址（局域网、本机等），通常设为直连。",
   },
   "tooltip.dns_split": {
-    en: "DNS is automatically split: Chinese domains use AliDNS (223.5.5.5) directly, others use Google DNS (8.8.8.8) via proxy. This prevents DNS pollution.",
-    zh: "DNS 已自动分流：中国域名使用阿里 DNS（223.5.5.5）直连解析，其余使用 Google DNS（8.8.8.8）通过代理解析，防止 DNS 污染。",
+    en: "DNS: system by default; custom policies win. Remote DNS uses the proxy.",
+    zh: "默认使用系统 DNS，自定义策略优先；远程 DNS 经代理查询。",
   },
   "rules.groups": { en: "RULE GROUPS", zh: "规则组" },
   "rules.new_group": { en: "New Group", zh: "新建组" },
@@ -411,8 +411,8 @@ const translations: Record<string, Record<Lang, string>> = {
     zh: "规则组允许你为不同场景维护不同的路由配置（如日常使用、大学访问、全代理）。",
   },
   "rules.builtin_info": {
-    en: "Built-in: DNS split, private IP direct, and rule-set caching are auto-configured.",
-    zh: "内置：DNS 分流、私有 IP 直连、规则集缓存已自动配置。",
+    en: "Private IPs go direct. Rule sets are cached.",
+    zh: "内置：私有 IP 直连、规则集缓存。",
   },
 
   // Host overrides

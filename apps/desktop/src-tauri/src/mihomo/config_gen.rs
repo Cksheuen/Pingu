@@ -173,7 +173,7 @@ fn target(name: &str) -> &str {
 fn dns_server(name: &str) -> &str {
     match name {
         "system-dns" => "system",
-        "remote-dns" => "https://dns.google/dns-query",
+        "remote-dns" => "https://dns.google/dns-query#Pingu Proxy",
         "local-dns" => "223.5.5.5",
         other => other,
     }
@@ -387,7 +387,21 @@ pub fn try_generate_app_config(
     let mut rule_providers = serde_json::Map::new();
     let mut imported_rules = Vec::new();
     let mut imported_default = None;
-    let mut dns = json!({"enable":true,"ipv6":false,"enhanced-mode":"redir-host","nameserver":["https://dns.google/dns-query","https://cloudflare-dns.com/dns-query"],"default-nameserver":["223.5.5.5","1.1.1.1"],"proxy-server-nameserver":["system"],"nameserver-policy":{}});
+    // Direct traffic and IP rules must resolve even when foreign DoH endpoints
+    // are blocked. Proxy protocols resolve destination domains at their exit;
+    // an explicit remote-dns override goes through Pingu Proxy (see dns_server).
+    // Keep local/corporate policies authoritative for direct connections too.
+    let mut dns = json!({
+        "enable": true,
+        "ipv6": false,
+        "enhanced-mode": "redir-host",
+        "nameserver": ["system"],
+        "default-nameserver": ["system"],
+        "proxy-server-nameserver": ["system"],
+        "direct-nameserver": ["system"],
+        "direct-nameserver-follow-policy": true,
+        "nameserver-policy": {}
+    });
     let mut nodes = config.nodes.iter().collect::<Vec<_>>();
     nodes.sort_by_key(|n| config.active_node_id.as_deref() != Some(n.id.as_str()));
     for node in nodes {

@@ -96,12 +96,14 @@ fn only_personal_reality_exit_requests_gate() {
 #[test]
 fn full_generated_configuration_routes_proxy_rules_through_chain() {
     let c = fixture();
-    let mut group = c.active_rule_group().unwrap().clone();
-    group.rules.clear();
+    let group = c.active_rule_group().unwrap().clone();
     let v = crate::mihomo::config_gen::try_generate_app_config(&c, &group, &[], 0, 0).unwrap();
+    assert!(v["rules"].as_array().unwrap().contains(&json!(
+        "RULE-SET,pingu-geosite-gfw,Pingu Chain Route"
+    )));
     assert_eq!(
         v["rules"].as_array().unwrap().last().unwrap(),
-        "MATCH,Pingu Chain Route"
+        "MATCH,DIRECT"
     );
     assert_eq!(
         v["proxies"]
@@ -125,7 +127,7 @@ fn node_only_subscription_does_not_take_over_single_hop_routing_or_dns() {
     let v = crate::mihomo::config_gen::try_generate_app_config(&c, &group, &[], 0, 0).unwrap();
     assert_eq!(
         v["rules"].as_array().unwrap().last().unwrap(),
-        "MATCH,Pingu Proxy"
+        "MATCH,DIRECT"
     );
     assert_ne!(v["dns"]["nameserver"], json!(["192.0.2.1"]));
     assert_eq!(

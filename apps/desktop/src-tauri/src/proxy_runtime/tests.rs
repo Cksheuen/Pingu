@@ -189,6 +189,26 @@ fn ai_preflight_reports_the_effective_route_for_each_service() {
 }
 
 #[test]
+fn ai_preflight_does_not_mistake_dynamic_default_routing_for_direct() {
+    let mut config = AppConfig::default_config();
+    let report = build_ai_service_preflight(
+        &config, "203.0.113.1".into(), content_checks_for_egress("203.0.113.1".into()),
+    ).unwrap();
+    assert!(report.routes.iter().all(|route| route.outbound == "runtime"));
+
+    // A rule before the dataset is still authoritative and can be reported.
+    config.rule_groups[0].rules.insert(0, Rule {
+        id: "explicit".into(), rule_type: "domain".into(),
+        match_value: "api.anthropic.com".into(), outbound: "proxy".into(),
+    });
+    let report = build_ai_service_preflight(
+        &config, "203.0.113.1".into(), content_checks_for_egress("203.0.113.1".into()),
+    ).unwrap();
+    assert_eq!(report.routes[0].outbound, "proxy");
+    assert_eq!(report.routes[1].outbound, "runtime");
+}
+
+#[test]
 fn discover_runtime_host_override_adds_system_dns_for_matching_npm_registry() {
     let _registry = RegistryEnv::install();
     let group = RuleGroup {

@@ -26,6 +26,7 @@ fn generates_mihomo_reality_and_preserves_device_ws_path() {
 #[test]
 fn combines_sources_without_name_collision_or_losing_rules() {
     let mut c = AppConfig::default_config();
+    c.rule_groups[0].default_strategy = "proxy".into();
     c.subscriptions = vec![subscription("aaaaaaaa"), subscription("bbbbbbbb")];
     let g = c.active_rule_group().unwrap();
     let out = generate_app_config(&c, g, &[], 19090, 12080);
@@ -46,6 +47,7 @@ fn rule_namespacing_preserves_match_payloads_and_options() {
     let body = "proxies: [{name: example.com, type: socks5, server: 127.0.0.1, port: 1080}]\nrule-providers: {remote: {type: http, behavior: classical, format: yaml, url: 'https://example.net/provider'}}\nproxy-groups: [{name: Choice, type: select, proxies: [example.com]}, {name: no-resolve, type: select, proxies: [example.com]}]\nrules: ['DOMAIN,example.com,Choice', 'IP-CIDR,10.0.0.0/8,Choice,src', 'AND,((DOMAIN,example.com),(NETWORK,UDP)),Choice', 'DOMAIN-REGEX,^foo\\(bar,baz$,Choice', 'DOMAIN,literal.example,no-resolve', 'RULE-SET,remote,Choice,no-resolve', 'FINAL,Choice']";
     let (fragment, warnings) = parse_body(body).unwrap();
     let mut c = AppConfig::default_config();
+    c.rule_groups[0].default_strategy = "proxy".into();
     c.subscriptions.push(Subscription {
         nodes_only: false,
         id: "aaaaaaaa".into(),
@@ -111,6 +113,43 @@ fn source_dns_does_not_override_controller_or_tun() {
         out["dns"]["nameserver-policy"]["+.example.com"][0],
         "1.1.1.1"
     );
+}
+
+#[test]
+fn default_routes_blocked_domains_before_ip_resolution_and_defaults_direct() {
+    let mut c = AppConfig::default_config();
+    c.subscriptions = vec![subscription("source")];
+    c.subscriptions[0].nodes_only = true;
+    let out = generate_app_config(&c, c.active_rule_group().unwrap(), &[], 19090, 12080);
+    let rules = out["rules"].as_array().unwrap();
+    let blocked = rules.iter().position(|r| r == "RULE-SET,pingu-geosite-gfw,Pingu Proxy").unwrap();
+    let ip = rules.iter().position(|r| r == "RULE-SET,pingu-geoip-cn,DIRECT").unwrap();
+    assert!(blocked < ip);
+    assert_eq!(rules.last().unwrap(), "MATCH,DIRECT");
+    assert_eq!(out["rule-providers"]["pingu-geosite-gfw"]["proxy"], "Pingu Proxy");
+    assert_eq!(out["dns"]["nameserver"], json!(["system"]));
+    assert_eq!(out["dns"]["direct-nameserver"], json!(["system"]));
+    assert_eq!(out["dns"]["direct-nameserver-follow-policy"], true);
+}
+
+#[test]
+fn local_dns_policies_survive_and_remote_dns_uses_proxy_transport() {
+    let c = AppConfig::default_config();
+    let mut g = c.active_rule_group().unwrap().clone();
+    g.nameserver_policy.push(NameServerPolicy {
+        domain_suffix: "+.corp.example".into(),
+        server: "10.0.0.53".into(),
+        servers: vec![],
+    });
+    let overrides = vec![HostOverride {
+        id: "remote".into(), host: "remote.example".into(),
+        resolver_mode: "remote-dns".into(), outbound_mode: "proxy".into(),
+        enabled: true, source: "manual".into(), reason: String::new(), updated_at: String::new(),
+    }];
+    let out = generate_app_config(&c, &g, &overrides, 19090, 12080);
+    assert_eq!(out["dns"]["nameserver-policy"]["+.corp.example"], json!(["10.0.0.53"]));
+    assert_eq!(out["dns"]["nameserver-policy"]["remote.example"], json!(["https://dns.google/dns-query#Pingu Proxy"]));
+    assert_eq!(out["dns"]["proxy-server-nameserver"], json!(["system"]));
 }
 /// Two independent sources with homonymous nodes, each with its own include-all variant.
 fn two_sources(group_a: &str, group_b: &str) -> AppConfig {
