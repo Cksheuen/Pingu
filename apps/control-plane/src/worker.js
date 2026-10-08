@@ -6,7 +6,7 @@ import {
   session,
   validSession,
 } from "./crypto.js";
-import { parseNode, renderSubscription } from "./subscription.js";
+import { parseNode, renderSubscription, renderSubscriptionQR } from "./subscription.js";
 const now = () => new Date().toISOString();
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -313,10 +313,11 @@ async function dispatch(req, env, fetcher) {
   if (meshPath) return enrollMesh(req,env,meshPath[1],fetcher);
   if (path.startsWith("/s/")) {
     if (req.method !== "GET") fail(405, "method not allowed");
-    const token = path.slice(3),
+    const match = path.match(/^\/s\/([\w-]{43})(\/qr)?$/),
+      token = match?.[1],
       fmt = u.searchParams.get("format") || "";
-    if (!/^[\w-]{43}$/.test(token)) fail(403, "订阅无效或已撤销");
-    if (!["", "clash"].includes(fmt)) fail(400, "不支持的订阅格式");
+    if (!token) fail(403, "订阅无效或已撤销");
+    if (!["", "clash", "sing-box"].includes(fmt)) fail(400, "不支持的订阅格式");
     const d = await one(
       env,
       "SELECT id FROM devices WHERE token_hash=? AND status='active'",
@@ -329,6 +330,13 @@ async function dispatch(req, env, fetcher) {
       d.id,
     );
     if (!rows.length) fail(503, "暂无可用节点");
+    if (match[2]) {
+      const link = new URL(`/s/${token}`, u.origin);
+      if (fmt) link.searchParams.set("format", fmt);
+      return new Response(renderSubscriptionQR(link.href), {
+        headers: { "Content-Type": "image/svg+xml; charset=utf-8" },
+      });
+    }
     const entries = await Promise.all(
       rows.map(async (r) => ({
         uri: await open(r.uri_cipher, env.DATA_KEY, `uri:${d.id}:${r.node_id}`),
@@ -340,6 +348,8 @@ async function dispatch(req, env, fetcher) {
         "Content-Type":
           fmt === "clash"
             ? "application/yaml; charset=utf-8"
+            : fmt === "sing-box"
+            ? "application/json; charset=utf-8"
             : "text/plain; charset=utf-8",
       },
     });

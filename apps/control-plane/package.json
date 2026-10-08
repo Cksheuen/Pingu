@@ -9,7 +9,11 @@
     "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy"
   },
+  "dependencies": {
+    "qrcode-generator": "2.0.4"
+  },
   "devDependencies": {
+    "yaml": "2.9.1",
     "wrangler": "4.147.0"
   }
 }

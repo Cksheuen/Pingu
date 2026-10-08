@@ -51,6 +51,18 @@ In Pingu Desktop, import the general URL from the **订阅** page (the legacy
 single-node import dialog accepts only one node). The current subscriptions
 parser supports multiple VLESS lines and preserves the device WebSocket path.
 
+The device's **订阅链接** panel includes local QR codes and copy buttons for
+general VLESS links, Clash/Mihomo (`?format=clash`), and Hiddify's native
+sing-box outbounds (`?format=sing-box`). The QR encodes that exact HTTPS feed URL;
+no third-party QR service receives the token. QR responses use the same device
+status and enabled-node checks as feeds and are never cached.
+
+Clash is genuine YAML with flow-style nested values: Hiddify 4 parses JSON as
+sing-box first, and its iOS profile loader can trim indentation on each line.
+Keep the top-level YAML keys unquoted and nested values on one line to remain
+compatible with both this loader and Mihomo. The general feed is still plain
+VLESS lines, matching the old Gate format for each node.
+
 After adding a node, use **同步全部设备**. Each existing device keeps its `/s/<token>`
 URL. Node IDs/origins are immutable; register a replacement with a new ID so
 revocation can still reach old assignments. `enabled=false` only removes the

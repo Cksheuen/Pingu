@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { parse as parseYAML } from "yaml";
 import worker, { handle } from "../src/worker.js";
 import { randomToken, open, seal } from "../src/crypto.js";
 import { setup } from "./helpers.js";
@@ -22,7 +23,7 @@ test("multiple VPS, stable feed, storage encryption, retries and cached download
   assert.equal(feed.status, 200);
   assert.equal((await feed.text()).trim().split("\n").length, 2);
   assert.equal(t.calls.length, before);
-  const clash = await (await t.request(uri + "?format=clash")).json();
+  const clash = parseYAML(await (await t.request(uri + "?format=clash")).text());
   assert.equal(clash.proxies.length, 2);
   assert.ok(clash.proxies.every((p) => p["ws-opts"].path.endsWith(token)));
   const again = await t.create();

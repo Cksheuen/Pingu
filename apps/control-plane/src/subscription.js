@@ -1,3 +1,5 @@
+import qrcode from "qrcode-generator";
+
 export function parseNode(uri, label) {
   const u = new URL(uri.trim()),
     q = u.searchParams;
@@ -40,22 +42,48 @@ export function parseNode(uri, label) {
 export function renderSubscription(entries, format) {
   const proxies = entries.map(({ uri, label }) => parseNode(uri, label));
   if (format === "clash")
+    // Hiddify treats JSON as sing-box before trying Clash. Its iOS profile
+    // loader also trims each line, so keep nested YAML values in flow style.
+    return Object.entries({
+      "mixed-port": 7890,
+      "allow-lan": false,
+      ipv6: false,
+      mode: "rule",
+      "log-level": "info",
+      proxies,
+      "proxy-groups": [
+        {
+          name: "PROXY",
+          type: "select",
+          proxies: proxies.map((x) => x.name),
+        },
+      ],
+      rules: ["MATCH,PROXY"],
+    })
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}\n`)
+      .join("");
+  if (format === "sing-box")
     return (
       JSON.stringify(
         {
-          "mixed-port": 7890,
-          "allow-lan": false,
-          mode: "rule",
-          "log-level": "info",
-          proxies,
-          "proxy-groups": [
-            {
-              name: "PROXY",
-              type: "select",
-              proxies: proxies.map((x) => x.name),
+          outbounds: proxies.map((p) => ({
+            type: "vless",
+            tag: p.name,
+            server: p.server,
+            server_port: p.port,
+            uuid: p.uuid,
+            packet_encoding: "xudp",
+            tls: {
+              enabled: true,
+              server_name: p.servername,
+              utls: { enabled: true, fingerprint: p["client-fingerprint"] },
             },
-          ],
-          rules: ["MATCH,PROXY"],
+            transport: {
+              type: "ws",
+              path: p["ws-opts"].path,
+              headers: p["ws-opts"].headers,
+            },
+          })),
         },
         null,
         2,
@@ -70,4 +98,11 @@ export function renderSubscription(entries, format) {
       })
       .join("\n") + "\n"
   );
+}
+
+export function renderSubscriptionQR(url) {
+  const qr = qrcode(0, "M");
+  qr.addData(url);
+  qr.make();
+  return qr.createSvgTag({ cellSize: 5, margin: 20, scalable: true });
 }

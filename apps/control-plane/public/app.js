@@ -54,7 +54,13 @@ async function action(b, fn) {
 }
 function showLink(value) {
   $("created").hidden = false;
-  $("subscription").value = value;
+  for (const [id, format] of [["subscription", ""], ["clash", "clash"], ["hiddify", "sing-box"]]) {
+    const url = new URL(value);
+    if (format) url.searchParams.set("format", format);
+    $(id).value = url.href;
+    url.pathname += "/qr";
+    $(id + "-qr").src = url.href;
+  }
   $("created").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 function render() {
@@ -182,7 +188,10 @@ $("logout").onclick = () =>
   action($("logout"), async () => {
     await api("/logout", {});
     state = { nodes: [], devices: [], assignments: [] };
-    $("subscription").value = "";
+    for (const id of ["subscription", "clash", "hiddify"]) {
+      $(id).value = "";
+      $(id + "-qr").removeAttribute("src");
+    }
     $("nodes-json").value = "";
     $("created").hidden = true;
     showLogin();
@@ -276,9 +285,14 @@ $("copy-link").onclick = () =>
 $("copy-clash").onclick = () =>
   action($("copy-clash"), async () => {
     await navigator.clipboard.writeText(
-      $("subscription").value + "?format=clash",
+      $("clash").value,
     );
     message("已复制 Clash 订阅链接。");
+  });
+$("copy-hiddify").onclick = () =>
+  action($("copy-hiddify"), async () => {
+    await navigator.clipboard.writeText($("hiddify").value);
+    message("已复制 Hiddify 订阅链接。");
   });
 refresh().catch((e) => {
   if (e.message !== "请先登录") message(e.message, true);
