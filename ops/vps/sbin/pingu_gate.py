@@ -444,22 +444,71 @@ def enrich_connections(result, identities):
 
 def relay_ws_stream(client_socket, backend):
     """Relay bytes both ways until either side closes or the lease expires."""
-    client_socket.setblocking(False)
-    backend.setblocking(False)
-    deadline = time.time() + WS_RELAY_TIMEOUT
-    while time.time() < deadline:
-        readable, _, _ = select.select([client_socket, backend], [], [], 30)
-        if not readable:
-            continue
-        for source in readable:
+    sockets = (client_socket, backend)
+    peers = {client_socket: backend, backend: client_socket}
+    pending = {sock: b"" for sock in sockets}
+    read_wait = {sock: "read" for sock in sockets}
+    write_wait = {sock: "write" for sock in sockets}
+    for sock in sockets:
+        sock.setblocking(False)
+    deadline = time.monotonic() + WS_RELAY_TIMEOUT
+    closing = False
+    while time.monotonic() < deadline:
+        if closing and not any(pending.values()):
+            return
+        # One immutable chunk per destination bounds buffering and preserves the
+        # exact bytes OpenSSL requires when retrying SSLWantRead/SSLWantWrite.
+        readers = [sock for sock in sockets if not closing and not pending[peers[sock]]
+                   and not (pending[sock] and write_wait[sock] == "read")]
+        readable_interest = {sock for sock in readers if read_wait[sock] == "read"}
+        writable_interest = {sock for sock in readers if read_wait[sock] == "write"}
+        for sock in sockets:
+            if pending[sock]:
+                (readable_interest if write_wait[sock] == "read" else writable_interest).add(sock)
+        try:
+            # TLS may already hold decrypted data even when its fd is not ready.
+            buffered = {sock for sock in readers if read_wait[sock] == "read"
+                        and getattr(sock, "pending", lambda: 0)()}
+            timeout = 0 if buffered else min(30, max(0, deadline - time.monotonic()))
+            readable, writable, _ = select.select(readable_interest, writable_interest, [], timeout)
+        except OSError:
+            return
+        readable, writable = set(readable), set(writable)
+        for target in sockets:
+            if not pending[target] or target not in (readable if write_wait[target] == "read" else writable):
+                continue
+            try:
+                sent = target.send(pending[target])
+            except ssl.SSLWantReadError:
+                write_wait[target] = "read"
+                continue
+            except (ssl.SSLWantWriteError, BlockingIOError):
+                write_wait[target] = "write"
+                continue
+            except OSError:
+                return
+            if not sent:
+                return
+            pending[target] = pending[target][sent:]
+            write_wait[target] = "write"
+        for source in readers:
+            if source not in (readable | buffered if read_wait[source] == "read" else writable):
+                continue
             try:
                 data = source.recv(65536)
+            except ssl.SSLWantWriteError:
+                read_wait[source] = "write"
+                continue
+            except (ssl.SSLWantReadError, BlockingIOError):
+                read_wait[source] = "read"
+                continue
             except OSError:
                 return
             if not data:
-                return
-            target = backend if source is client_socket else client_socket
-            target.sendall(data)
+                closing = True
+                break
+            pending[peers[source]] = data
+            read_wait[source] = "read"
 
 
 def read_subscription():
