@@ -136,6 +136,39 @@ class DeviceRegistry:
         with self._lock:
             return [dict(device) for device in self._devices.values()]
 
+    def provision_managed(self, device_id: str, token: str, owner: str, name: str) -> dict:
+        """Idempotent control-plane provisioning; a revoked identity stays revoked."""
+        if not re.fullmatch(r"cloud-[0-9a-f]{32}", device_id):
+            raise ValueError("invalid managed device id")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            raise ValueError("invalid managed device token")
+        digest = token_digest(token)
+        with self._lock:
+            previous = self._devices.get(device_id)
+            if previous:
+                if previous.get("revoked_at") or not secrets.compare_digest(previous["token_digest"], digest):
+                    raise ValueError("managed identity is revoked or conflicts")
+                return dict(previous)
+            record = self._public_record({
+                "id": device_id, "owner": owner, "name": name,
+                "token_digest": digest, "created_at": utc_now(),
+            })
+            self._devices[device_id] = record
+            self._save_locked()
+            return dict(record)
+
+    def revoke_managed(self, device_id: str) -> None:
+        """Persist a tombstone even if revocation races ahead of provisioning."""
+        if not re.fullmatch(r"cloud-[0-9a-f]{32}", device_id):
+            raise ValueError("invalid managed device id")
+        with self._lock:
+            record = self._devices.get(device_id) or self._public_record({
+                "id": device_id, "token_digest": "0" * 64, "created_at": utc_now(),
+            })
+            record["revoked_at"] = record.get("revoked_at") or utc_now()
+            self._devices[device_id] = record
+            self._save_locked()
+
     def authenticate(self, token: str) -> dict | None:
         digest = token_digest(token)
         if not token or len(token) > 200:

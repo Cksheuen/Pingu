@@ -58,6 +58,7 @@ ROOTFS=""
 
 RUNTIME_PROFILE=""
 TARGET_INTERFACE=""
+QUOTA_DISABLED=0
 SERVICES=()
 TIMERS=(pingu-traffic-guard.timer pingu-traffic-report.timer)
 [[ "$ENABLE_BACKUP" == "1" ]] && TIMERS+=(pingu-backup.timer)
@@ -183,6 +184,9 @@ PY
 }
 
 idempotent_health_check() {
+  if [[ "$QUOTA_DISABLED" == "1" ]] && systemctl is-active pingu-traffic-guard.timer >/dev/null 2>&1; then
+    die "saved disabled quota enforcement unexpectedly active"
+  fi
   local unit failed=0
   for unit in "${SERVICES[@]}" "${TIMERS[@]}"; do
     if systemctl is-active "$unit" >/dev/null 2>&1; then
@@ -203,6 +207,7 @@ fresh_host_guard() {
     if [[ "$prev_id" == "$SNAPSHOT_ID" && "$prev_ip" == "$PUBLIC_IP" ]]; then
       echo "bootstrap: deployment marker matches (snapshot=$SNAPSHOT_ID ip=$PUBLIC_IP)"
       echo "bootstrap: idempotent re-run: read-only health validation, no mutations"
+      configure_runtime_controls
       if idempotent_health_check; then
         echo "bootstrap: deployment healthy; nothing to do"
         exit 0
@@ -222,6 +227,8 @@ fresh_host_guard() {
     "$ROOT/etc/mihomo/config.json" \
     "$ROOT/usr/local/bin/mihomo" \
     "$ROOT/etc/systemd/system/mihomo.service" \
+    "$ROOT/usr/local/sbin/pingu-runtime-controls" \
+    "$ROOT/etc/systemd/system/pingu-runtime-controls.service" \
     "$ROOT/etc/pingu-gate/certs/cksheuen.site.crt" \
     "$ROOT/etc/pingu-gate/certs/cksheuen.site.key" \
     "$ROOT/etc/systemd/system/pingu-gate.service" \
@@ -386,6 +393,35 @@ validate_configs() {
   fi
 }
 
+configure_runtime_controls() {
+  [[ "$RUNTIME_PROFILE" == "mihomo" ]] || return 0
+  local policy
+  policy="$(python3 - "$ROOT/etc/mihomo/config.json" <<'PYPOLICY'
+import json, sys
+state = json.load(open(sys.argv[1])).get('pingu-runtime-controls')
+if state is None:
+    print('legacy')
+else:
+    expected={'warp', 'source_guard', 'destination_filter', 'traffic_guard'}
+    if not isinstance(state,dict) or set(state)!=expected or any(type(v) is not bool for v in state.values()):
+        sys.exit('invalid saved runtime controls')
+    print('on' if state['traffic_guard'] else 'off')
+PYPOLICY
+)" || die "cannot restore runtime controls"
+  [[ "$policy" == "legacy" ]] && return 0
+  [[ -x "$ROOT/usr/local/sbin/pingu-runtime-controls" ]] || die "runtime controls executable missing"
+  unit_exists pingu-runtime-controls.service || die "runtime controls unit missing"
+  SERVICES+=(pingu-runtime-controls.service)
+  if [[ "$policy" == "off" ]]; then
+    QUOTA_DISABLED=1
+    local kept=() unit
+    for unit in "${TIMERS[@]}"; do
+      [[ "$unit" == "pingu-traffic-guard.timer" ]] || kept+=("$unit")
+    done
+    TIMERS=("${kept[@]}")
+  fi
+}
+
 enable_services() {
   systemctl daemon-reload
   local unit
@@ -399,6 +435,9 @@ enable_services() {
 }
 
 health_check() {
+  if [[ "$QUOTA_DISABLED" == "1" ]] && systemctl is-active pingu-traffic-guard.timer >/dev/null 2>&1; then
+    die "saved disabled quota enforcement unexpectedly active"
+  fi
   local unit
   for unit in "${SERVICES[@]}" "${TIMERS[@]}"; do
     if systemctl is-active "$unit" >/dev/null 2>&1; then
@@ -498,6 +537,7 @@ main() {
   install_all
   setup_nft
   validate_configs
+  configure_runtime_controls
   enable_services
   health_check
   write_marker

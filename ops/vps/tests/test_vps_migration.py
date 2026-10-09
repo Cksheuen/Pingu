@@ -1092,7 +1092,8 @@ if grep -q FAIL_TEST "$5"; then exit 1; fi
 
 class MihomoBootstrapHarness(BootstrapHarness):
     """Exercise real verify/extract/remap rather than the legacy fake helper."""
-    def __init__(self, test, config_fail=False):
+    def __init__(self, test, config_fail=False, controls=None):
+        self.controls = controls
         super().__init__(test, config_fail=config_fail)
         shutil.copyfile(OPS_VPS / "sbin/pingu_snapshot.py", self.helper)
 
@@ -1102,6 +1103,9 @@ class MihomoBootstrapHarness(BootstrapHarness):
         source = self.base / "source"
         source.mkdir()
         build_mihomo_source(source)
+        if self.controls is not None:
+            from ops.vps.tests.test_pingu_snapshot import add_runtime_controls
+            add_runtime_controls(source, self.controls)
         binary = source / "usr/local/bin/mihomo"
         binary.write_text(FAKE_MIHOMO)
         binary.chmod(0o755)
@@ -1121,6 +1125,29 @@ class MihomoBootstrapTest(unittest.TestCase):
         harness = MihomoBootstrapHarness(self, config_fail=config_fail)
         self.addCleanup(harness.cleanup)
         return harness
+
+    def test_restores_disabled_quota_without_briefly_enabling_it(self):
+        settings = {key: False for key in (
+            "warp", "source_guard", "destination_filter", "traffic_guard")}
+        h = MihomoBootstrapHarness(self, controls=settings)
+        self.addCleanup(h.cleanup)
+        h.run_bootstrap()
+        self.assertNotIn("enable --now pingu-traffic-guard.timer", h.systemctl_log())
+        self.assertEqual(h.unit_state("pingu-runtime-controls.service"), "active")
+        self.assertEqual(h.unit_state("mihomo.service"), "active")
+        config = h.root / "etc/mihomo/config.json"
+        before = config.read_bytes()
+        self.assertEqual(json.loads(before)["pingu-runtime-controls"], settings)
+
+        before_log = h.systemctl_log()
+        before_nft = h.nft_log()
+        second = h.run_bootstrap()
+        self.assertIn("deployment healthy; nothing to do", second.stdout)
+        self.assertEqual(config.read_bytes(), before)
+        self.assertEqual(h.nft_log(), before_nft)
+        additional = h.systemctl_log()[len(before_log):].splitlines()
+        self.assertTrue(additional)
+        self.assertTrue(all(line.startswith("is-active ") for line in additional), additional)
 
     def test_new_profile_bootstraps_without_xray_and_resolves_actual_interface(self):
         h = self.harness()

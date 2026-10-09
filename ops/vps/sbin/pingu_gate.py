@@ -51,6 +51,7 @@ except ImportError:  # Local source/tests load this file by path.
 PATH_PREFIX = os.environ.get("PINGU_GATE_PATH_PREFIX", "/__pingu_gate__")
 TOKEN_FILE = os.environ.get("PINGU_GATE_TOKEN_FILE", "/etc/pingu-gate.token")
 TOKENS_FILE = os.environ.get("PINGU_GATE_TOKENS_FILE", "/etc/pingu-gate.tokens")
+CONTROL_TOKEN_FILE = os.environ.get("PINGU_GATE_CONTROL_TOKEN_FILE", "/etc/pingu-gate.control-token")
 SUBSCRIPTION_FILE = os.environ.get(
     "PINGU_GATE_SUBSCRIPTION_FILE", "/etc/pingu-gate.subscription.txt"
 )
@@ -759,6 +760,9 @@ class GateHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == PATH_PREFIX + "/control/v1/devices":
+            self.handle_control_device()
+            return
         if parsed.path == PATH_PREFIX + "/devices/connections/close":
             params = parse_form_body(self)
             if not self.require_device_session(params):
@@ -789,6 +793,42 @@ class GateHandler(http.server.BaseHTTPRequestHandler):
             self.send_text(HTTPStatus.NOT_FOUND, "not found\n")
             return
         self.handle_allow(parse_form_body(self))
+
+    def handle_control_device(self):
+        # A separate, optional credential grants device provisioning only. It cannot
+        # use the operator login, Reality source leases, or Mihomo controller API.
+        try:
+            expected = Path(CONTROL_TOKEN_FILE).read_text(encoding="utf-8").strip()
+        except OSError:
+            expected = ""
+        supplied = self.headers.get("Authorization", "")
+        if len(expected) < 32 or not hmac.compare_digest(supplied, "Bearer " + expected):
+            self.send_json(HTTPStatus.FORBIDDEN, {"error": "control authentication required"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 1 <= length <= 4096 or self.headers.get("Transfer-Encoding"):
+                raise ValueError("invalid body")
+            data = json.loads(self.rfile.read(length))
+            if not isinstance(data, dict):
+                raise ValueError("invalid body")
+            device_id = str(data.get("id", ""))
+            if data.get("action") == "revoke":
+                DEVICE_REGISTRY.revoke_managed(device_id)
+                self.send_json(HTTPStatus.OK, {"id": device_id, "state": "revoked"})
+                return
+            if data.get("action") != "provision":
+                raise ValueError("invalid action")
+            token = str(data.get("token", ""))
+            template = read_subscription()
+            device_access.validate_device_template(template)
+            record = DEVICE_REGISTRY.provision_managed(
+                device_id, token, str(data.get("owner", "")), str(data.get("name", "")),
+            )
+            subscription = device_access.build_device_subscription(template, token, record["owner"], record["name"])
+            self.send_json(HTTPStatus.OK, {"id": device_id, "state": "active", "subscription": subscription})
+        except (ValueError, TypeError, UnicodeError):
+            self.send_json(HTTPStatus.CONFLICT, {"error": "invalid or conflicting managed device"})
 
     def show_form(self):
         ip = client_ip_from_headers(self)

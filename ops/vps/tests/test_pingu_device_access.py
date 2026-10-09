@@ -11,6 +11,34 @@ SPEC.loader.exec_module(access)
 
 
 class DeviceAccessTests(unittest.TestCase):
+    def test_managed_provision_retries_and_revocation_tombstone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "devices.json"
+            registry = access.DeviceRegistry(path)
+            ident, token = "cloud-" + "a" * 32, "b" * 43
+            first = registry.provision_managed(ident, token, "alice", "phone")
+            self.assertEqual(first, registry.provision_managed(ident, token, "alice", "phone"))
+            self.assertEqual(len(registry.list()), 1)
+            self.assertEqual(registry.authenticate(token)["id"], ident)
+            self.assertNotIn(token, path.read_text())
+            registry.revoke_managed(ident)
+            with self.assertRaises(ValueError):
+                registry.provision_managed(ident, token, "alice", "phone")
+            self.assertIsNone(registry.authenticate(token))
+            before_create = "cloud-" + "c" * 32
+            registry.revoke_managed(before_create)
+            registry = access.DeviceRegistry(path)
+            with self.assertRaises(ValueError):
+                registry.provision_managed(before_create, "d" * 43, "alice", "phone")
+
+    def test_managed_identity_and_token_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            registry = access.DeviceRegistry(pathlib.Path(directory) / "devices.json")
+            for ident, token in [("legacy", "a" * 43), ("cloud-" + "b" * 32, "short")]:
+                with self.assertRaises(ValueError):
+                    registry.provision_managed(ident, token, "owner", "device")
+            self.assertEqual(registry.list(), [])
+
     def test_create_persists_digest_only_and_authenticates(self):
         with tempfile.TemporaryDirectory() as directory:
             registry = access.DeviceRegistry(pathlib.Path(directory) / "devices.json")

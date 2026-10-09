@@ -41,6 +41,7 @@
     "test:gate": "python3 -m unittest ops.vps.tests.test_pingu_gate",
     "test:vps": "python3 ops/vps/tests/run.py",
     "test:vps:all": "python3 ops/vps/tests/run.py --all",
+    "vps:controls": "bash ops/vps/runtime-controls.sh",
     "audit:vps": "bash ops/vps/audit-remote.sh",
     "vps:backup": "python3 ops/vps/vps.py backup",
     "vps:list": "python3 ops/vps/vps.py list",

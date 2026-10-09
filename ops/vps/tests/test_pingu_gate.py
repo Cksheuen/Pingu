@@ -1,4 +1,5 @@
 import copy
+import io
 import importlib.util
 import ipaddress
 import json
@@ -25,6 +26,39 @@ class HandlerStub:
 
 
 class GateTests(unittest.TestCase):
+    def test_control_api_uses_dedicated_auth_and_idempotent_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            keyfile = pathlib.Path(directory) / "control-token"
+            keyfile.write_text("k" * 43)
+            registry = gate.device_access.DeviceRegistry(pathlib.Path(directory) / "devices.json")
+            handler = object.__new__(gate.GateHandler)
+            handler.headers = Message()
+            handler.send_json = mock.Mock()
+            template = "vless://11111111-1111-4111-8111-111111111111@node.example.com:443?type=ws&security=tls&path=%2F"
+            ident, token = "cloud-" + "a" * 32, "b" * 43
+            data = {"action": "provision", "id": ident, "token": token, "owner": "alice", "name": "phone"}
+            def invoke(payload):
+                raw = json.dumps(payload).encode()
+                handler.headers.replace_header("Content-Length", str(len(raw))) if handler.headers.get("Content-Length") else handler.headers.add_header("Content-Length", str(len(raw)))
+                handler.rfile = io.BytesIO(raw)
+                handler.handle_control_device()
+                return handler.send_json.call_args.args
+            with mock.patch.object(gate, "CONTROL_TOKEN_FILE", str(keyfile)), mock.patch.object(gate, "DEVICE_REGISTRY", registry), mock.patch.object(gate, "read_subscription", return_value=template):
+                self.assertEqual(invoke(data)[0], 403)
+                self.assertEqual(registry.list(), [])
+                handler.headers["Authorization"] = "Bearer " + "k" * 43
+                status, result = invoke(data)
+                self.assertEqual(status, 200)
+                self.assertIn(token, result["subscription"])
+                self.assertEqual(invoke(data)[0], 200)
+                self.assertEqual(len(registry.list()), 1)
+                self.assertEqual(invoke({"action": "revoke", "id": ident})[0], 200)
+                self.assertEqual(invoke(data)[0], 409)
+                self.assertIsNone(registry.authenticate(token))
+                self.assertEqual(invoke({"action": "lease", "id": ident})[0], 409)
+            with mock.patch.object(gate, "CONTROL_TOKEN_FILE", str(keyfile) + ".missing"):
+                self.assertEqual(invoke(data)[0], 403)
+
     def test_connection_management_requires_login_and_csrf(self):
         handler = object.__new__(gate.GateHandler)
         handler.headers = Message()

@@ -157,6 +157,10 @@ MIHOMO_FILES = [
     "etc/pingu-gate/certs/cksheuen.site.key",
     "etc/systemd/system/mihomo.service",
 ]
+RUNTIME_CONTROL_PATHS = [
+    "usr/local/sbin/pingu-runtime-controls",
+    "etc/systemd/system/pingu-runtime-controls.service",
+]
 MIHOMO_DIRS = ["etc/pingu-gate/certs"]
 MIHOMO_DROPIN_DIRS = [
     path for path in OPTIONAL_DROPIN_DIRS if "xray.service" not in path
@@ -164,7 +168,18 @@ MIHOMO_DROPIN_DIRS = [
 MIHOMO_ALLOWED_PREFIXES = [
     path for path in ALLOWED_RESTORE_PREFIXES
     if not any(path.startswith(prefix) for prefix in _XRAY_PREFIXES)
-] + MIHOMO_FILES + MIHOMO_DIRS + ["etc/systemd/system/mihomo.service.d"]
+] + MIHOMO_FILES + MIHOMO_DIRS + RUNTIME_CONTROL_PATHS + ["etc/systemd/system/mihomo.service.d"]
+
+
+def runtime_controls(config):
+    """Saved optional-policy state, without importing an executable controller."""
+    state = config.get("pingu-runtime-controls")
+    if state is None:
+        return None
+    fields = {"warp", "source_guard", "destination_filter", "traffic_guard"}
+    if not isinstance(state, dict) or set(state) != fields or any(type(value) is not bool for value in state.values()):
+        raise SnapshotError("invalid saved runtime controls")
+    return state
 
 
 def snapshot_profile(manifest):
@@ -318,7 +333,7 @@ def _stage_portal(source_root, rootfs, missing):
 
 
 def _stage_optional(source_root, rootfs, present, missing, profile="xray"):
-    for rel in OPTIONAL_PATHS:
+    for rel in OPTIONAL_PATHS + (RUNTIME_CONTROL_PATHS if profile == "mihomo" else []):
         src = source_root / rel
         if src.exists():
             _copy_path(src, rootfs / rel, rel)
@@ -706,6 +721,10 @@ def create_snapshot(output_dir, source_root="/", snapshot_id=None, runtime_profi
             _check_xray_assets(source_root, missing)
         _stage_portal(source_root, rootfs, missing)
         _stage_optional(source_root, rootfs, optional_present, optional_missing, profile)
+        if profile == "mihomo" and runtime_controls(_load_mihomo_config(source_root)) is not None:
+            for rel in RUNTIME_CONTROL_PATHS:
+                if not (rootfs / rel).is_file() or (rootfs / rel).is_symlink():
+                    missing.append(rel)
 
         if missing:
             raise SnapshotError(
@@ -970,6 +989,10 @@ def verify_snapshot(archive_path, expected_sha256=None):
                     config = json.loads(handle.read().decode("utf-8"))
                 source_ip = manifest.get("source", {}).get("public_ipv4")
                 _validate_mihomo_identity(config, source_ip)
+                if runtime_controls(config) is not None:
+                    for rel in RUNTIME_CONTROL_PATHS:
+                        if entry_types.get(rel) != "file":
+                            raise SnapshotError("missing runtime controls asset: " + rel)
 
             # Legacy Xray data/cert completeness: referenced files must be present.
             cfg_entry = next(

@@ -20,13 +20,13 @@
     {
       "remote_path": "/usr/local/sbin/pingu-gate",
       "local_path": "ops/vps/sbin/pingu_gate.py",
-      "remote_sha256": "03c6c9eb7461cdb2c218459463e05eea0187c16f3447ec3f6c546244598fd31f",
+      "remote_sha256": "311f2191ecc852fb33898dcc1febc0e282b95eb910b64a0da88843f4046610e0",
       "import_policy": "exact"
     },
     {
       "remote_path": "/usr/local/sbin/pingu_device_access.py",
       "local_path": "ops/vps/sbin/pingu_device_access.py",
-      "remote_sha256": "d9bc39d55ef3d1ad8393979937849c9f0a906422460f214bbd9240d64ae176d4",
+      "remote_sha256": "12cae5724c3ea565dfec78e1710cd7efda7a47e6f749347369a2ab4234753cc2",
       "import_policy": "exact"
     },
     {
@@ -45,13 +45,13 @@
     {
       "remote_path": "/usr/local/sbin/pingu_snapshot.py",
       "local_path": "ops/vps/sbin/pingu_snapshot.py",
-      "remote_sha256": "5c2b3618bb6e648b9d74f923704663e4c9be9e0266ba6f2846bd40fbd4d33c17",
+      "remote_sha256": "dc6bf678a17c19122d80d39306b45650f500d097197db1ad7cf7d786a4fa6455",
       "import_policy": "exact",
-      "previous_remote_sha256": "cfa3440ca106aca030a51ee7fe109522b6fdcb843e86427a3d3379a86aa89d74",
+      "previous_remote_sha256": "5c2b3618bb6e648b9d74f923704663e4c9be9e0266ba6f2846bd40fbd4d33c17",
       "original_remote_sha256": "c8a7c0dd4f94a94ed88db2449b2739b7221ecc19654e54b2adf6851cf0445a08",
       "deployment_status": "deployed",
-      "deployed_at": "2026-09-25T12:05:50Z",
-      "note": "Second atomic deployment completed with rollback backup /var/lib/pingu-migration/release-20260925T120550Z. The live hash matches remote_sha256, both corrupt and truncated archive regressions passed on the VPS, service PIDs were unchanged, and the final read-only remote audit passed all 20 artifacts."
+      "deployed_at": "2026-09-26T10:45:01.464184+00:00",
+      "note": "Code-only atomic update with private rollback backup /var/lib/pingu-runtime-controls/code-20260926T104501068072Z. Runtime configuration and proxy/Gate PIDs unchanged; an existing TLS connection through the installed desktop proxy survived the update. No live switch or restart was performed."
     },
     {
       "remote_path": "/usr/local/sbin/pingu-backup",
@@ -142,11 +142,32 @@
       "local_path": "ops/vps/systemd/mihomo.service",
       "remote_sha256": "c0bc8c941e415725c4bc22b5501c9fcafce3388a44314c017ee2034977a0f606",
       "import_policy": "exact"
+    },
+    {
+      "remote_path": "/usr/local/sbin/pingu-runtime-controls",
+      "local_path": "ops/vps/sbin/pingu_runtime_controls.py",
+      "remote_sha256": "954bb6b8a91563b5bc3632246109e510694e1895f029adb6da8521246e9d585b",
+      "import_policy": "exact",
+      "note": "Code-only atomic update with private rollback backup /var/lib/pingu-runtime-controls/code-20260926T104501068072Z. Runtime configuration and proxy/Gate PIDs unchanged; an existing TLS connection through the installed desktop proxy survived the update. No live switch or restart was performed.",
+      "previous_remote_sha256": "786121e276511270d4cde97f5a19a4610022261d4e228baaf853e7ef20544cb4",
+      "deployment_status": "deployed",
+      "deployed_at": "2026-09-26T10:45:01.464184+00:00"
+    },
+    {
+      "remote_path": "/etc/systemd/system/pingu-runtime-controls.service",
+      "local_path": "ops/vps/systemd/pingu-runtime-controls.service",
+      "remote_sha256": "8c30a47bf71c9ac0688b7c625ebc66eb829a7d46edd1fbcdaa1d2c541d47ff23",
+      "import_policy": "exact",
+      "note": "Code-only atomic update with private rollback backup /var/lib/pingu-runtime-controls/code-20260926T104501068072Z. Runtime configuration and proxy/Gate PIDs unchanged; an existing TLS connection through the installed desktop proxy survived the update. No live switch or restart was performed.",
+      "previous_remote_sha256": "1c9dcb99c68c8762680cd71673b2b919b5f93a3da665e25e2680b6f9286f2e46",
+      "deployment_status": "deployed",
+      "deployed_at": "2026-09-26T10:45:01.464184+00:00"
     }
   ],
   "excluded_runtime_files": [
     "/etc/pingu-gate.token",
     "/etc/pingu-gate.tokens",
+    "/etc/pingu-gate.control-token",
     "/etc/pingu-gate.subscription.txt",
     "/etc/pingu-gate.env",
     "/etc/pingu-traffic-guard.conf",
@@ -250,6 +271,24 @@
       "test_lease_expired": true,
       "verified_on": "2026-09-24",
       "evidence": ".local/herdr/restore-verification.json"
+    }
+  },
+  "runtime_controls": {
+    "deployed_at": "2026-09-26T09:56:29.242021+00:00",
+    "warp": false,
+    "source_guard": false,
+    "destination_filter": false,
+    "traffic_guard": false,
+    "hot_switch_verified": true,
+    "existing_tls_connection_preserved": true,
+    "hardening": {
+      "deployed_at": "2026-09-26T10:45:01.464184+00:00",
+      "code_only": true,
+      "existing_tls_connection_preserved": true,
+      "runtime_configuration_unchanged": true,
+      "local_processes_unchanged": true,
+      "validation": "127 scoped tests passed. Fresh-host recovery was exercised in an isolated fake-systemctl/nft harness, not on the live host.",
+      "evidence": ".local/runtime-hardening-2026-09-26/connection-proof.json"
     }
   }
 }

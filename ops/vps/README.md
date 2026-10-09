@@ -179,6 +179,62 @@ in `/etc/pingu-backup.conf` (root-only, schema in
 `config/pingu-backup.conf.example`) at the crypt remote. Check the last run with
 `pingu-backup --status`; state lives in `/var/lib/pingu-backup/last-run.json`.
 
+## Hot runtime switches
+
+`pnpm vps:controls` manages four independent optional policies over the existing
+SSH connection: WARP TCP egress, Reality source-IP restriction, private/CN
+outbound filtering, and automatic traffic-quota enforcement. TLS and client
+credentials remain part of the connection protocol. These controls do not
+change SSH, the Cloudflare-only HTTPS origin boundary, listener addresses or
+server identity.
+
+```bash
+pnpm vps:controls status
+pnpm vps:controls off                         # preview all optional policies off
+pnpm vps:controls off --apply                 # apply without restarting the proxy
+pnpm vps:controls set --warp on --apply       # change only WARP
+pnpm vps:controls set --source-guard on --apply
+pnpm vps:controls set --destination-filter on --apply
+pnpm vps:controls set --traffic-guard on --apply
+pnpm vps:controls restore --apply             # all four policies on
+pnpm vps:controls reconnect                   # preview old WARP streams
+pnpm vps:controls reconnect --apply           # close only those streams
+```
+
+The VPS command is `/usr/local/sbin/pingu-runtime-controls`. It validates routing candidates with the pinned Mihomo binary and checks real
+WARP egress before enabling it. Only routing changes use the loopback controller
+to hot-reload the proxy: source-only and quota-only changes never reload the
+core. It saves a root-only rollback snapshot and atomically changes only its
+named nftables rule on Reality port 8443. It never flushes the firewall or
+regenerates proxy credentials. Failed operations attempt every affected restoration independently and report
+any incomplete rollback; identical requests are no-ops. The observed live route, filter, firewall
+state and quota timer are checked after applying, along with unchanged Mihomo
+and Gate PIDs.
+
+Source restriction off bypasses the existing Reality source/ban checks; source
+restriction on restores them without clearing the lease/ban sets. Quota off
+stops the quota timer and any running enforcement job, not the proxy. Turning
+quotas on resumes existing accounting and thresholds. WARP's local daemon stays
+available for fast switching, while `MATCH,direct` bypasses it completely for
+new connections. UDP remains direct because the installed WARP SOCKS endpoint
+does not support UDP association.
+
+Existing TCP streams keep their original route and continue transferring. Use
+`reconnect` if existing WARP streams must immediately be replaced; this is a
+connection reset, not a service restart. A successful local source-guard change
+also updates the desktop's automatic Gate-renewal flag without exposing its
+credential or restarting the app.
+
+Saved state is embedded in the private Mihomo config; the timer's enable state
+is persistent. Install and enable `systemd/pingu-runtime-controls.service` to
+reconcile the volatile nftables switch after boot. Mihomo snapshots now include the control script and boot unit together with
+saved switch values. A config with saved controls requires both assets in the
+snapshot. Fresh-host recovery enables the reconciler and preserves a disabled
+quota timer without briefly starting enforcement. Older snapshots without
+saved controls retain their original startup behavior. Desktop switch
+buttons can consume these independent states after the pending UI design; no
+new page layout is prescribed here.
+
 ## Local verification
 
 From the workspace root:

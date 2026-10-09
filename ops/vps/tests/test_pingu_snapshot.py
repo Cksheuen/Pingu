@@ -806,6 +806,16 @@ class SnapshotTests(unittest.TestCase):
         self.assertNotIn("vless://", report)
 
 
+def add_runtime_controls(root, settings):
+    path=root/'etc/mihomo/config.json'
+    value=json.loads(path.read_text());value['pingu-runtime-controls']=settings
+    path.write_text(json.dumps(value))
+    for rel in snap.RUNTIME_CONTROL_PATHS:
+        target=root/rel;target.parent.mkdir(parents=True,exist_ok=True)
+        source=Path(__file__).resolve().parents[1]/('sbin/pingu_runtime_controls.py' if rel.startswith('usr/') else 'systemd/pingu-runtime-controls.service')
+        target.write_bytes(source.read_bytes());target.chmod(0o755 if rel.startswith('usr/') else 0o644)
+
+
 class MihomoSnapshotTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -818,6 +828,27 @@ class MihomoSnapshotTests(unittest.TestCase):
 
     def create(self):
         return snap.create_snapshot(self.output, self.source)
+
+    def test_runtime_controls_and_disabled_state_survive_snapshot_and_restore(self):
+        settings={k:False for k in ['warp','source_guard','destination_filter','traffic_guard']}
+        add_runtime_controls(self.source,settings)
+        result=self.create();manifest=snap.verify_snapshot(result['archive_path'],result['sha256'])
+        for rel in snap.RUNTIME_CONTROL_PATHS:self.assertIn(rel,manifest['optional_present'])
+        destination=self.root/'restored-controls'
+        snap.restore_snapshot(result['archive_path'],destination,result['sha256'])
+        config=json.loads((destination/'rootfs/etc/mihomo/config.json').read_text())
+        self.assertEqual(config['pingu-runtime-controls'],settings)
+        for rel in snap.RUNTIME_CONTROL_PATHS:
+            self.assertEqual((destination/'rootfs'/rel).read_bytes(),(self.source/rel).read_bytes())
+
+    def test_saved_controls_require_complete_assets_and_boolean_state(self):
+        settings={k:False for k in ['warp','source_guard','destination_filter','traffic_guard']}
+        add_runtime_controls(self.source,settings)
+        (self.source/snap.RUNTIME_CONTROL_PATHS[0]).unlink()
+        with self.assertRaisesRegex(snap.SnapshotError,'missing required assets'):self.create()
+        settings['traffic_guard']='off'
+        add_runtime_controls(self.source,settings)
+        with self.assertRaisesRegex(snap.SnapshotError,'invalid saved runtime controls'):self.create()
 
     def test_roundtrip_without_xray_preserves_assets_and_permissions(self):
         result = self.create()

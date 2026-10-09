@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore Pingu optional runtime switches after boot
+After=nftables.service mihomo.service
+Requires=nftables.service
+Wants=mihomo.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+UMask=0077
+ExecStart=/usr/local/sbin/pingu-runtime-controls reconcile --apply
+
+[Install]
+WantedBy=multi-user.target

@@ -36,6 +36,10 @@ INVENTORY_EXCLUDED = {
 # Test files belong to exactly one scope. Production files may fan out to every
 # consumer whose behavior they affect.
 SCOPES = {
+    "runtime-controls": {
+        "module": "ops.vps.tests.test_pingu_runtime_controls",
+        "paths": ("ops/vps/sbin/pingu_runtime_controls.py", "ops/vps/tests/test_pingu_runtime_controls.py", "ops/vps/runtime-controls.sh", "ops/vps/systemd/pingu-runtime-controls.service"),
+    },
     "backup": {
         "module": "ops.vps.tests.test_pingu_backup",
         "paths": (
@@ -91,6 +95,7 @@ SCOPES = {
         "paths": (
             "ops/vps/tests/test_pingu_snapshot.py",
             "ops/vps/sbin/pingu_snapshot.py",
+            "ops/vps/sbin/pingu_runtime_controls.py",
             "ops/vps/sbin/pingu_device_access.py",
             "ops/vps/sbin/pingu_mihomo.py",
             "ops/vps/sbin/pingu_connections.py",
@@ -121,6 +126,7 @@ SCOPES = {
             "ops/vps/bootstrap.sh",
             "ops/vps/audit-remote.sh",
             "ops/vps/sbin/pingu_snapshot.py",
+            "ops/vps/sbin/pingu_runtime_controls.py",
             "ops/vps/config/mihomo-release.json",
             "ops/vps/systemd",
             "ops/vps/nftables",
