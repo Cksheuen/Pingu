@@ -152,7 +152,13 @@ fn for_suffix<'a>(value: &'a str, suffixes: &[&str]) -> Option<&'a str> {
 }
 
 fn request_lease(config: &GateConfig) -> Result<GateLease, String> {
-    let agent = ureq::AgentBuilder::new()
+    request_lease_via(config, None)
+}
+
+fn request_lease_via(config: &GateConfig, proxy_port: Option<u16>) -> Result<GateLease, String> {
+    let mut builder = ureq::AgentBuilder::new()
+        .try_proxy_from_env(false)
+        .redirects(0)
         // The active Reality node uses the VPS IPv4 address. Request the Gate
         // lease over IPv4 as well, otherwise a dual-stack client may only add
         // its IPv6 address to `reality_allow6` while its IPv4 Reality traffic
@@ -160,8 +166,14 @@ fn request_lease(config: &GateConfig) -> Result<GateLease, String> {
         .resolver(resolve_ipv4)
         .timeout_connect(Duration::from_secs(8))
         .timeout_read(Duration::from_secs(8))
-        .timeout_write(Duration::from_secs(8))
-        .build();
+        .timeout_write(Duration::from_secs(8));
+    if let Some(port) = proxy_port {
+        builder = builder.proxy(
+            ureq::Proxy::new(&format!("http://127.0.0.1:{port}"))
+                .map_err(|_| "Invalid Gate proxy")?,
+        );
+    }
+    let agent = builder.build();
     let authorization = format!("Bearer {}", config.token);
     let response = agent
         .post(&config.endpoint)
@@ -210,3 +222,16 @@ fn record_lease(config: &mut GateConfig, lease: &GateLease) {
 
 #[cfg(test)]
 mod tests;
+
+/// Authorize the ingress egress IP without replacing the direct lease UI state.
+pub fn renew_through_proxy(port: u16) -> Result<Option<GateLease>, String> {
+    let _guard = operation_lock()?;
+    let config = GateConfig::load()?;
+    if !config.enabled {
+        return Ok(None);
+    }
+    if !config.configured() {
+        return Err("Gate access link is not configured".into());
+    }
+    request_lease_via(&config, Some(port)).map(Some)
+}

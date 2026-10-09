@@ -84,6 +84,7 @@ fn errors_and_summaries_do_not_expose_subscription_secrets() {
     let error = parse_body("trojan://top-secret@/%zz").unwrap_err();
     assert!(!error.contains("top-secret"));
     let s = Subscription {
+        nodes_only: false,
         id: "id".into(),
         name: "Example".into(),
         input: "https://example.com/private?secret=value".into(),

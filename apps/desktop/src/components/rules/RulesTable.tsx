@@ -1,3 +1,4 @@
+import { confirmAction } from "../../lib/confirm-action";
 import type { Rule, RuleType } from "../../lib/types";
 import { t } from "../../lib/i18n";
 import Tooltip from "../Tooltip";
@@ -81,7 +82,7 @@ export function RulesTable({ rules, onDeleteRule }: RulesTableProps) {
             className="rules-table-row grid items-center"
             style={{
               gridTemplateColumns: "140px 1fr 120px 40px",
-              padding: "12px 16px",
+              padding: "6px 14px",
               borderBottom: "1px solid var(--line)",
             }}
           >
@@ -115,9 +116,9 @@ export function RulesTable({ rules, onDeleteRule }: RulesTableProps) {
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm(t("rules.delete_confirm"))) return;
-                  void onDeleteRule(rule.id);
+                onClick={async () => {
+                  if (!await confirmAction(t("rules.delete_confirm"))) return;
+                  void onDeleteRule(rule.id).catch(() => undefined);
                 }}
                 aria-label={`Delete rule for ${rule.match_value}`}
                 className="table-action-button"

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useRuntimeOperation } from "../lib/runtime-operation";
 import { connect, disconnect } from "../lib/connection-api";
 import { useConnectionStore } from "../lib/connection-store";
 import type { Node } from "../lib/types";
@@ -21,7 +22,8 @@ export function useHomeConnection(): HomeConnectionModel {
   const nodes = useConnectionStore((state) => state.nodes);
   const proxyInfo = useConnectionStore((state) => state.proxyInfo);
   const refreshStatus = useConnectionStore((state) => state.refreshStatus);
-  const [loading, setLoading] = useState(false);
+  const operation = useRuntimeOperation(s => s.command);
+  const loading = !!operation || !!status.phase && !["connected", "disconnected"].includes(status.phase);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export function useHomeConnection(): HomeConnectionModel {
   const hasRuleGroup = Boolean(activeRuleGroupName || activeRuleGroupId);
 
   const toggleConnection = useCallback(async () => {
-    setLoading(true);
+    if (loading) return;
     try {
       if (status.connected) {
         await disconnect();
@@ -47,9 +49,9 @@ export function useHomeConnection(): HomeConnectionModel {
       setError(typeof cause === "string" ? cause : "Connection failed");
     } finally {
       await refreshStatus().catch(() => undefined);
-      setLoading(false);
+
     }
-  }, [refreshStatus, status.connected]);
+  }, [refreshStatus, status.connected, loading]);
 
   return {
     status,

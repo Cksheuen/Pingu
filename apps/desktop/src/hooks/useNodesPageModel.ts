@@ -1,3 +1,4 @@
+import { useRuntimeOperation } from "../lib/runtime-operation";
 import { useEffect, useState } from "react";
 import { deleteNode, importNode, setActiveNode } from "../lib/nodes-api";
 import { useConnectionStore } from "../lib/connection-store";
@@ -29,7 +30,7 @@ export function useNodesPageModel(): NodesPageModel {
   }, [refreshNodes]);
 
   const activateNode = async (id: string) => {
-    if (id === activeNodeId || switchingNodeId) return;
+    if (id === activeNodeId || switchingNodeId || useRuntimeOperation.getState().command) return;
     setSwitchingNodeId(id);
     setSwitchError(null);
     try {

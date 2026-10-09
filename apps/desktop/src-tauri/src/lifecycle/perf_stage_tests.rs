@@ -23,6 +23,7 @@ fn empty_state() -> (Arc<AppState>, ProxyState) {
     // In-memory only: never touch the user's real config in unit tests.
     // AppState and ProxyState share one operation lock, as in production.
     let config = AppConfig {
+        proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),
         nodes: vec![],

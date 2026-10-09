@@ -554,3 +554,109 @@ fn any_managed_controller_failure_preserves_routes_and_returns_error() {
     failing.join();
     state.stop_all_processes().unwrap();
 }
+
+#[test]
+fn rollback_keeps_the_latest_controller_selection_instead_of_the_startup_node() {
+    let groups = vec![crate::mihomo::controller::StrategyGroup {
+        name: "Pingu Proxy".into(),
+        kind: "Selector".into(),
+        now: Some("Exit B".into()),
+        all: vec!["Exit A".into(), "Exit B".into()],
+        alive: true,
+        history: vec![],
+    }];
+    let old = r#"{"mixed-port":2080,"proxy-groups":[{"name":"Pingu Proxy","type":"select","proxies":["Exit A","Exit B"],"default-selected":"Exit A"}]}"#;
+    let restored: serde_json::Value =
+        serde_json::from_str(&rollback_payload(old, &groups).unwrap()).unwrap();
+    assert_eq!(restored["proxy-groups"][0]["default-selected"], "Exit B");
+    assert_eq!(restored["mixed-port"], 2080);
+}
+
+#[test]
+fn failed_in_place_reload_keeps_ports_and_previous_selection_but_invalidates_old_probes() {
+    let controller = controller_fixture(
+        vec![r#"{"proxies":{"Pingu Proxy":{"type":"Selector","all":["A","B"],"now":"B"}}}"#.into()],
+        3,
+        false,
+    );
+    let root = TestDir::new();
+    let original = root.path().join("original.json");
+    std::fs::write(&original, r#"{"mixed-port":2080,"proxy-groups":[{"name":"Pingu Proxy","type":"select","default-selected":"A"}]}"#).unwrap();
+    let candidate = root.path().join("candidate.json");
+    std::fs::write(
+        &candidate,
+        r#"{"mixed-port":2081,"rules":["MATCH,REJECT"]}"#,
+    )
+    .unwrap();
+    let system = Arc::new(RecordingSystemProxy::default());
+    let state = ProxyState::new(MihomoProcess::new(), system.clone(), 2080);
+    let previous = RuntimeSnapshot {
+        listen_port: Some(2080),
+        clash_api_port: Some(controller.port),
+        config_path: Some(original.clone()),
+        generation: 7,
+        running_node_id: Some("B".into()),
+        ..RuntimeSnapshot::default()
+    };
+    *state.runtime.lock().unwrap() = previous.clone();
+    let mut runtime = RuntimeLaunch {
+        config_path: candidate,
+        owned_runtime_dir: None,
+        node_id: "C".into(),
+        node_name: "C".into(),
+        node_address: String::new(),
+        node_port: 0,
+        group_id: "new".into(),
+        group_name: "new".into(),
+        clash_api_port: 9091,
+        listen_port: 2081,
+    };
+    let error = reload_runtime_in_place_with(&state, &mut runtime, &previous, |port| {
+        assert_eq!(port, 2080);
+        Err("content probe failed".into())
+    })
+    .unwrap_err();
+    assert!(error.contains("previous routing restored"));
+    let current = state.runtime_snapshot().unwrap();
+    assert_eq!(current.generation, 8);
+    assert_eq!(current.listen_port, Some(2080));
+    assert_eq!(current.running_node_id.as_deref(), Some("B"));
+    assert!(system.events.lock().unwrap().is_empty());
+    let restored: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(original).unwrap()).unwrap();
+    assert_eq!(restored["proxy-groups"][0]["default-selected"], "B");
+    assert_eq!(
+        controller.join(),
+        vec![
+            "GET /proxies HTTP/1.1",
+            "PUT /configs HTTP/1.1",
+            "PUT /configs HTTP/1.1"
+        ]
+    );
+}
+
+#[test]
+fn routing_revisions_keep_the_same_traffic_and_controller_identity() {
+    let state = ProxyState::new(
+        MihomoProcess::new(),
+        Arc::new(RecordingSystemProxy::default()),
+        2080,
+    );
+    *state.runtime.lock().unwrap() = RuntimeSnapshot {
+        generation: 9,
+        traffic_generation: 4,
+        listen_port: Some(2080),
+        controller_scope: Some("same-core".into()),
+        running_node_id: Some("A".into()),
+        ..RuntimeSnapshot::default()
+    };
+    state
+        .routing_changed(Some(("B".into(), "Exit B".into())))
+        .unwrap();
+    let runtime = state.runtime_snapshot().unwrap();
+    assert_eq!(runtime.generation, 10);
+    assert_eq!(runtime.traffic_generation, 4);
+    assert_eq!(runtime.controller_scope.as_deref(), Some("same-core"));
+    assert_eq!(runtime.running_node_id.as_deref(), Some("B"));
+    assert_eq!(runtime.listen_port, Some(2080));
+}

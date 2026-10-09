@@ -49,6 +49,41 @@ fn settings_load_from_old_config_and_survive_serialization() {
 }
 
 #[test]
+fn legacy_default_migration_preserves_ids_and_user_groups_and_runs_once() {
+    let mut config = AppConfig::default_config();
+    let group = &mut config.rule_groups[0];
+    group.rules.retain(|rule| rule.match_value != "gfw");
+    group.default_strategy = "proxy".into();
+    let id = group.id.clone();
+    let rule_ids: Vec<_> = group.rules.iter().map(|r| r.id.clone()).collect();
+    let other_groups = serde_json::to_value(&config.rule_groups[1..]).unwrap();
+
+    assert!(config.normalize_legacy_default_rule_group());
+    let group = config.active_rule_group().unwrap();
+    assert_eq!(group.id, id);
+    assert_eq!(group.default_strategy, "direct");
+    assert_eq!(group.rules[0].id, rule_ids[0]);
+    assert_eq!(group.rules[2].id, rule_ids[1]);
+    assert_eq!(group.rules[1].match_value, "gfw");
+    assert_eq!(group.rules[1].outbound, "proxy");
+    assert_eq!(serde_json::to_value(&config.rule_groups[1..]).unwrap(), other_groups);
+
+    config.rule_groups[0].default_strategy = "proxy".into();
+    assert!(!config.normalize_legacy_default_rule_group());
+    assert_eq!(config.rule_groups[0].default_strategy, "proxy");
+}
+
+#[test]
+fn legacy_default_migration_leaves_custom_rules_untouched() {
+    let mut config = AppConfig::default_config();
+    config.rule_groups[0].rules.retain(|r| r.match_value != "gfw");
+    config.rule_groups[0].rules.push(sample_rule("custom", "proxy"));
+    let before = serde_json::to_value(&config).unwrap();
+    assert!(!config.normalize_legacy_default_rule_group());
+    assert_eq!(serde_json::to_value(&config).unwrap(), before);
+}
+
+#[test]
 fn import_first_node_sets_active_node() {
     let mut config = AppConfig::default_config();
 
@@ -212,6 +247,7 @@ fn default_config_contains_strengthened_byted_internal_dns_group() {
 #[test]
 fn normalize_rule_groups_backfills_existing_byted_internal_group() {
     let mut config = AppConfig {
+        proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),
         nodes: vec![],

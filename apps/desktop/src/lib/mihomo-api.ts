@@ -1,6 +1,7 @@
 import { tauriInvoke } from "./tauri-invoke.js";
 
 export interface SubscriptionSummary {
+  nodes_only?: boolean;
   id: string;
   name: string;
   source_kind: "url" | "inline";
@@ -47,8 +48,8 @@ export interface ConnectionsSnapshot {
 }
 
 export const listSubscriptions = () => tauriInvoke<SubscriptionSummary[]>("list_subscriptions");
-export const importSubscription = (name: string, input: string) =>
-  tauriInvoke<SubscriptionSummary>("import_subscription", { name, input });
+export const importSubscription = (name: string, input: string, nodesOnly = false) =>
+  tauriInvoke<SubscriptionSummary>("import_subscription", { name, input, nodesOnly });
 export const refreshSubscription = (id: string) =>
   tauriInvoke<SubscriptionSummary>("refresh_subscription", { id });
 export const updateSubscription = (id: string, changes: { name?: string; enabled?: boolean }) =>

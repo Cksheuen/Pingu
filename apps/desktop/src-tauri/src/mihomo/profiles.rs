@@ -13,6 +13,8 @@ use url::Url;
 pub const MAX_BYTES: usize = 4 * 1024 * 1024;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Subscription {
+    #[serde(default)]
+    pub nodes_only: bool,
     pub id: String,
     pub name: String,
     pub input: String,
@@ -32,6 +34,7 @@ impl std::fmt::Debug for Subscription {
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct SubscriptionSummary {
+    pub nodes_only: bool,
     pub id: String,
     pub name: String,
     pub source_kind: String,
@@ -50,6 +53,7 @@ impl Subscription {
             .ok()
             .filter(|u| u.scheme() == "https");
         SubscriptionSummary {
+            nodes_only: self.nodes_only,
             id: self.id.clone(),
             name: self.name.clone(),
             source_kind: if url.is_some() { "url" } else { "inline" }.into(),
@@ -95,13 +99,8 @@ pub fn load_input(input: &str) -> Result<(Value, Vec<String>), String> {
                 response.status()
             ));
         }
-        if response
-            .header("Content-Type")
-            .unwrap_or("")
-            .contains("text/html")
-        {
-            return Err("Subscription returned an HTML page.".into());
-        }
+        // Some subscription panels label YAML as text/html. Validate the bounded
+        // body below: parse_body rejects actual HTML and accepts only routing data.
         let mut body = Vec::new();
         response
             .into_reader()
@@ -206,13 +205,11 @@ fn is_allowed_remote_ip(address: IpAddr) -> bool {
             }
             let segments = address.segments();
             let unique_local = (segments[0] & 0xfe00) == 0xfc00;
-            let link_or_site_local = (segments[0] & 0xffc0) == 0xfe80
-                || (segments[0] & 0xffc0) == 0xfec0;
+            let link_or_site_local =
+                (segments[0] & 0xffc0) == 0xfe80 || (segments[0] & 0xffc0) == 0xfec0;
             let documentation = segments[0] == 0x2001 && segments[1] == 0x0db8;
-            let discard_only = segments[0] == 0x0100
-                && segments[1] == 0
-                && segments[2] == 0
-                && segments[3] == 0;
+            let discard_only =
+                segments[0] == 0x0100 && segments[1] == 0 && segments[2] == 0 && segments[3] == 0;
             !(address.is_unspecified()
                 || address.is_loopback()
                 || address.is_multicast()
@@ -368,10 +365,10 @@ fn sanitize_fragment(value: Value) -> Result<(Value, Vec<String>), String> {
                 if obj.get("type").and_then(Value::as_str) != Some("http") {
                     return Err("Only HTTPS remote providers are accepted; local file providers cannot be imported.".into());
                 }
-                let raw_url =
-                    obj.get("url")
-                        .and_then(Value::as_str)
-                        .ok_or("Provider URL missing.")?;
+                let raw_url = obj
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .ok_or("Provider URL missing.")?;
                 validate_https_url(raw_url, "Remote provider")?;
                 obj.insert(
                     "path".into(),

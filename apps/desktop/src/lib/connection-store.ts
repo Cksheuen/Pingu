@@ -28,10 +28,15 @@ const defaultStatus: ProxyStatus = {
 };
 
 let inflightRefresh: Promise<ProxyStatus> | null = null;
+let inflightAll: Promise<void> | null = null;
+let requestEpoch = 0;
 
 function sameStatus(left: ProxyStatus, right: ProxyStatus): boolean {
   return (
     left.connected === right.connected &&
+    left.phase === right.phase &&
+    left.routing_revision === right.routing_revision &&
+    left.active_node_name === right.active_node_name &&
     left.active_node_id === right.active_node_id &&
     left.active_group_id === right.active_group_id &&
     left.active_group_name === right.active_group_name &&
@@ -47,18 +52,20 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   loading: false,
 
   refreshStatus: async () => {
+    if (inflightAll) { await inflightAll; return get().status; }
     if (inflightRefresh) return inflightRefresh;
 
+    const epoch = ++requestEpoch;
     inflightRefresh = getStatus()
       .then((status) => {
         set((current) => {
-          if (current.loaded && sameStatus(current.status, status)) return current;
+          if (epoch !== requestEpoch || current.loaded && sameStatus(current.status, status)) return current;
           return { status, loaded: true, loading: false };
         });
         return status;
       })
       .catch((error) => {
-        set((current) => (current.loaded && !current.loading ? current : { loaded: true, loading: false }));
+        if (epoch === requestEpoch) set((current) => (current.loaded && !current.loading ? current : { loaded: true, loading: false }));
         throw error;
       })
       .finally(() => {
@@ -81,12 +88,13 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   },
 
   refreshAll: async () => {
-    const [status, nodes, proxyInfo] = await Promise.all([
-      getStatus(),
-      listNodes(),
-      getProxyInfo(),
-    ]);
-    set({ status, nodes, proxyInfo, loaded: true, loading: false });
+    if (inflightAll) return inflightAll;
+    const epoch = ++requestEpoch;
+    inflightAll = Promise.all([getStatus(), listNodes(), getProxyInfo()])
+      .then(([status, nodes, proxyInfo]) => {
+        if (epoch === requestEpoch) set({ status, nodes, proxyInfo, loaded: true, loading: false });
+      }).finally(() => { inflightAll = null; });
+    return inflightAll;
   },
 
   updateStatus: (updater) => {

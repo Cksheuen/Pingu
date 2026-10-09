@@ -17,6 +17,8 @@ use crate::mihomo::uri_parser::{parse_vless_uri, Node};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
+    pub proxy_chain: crate::chain::ChainSettings,
+    #[serde(default)]
     pub subscriptions: Vec<crate::mihomo::profiles::Subscription>,
     #[serde(default)]
     pub strategy_selections: std::collections::HashMap<String, String>,
@@ -58,7 +60,7 @@ impl AppConfig {
             Ok(content) => {
                 // Try new format first
                 if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
-                    let mut changed = config.normalize_legacy_split_proxy_default();
+                    let mut changed = config.normalize_legacy_default_rule_group();
                     changed = config.backfill_node_security() || changed;
                     changed = config.normalize_host_overrides() || changed;
                     changed = config.normalize_rule_groups() || changed;
@@ -79,6 +81,7 @@ impl AppConfig {
                     };
                     let active_id = group.id.clone();
                     let config = Self {
+                        proxy_chain: Default::default(),
                         subscriptions: vec![],
                         strategy_selections: Default::default(),
                         nodes: old.nodes,
@@ -90,7 +93,7 @@ impl AppConfig {
                         language: default_language(),
                     };
                     let mut config = config;
-                    let _ = config.normalize_legacy_split_proxy_default();
+                    let _ = config.normalize_legacy_default_rule_group();
                     let _ = config.normalize_rule_groups();
                     config.save().ok();
                     return config;
@@ -101,31 +104,40 @@ impl AppConfig {
         }
     }
 
-    fn normalize_legacy_split_proxy_default(&mut self) -> bool {
-        if self.rule_groups.len() != 1 {
-            return false;
+    fn normalize_legacy_default_rule_group(&mut self) -> bool {
+        let mut changed = false;
+        for group in &mut self.rule_groups {
+            // Only migrate the unmodified shipped template. The added GFW rule
+            // also makes this idempotent without resetting later user choices.
+            if group.name != "Default" || group.rules.len() != 2 {
+                continue;
+            }
+            let has_geosite_cn = group.rules.iter().any(|rule| {
+                rule.rule_type == "geosite"
+                    && matches!(rule.match_value.as_str(), "cn" | "geolocation-cn")
+                    && rule.outbound == "direct"
+            });
+            let geoip_index = group.rules.iter().position(|rule| {
+                rule.rule_type == "geoip" && rule.match_value == "cn" && rule.outbound == "direct"
+            });
+            if let Some(index) = geoip_index.filter(|_| has_geosite_cn) {
+                // Match blocked domains before any IP lookup, which could be
+                // poisoned or unavailable on the direct network.
+                group.rules.insert(index, Self::blocked_domains_rule());
+                group.default_strategy = "direct".into();
+                changed = true;
+            }
         }
+        changed
+    }
 
-        let group = &mut self.rule_groups[0];
-        if group.default_strategy != "direct" || group.name != "Default" {
-            return false;
+    fn blocked_domains_rule() -> Rule {
+        Rule {
+            id: uuid::Uuid::new_v4().to_string(),
+            rule_type: "geosite".into(),
+            match_value: "gfw".into(),
+            outbound: "proxy".into(),
         }
-
-        let has_geosite_cn = group.rules.iter().any(|rule| {
-            rule.rule_type == "geosite"
-                && (rule.match_value == "cn" || rule.match_value == "geolocation-cn")
-                && rule.outbound == "direct"
-        });
-        let has_geoip_cn = group.rules.iter().any(|rule| {
-            rule.rule_type == "geoip" && rule.match_value == "cn" && rule.outbound == "direct"
-        });
-
-        if has_geosite_cn && has_geoip_cn {
-            group.default_strategy = "proxy".into();
-            return true;
-        }
-
-        false
     }
 
     fn backfill_node_security(&mut self) -> bool {
@@ -245,6 +257,7 @@ impl AppConfig {
                     match_value: "geolocation-cn".into(),
                     outbound: "direct".into(),
                 },
+                Self::blocked_domains_rule(),
                 Rule {
                     id: uuid::Uuid::new_v4().to_string(),
                     rule_type: "geoip".into(),
@@ -252,7 +265,7 @@ impl AppConfig {
                     outbound: "direct".into(),
                 },
             ],
-            default_strategy: "proxy".into(),
+            default_strategy: "direct".into(),
             fake_ip_filter: vec![],
             nameserver_policy: vec![],
         };
@@ -275,6 +288,7 @@ impl AppConfig {
         };
         let active_id = default_group.id.clone();
         Self {
+            proxy_chain: Default::default(),
             subscriptions: vec![],
             strategy_selections: Default::default(),
             nodes: Vec::new(),

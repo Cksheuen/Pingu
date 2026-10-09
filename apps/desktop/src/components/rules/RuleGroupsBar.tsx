@@ -1,3 +1,4 @@
+import { confirmAction } from "../../lib/confirm-action";
 import { useState } from "react";
 import type { RuleGroup } from "../../lib/types";
 import { t } from "../../lib/i18n";
@@ -70,7 +71,7 @@ export function RuleGroupsBar({
   }
 
   async function handleDeleteGroup(id: string) {
-    if (!confirm(t("rules.delete_group_confirm"))) return;
+    if (!await confirmAction(t("rules.delete_group_confirm"))) return;
     await onDeleteGroup(id);
   }
 
@@ -97,13 +98,13 @@ export function RuleGroupsBar({
                   value={editingName}
                   onChange={(e) => setEditingName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleRenameGroup(group.id, editingName);
+                    if (e.key === "Enter") void handleRenameGroup(group.id, editingName).catch(() => undefined);
                     if (e.key === "Escape") {
                       setEditingGroupId(null);
                       setEditingName("");
                     }
                   }}
-                  onBlur={() => void handleRenameGroup(group.id, editingName)}
+                  onBlur={() => void handleRenameGroup(group.id, editingName).catch(() => undefined)}
                   className="bg-transparent font-mono text-sm outline-none"
                   style={{
                     color: "var(--color-text-primary)",
@@ -115,7 +116,7 @@ export function RuleGroupsBar({
                 <button
                   type="button"
                   className="rule-group-tab-main"
-                  onClick={() => void onSwitchGroup(group.id)}
+                  onClick={() => void onSwitchGroup(group.id).catch(() => undefined)}
                 >
                   {group.name}
                 </button>
@@ -138,7 +139,7 @@ export function RuleGroupsBar({
                     <button
                       type="button"
                       className="rule-group-icon-action"
-                      onClick={() => void handleDeleteGroup(group.id)}
+                      onClick={() => void handleDeleteGroup(group.id).catch(() => undefined)}
                       aria-label={t("rules.delete_group")}
                       title={t("rules.delete_group")}
                     >
@@ -158,7 +159,7 @@ export function RuleGroupsBar({
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreateGroup();
+                if (e.key === "Enter") void handleCreateGroup().catch(() => undefined);
                 if (e.key === "Escape") {
                   setShowNewGroup(false);
                   setNewGroupName("");
@@ -172,7 +173,7 @@ export function RuleGroupsBar({
             />
             <button
               type="button"
-              onClick={() => void handleCreateGroup()}
+              onClick={() => void handleCreateGroup().catch(() => undefined)}
               disabled={!newGroupName.trim()}
               className="action-primary"
             >

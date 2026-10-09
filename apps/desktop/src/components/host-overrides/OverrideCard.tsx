@@ -26,8 +26,8 @@ export function OverrideCard({
     <div
       className="surface"
       style={{
-        padding: "18px",
-        borderColor: override.enabled ? "#4c432c" : "var(--line)",
+        padding: "14px",
+        borderColor: "var(--line)",
         opacity: override.enabled ? 1 : 0.72,
       }}
     >
@@ -63,9 +63,7 @@ export function OverrideCard({
               {t("host_overrides.last_verified")}: {formatVerified(override.last_verified_at)}
             </span>
           </div>
-          <p className="text-text-secondary" style={{ fontSize: "13px", marginTop: "12px" }}>
-            {override.reason || t("host_overrides.no_reason")}
-          </p>
+          {override.reason && <p className="text-text-secondary" style={{ fontSize: "12px", marginTop: "8px" }}>{override.reason}</p>}
           {override.last_verified_result && (
             <p className="font-mono text-text-muted break-all" style={{ fontSize: "11px", marginTop: "8px" }}>
               {override.last_verified_result}

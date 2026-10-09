@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use pingu_lib::mihomo::process::MihomoProcess;
 use pingu_lib::proxy_runtime::{
     check_generated_config, find_available_port, prepare_runtime,
-    prepare_runtime_generation_with_port, verify_proxy_content,
+    prepare_runtime_generation_with_port, verify_startup_proxy_content,
 };
 use pingu_lib::storage::app_config::AppConfig;
 
@@ -86,7 +86,7 @@ fn with_explicit_proxy<T>(
 }
 
 fn print_content_checks(listen_port: u16) -> Result<String, String> {
-    let checks = verify_proxy_content(listen_port)?;
+    let checks = verify_startup_proxy_content(listen_port)?;
     let egress_ip = checks
         .iter()
         .find(|check| check.id == "egress_ip")

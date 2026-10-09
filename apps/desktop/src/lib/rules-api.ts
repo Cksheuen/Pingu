@@ -2,12 +2,7 @@ import type { Rule, RuleGroup } from "./types.js";
 import { tauriInvoke } from "./tauri-invoke.js";
 
 export async function listRules(): Promise<Rule[]> {
-  try {
-    return await tauriInvoke("list_rules");
-  } catch (e) {
-    console.warn("listRules failed:", e);
-    return [];
-  }
+  return await tauriInvoke("list_rules");
 }
 
 export async function addRule(rule: Omit<Rule, "id">): Promise<void> {
@@ -23,21 +18,11 @@ export async function setDefaultStrategy(strategy: string): Promise<void> {
 }
 
 export async function listRuleGroups(): Promise<RuleGroup[]> {
-  try {
-    return await tauriInvoke("list_rule_groups");
-  } catch (e) {
-    console.warn("listRuleGroups failed:", e);
-    return [];
-  }
+  return await tauriInvoke("list_rule_groups");
 }
 
 export async function getActiveGroupId(): Promise<string> {
-  try {
-    return await tauriInvoke("get_active_group_id");
-  } catch (e) {
-    console.warn("getActiveGroupId failed:", e);
-    return "";
-  }
+  return await tauriInvoke("get_active_group_id");
 }
 
 export async function setActiveGroup(id: string): Promise<void> {

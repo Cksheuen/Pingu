@@ -9,7 +9,7 @@ use crate::commands::config::AppState;
 use crate::mihomo::process::MihomoProcess;
 use crate::proxy_runtime::NetworkContentCheck;
 use crate::proxy_runtime::{
-    find_available_port, prepare_runtime_generation_with_port, verify_proxy_content,
+    find_available_port, prepare_runtime_generation_with_port, verify_startup_proxy_content,
     PreparedRuntime,
 };
 use crate::storage::app_config::AppConfig;
@@ -20,6 +20,7 @@ use crate::traffic_monitor::{TrafficMonitor, TrafficSample};
 pub struct RuntimeSnapshot {
     pub connected_at: Option<Instant>,
     pub running_node_id: Option<String>,
+    pub running_node_name: Option<String>,
     pub running_group_id: Option<String>,
     pub clash_api_port: Option<u16>,
     pub listen_port: Option<u16>,
@@ -31,6 +32,8 @@ pub struct RuntimeSnapshot {
     /// accepting controller ports from IPC.
     pub controller_scope: Option<String>,
     pub generation: u64,
+    /// Traffic belongs to the same live core across routing revisions.
+    pub traffic_generation: u64,
 }
 
 struct DrainingCore {
@@ -72,6 +75,37 @@ pub struct ProxyState {
     /// One-shot handoff of the successful connect-time content checks for the
     /// immediately following preflight request. At most 3 s fresh.
     preflight_handoff: Mutex<Option<PreflightHandoff>>,
+    phase: Mutex<Option<&'static str>>,
+}
+
+pub struct OperationPhase<'a>(&'a ProxyState);
+impl Drop for OperationPhase<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut phase) = self.0.phase.lock() {
+            *phase = None;
+        }
+    }
+}
+impl ProxyState {
+    pub fn operation_phase(&self, phase: &'static str) -> OperationPhase<'_> {
+        if let Ok(mut current) = self.phase.lock() {
+            *current = Some(phase);
+        }
+        OperationPhase(self)
+    }
+    pub fn phase(&self) -> Option<&'static str> {
+        self.phase.lock().ok().and_then(|p| *p)
+    }
+    pub fn routing_changed(&self, node: Option<(String, String)>) -> Result<(), String> {
+        self.clear_preflight_handoff();
+        let mut runtime = self.runtime.lock().map_err(|e| e.to_string())?;
+        runtime.generation = runtime.generation.saturating_add(1);
+        if let Some((id, name)) = node {
+            runtime.running_node_id = Some(id);
+            runtime.running_node_name = Some(name);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +144,7 @@ impl ProxyState {
             shutdown_intent: AtomicBool::new(false),
             owns_system_proxy: AtomicBool::new(false),
             preflight_handoff: Mutex::new(None),
+            phase: Mutex::new(None),
         }
     }
 
@@ -131,6 +166,7 @@ impl ProxyState {
             shutdown_intent: AtomicBool::new(false),
             owns_system_proxy: AtomicBool::new(false),
             preflight_handoff: Mutex::new(None),
+            phase: Mutex::new(None),
         }
     }
 
@@ -153,6 +189,7 @@ impl ProxyState {
             shutdown_intent: AtomicBool::new(false),
             owns_system_proxy: AtomicBool::new(false),
             preflight_handoff: Mutex::new(None),
+            phase: Mutex::new(None),
         }
     }
 
@@ -237,7 +274,7 @@ impl ProxyState {
     pub fn traffic_snapshot(&self) -> TrafficSample {
         match self.runtime_snapshot() {
             Ok(snapshot) if snapshot.connected_at.is_some() => {
-                self.traffic.snapshot(snapshot.generation)
+                self.traffic.snapshot(snapshot.traffic_generation)
             }
             _ => TrafficSample::default(),
         }
@@ -280,14 +317,6 @@ impl ProxyState {
             .lock()
             .map(|process| Arc::clone(&process))
             .map_err(|error| error.to_string())
-    }
-
-    fn replace_active_process(
-        &self,
-        replacement: Arc<MihomoProcess>,
-    ) -> Result<Arc<MihomoProcess>, String> {
-        let mut process = self.process.lock().map_err(|error| error.to_string())?;
-        Ok(std::mem::replace(&mut *process, replacement))
     }
 
     fn managed_controller_targets_locked(&self) -> Result<Vec<ControllerTarget>, String> {
@@ -629,11 +658,17 @@ pub fn connect_core(app_state: &AppState, proxy_state: &ProxyState) -> Result<()
     if proxy_state.is_running() {
         return Err("mihomo is already running".to_string());
     }
+    let _phase = proxy_state.operation_phase("connecting");
     cleanup_confirmed_dead_active_runtime(proxy_state)?;
 
-    crate::gate::renew_if_enabled()
+    let gate_config = app_state
+        .config
+        .lock()
+        .map_err(|_| "Configuration unavailable")?
+        .clone();
+    crate::chain::prepare_gate(&gate_config)
         .map_err(|error| format!("Automatic network access failed: {error}"))?;
-    let runtime = prepare_runtime_launch(app_state, proxy_state)?;
+    let mut runtime = prepare_runtime_launch(app_state, proxy_state)?;
     if let Err(error) = proxy_state.guard_after_lock() {
         return Err(cleanup_unstarted_runtime(&runtime, error));
     }
@@ -667,10 +702,19 @@ pub fn connect_core(app_state: &AppState, proxy_state: &ProxyState) -> Result<()
         ));
     }
 
+    if let Err(error) = synchronize_selected_node(&mut runtime) {
+        return Err(cleanup_runtime_failure_locked(
+            proxy_state,
+            runtime.owned_runtime_dir.as_deref(),
+            error,
+        ));
+    }
+
     // A running local listener only means mihomo parsed the configuration.
     // Verify proxied content (IP, Cloudflare trace, and Google) before
     // claiming the relay is usable or changing the user's system proxy settings.
-    let verified_checks = match verify_proxy_content(runtime.listen_port) {
+    let _verifying = proxy_state.operation_phase("verifying");
+    let verified_checks = match verify_startup_proxy_content(runtime.listen_port) {
         Ok(checks) => checks,
         Err(error) => {
             return Err(cleanup_runtime_failure_locked(
@@ -730,6 +774,7 @@ pub fn disconnect_core(proxy_state: &ProxyState) -> Result<(), String> {
         .operation_lock
         .lock()
         .map_err(|error| format!("Lifecycle lock failed: {error}"))?;
+    let _phase = proxy_state.operation_phase("disconnecting");
     disconnect_locked(proxy_state, true)
 }
 
@@ -744,7 +789,7 @@ pub fn shutdown_core(proxy_state: &ProxyState) -> Result<(), String> {
     disconnect_locked(proxy_state, false)
 }
 
-fn disconnect_locked(proxy_state: &ProxyState, write_log: bool) -> Result<(), String> {
+pub(crate) fn disconnect_locked(proxy_state: &ProxyState, write_log: bool) -> Result<(), String> {
     proxy_state.clear_preflight_handoff();
     let mut errors = Vec::new();
 
@@ -794,19 +839,23 @@ pub fn reload_proxy_if_running(
         return Ok(());
     }
 
-    crate::gate::renew_if_enabled()
+    let gate_config = app_state
+        .config
+        .lock()
+        .map_err(|_| "Configuration unavailable")?
+        .clone();
+    crate::chain::prepare_gate(&gate_config)
         .map_err(|error| format!("Automatic network access failed: {error}"))?;
 
-    // Prepare and validate a replacement before changing the system proxy. The
-    // previous process remains alive long enough for its existing TCP streams
-    // to drain, while new streams move to the verified candidate.
+    // Validate generated routing, then reload the original listener in place.
+    let _phase = proxy_state.operation_phase("switching");
     let runtime = prepare_runtime_launch(app_state, proxy_state)?;
     let previous = proxy_state.runtime_snapshot()?;
     hot_swap_runtime(proxy_state, runtime, previous)?;
 
     proxy_state
         .active_process()?
-        .add_log("info", "Reloaded mihomo with a verified candidate runtime");
+        .add_log("info", "Reloaded verified routing on the existing listener");
 
     Ok(())
 }
@@ -830,6 +879,7 @@ pub fn apply_runtime_config_change<T>(
             false,
         ));
     }
+    let _phase = proxy_state.operation_phase("switching");
     // Take only a short config lock to snapshot the candidate input. The
     // shared operation lock (already held) serializes every AppConfig writer,
     // so verification and the hot swap run without holding the config lock
@@ -846,6 +896,10 @@ pub fn apply_runtime_config_change<T>(
     let result = mutate(&mut candidate)
         .map_err(|error| LifecycleError::failed("validation_failed", error, false))?;
 
+    if candidate.proxy_chain.enabled {
+        crate::chain::pair(&candidate, &candidate.proxy_chain)
+            .map_err(|error| LifecycleError::failed("validation_failed", error, false))?;
+    }
     if !proxy_state.is_running() {
         candidate
             .save()
@@ -861,6 +915,11 @@ pub fn apply_runtime_config_change<T>(
     let previous = proxy_state
         .runtime_snapshot()
         .map_err(|error| LifecycleError::failed("lifecycle_failed", error, true))?;
+    // A new ingress has a different source IP at the Reality exit.
+    if candidate.proxy_chain.enabled || previous_config.proxy_chain.enabled {
+        crate::chain::prepare_gate(&candidate)
+            .map_err(|error| LifecycleError::failed("validation_failed", error, false))?;
+    }
     let next_generation = previous.generation.saturating_add(1);
     let runtime = prepare_runtime_launch_for_config(&candidate, proxy_state, next_generation)
         .map_err(|error| LifecycleError::failed("validation_failed", error, false))?;
@@ -873,10 +932,14 @@ pub fn apply_runtime_config_change<T>(
         // Restore the pre-swap config so neither disk nor memory can describe
         // a runtime that never went live. The operation lock is still held, so
         // no other writer raced this swap.
-        let _ = previous_config.save();
+        let restore_error = previous_config.save().err();
         if let Ok(mut config_guard) = app_state.config.lock() {
             *config_guard = previous_config;
         }
+        let error = match restore_error {
+            Some(restore) => format!("{error}; saved configuration rollback failed: {restore}"),
+            None => error,
+        };
         return Err(LifecycleError::failed("lifecycle_failed", error, true));
     }
     let mut config_guard = app_state
@@ -887,7 +950,7 @@ pub fn apply_runtime_config_change<T>(
     let _ = proxy_state.active_process().map(|process| {
         process.add_log(
             "info",
-            "Switched to a verified runtime without dropping the previous listener",
+            "Applied verified routing on the existing proxy port",
         )
     });
     Ok(result)
@@ -968,101 +1031,155 @@ pub fn apply_config_with_side_effect<T>(
     Ok(result)
 }
 
+#[cfg(test)]
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg(test)]
 const DRAIN_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
-/// Start a candidate on a separate local listener, prove that its egress works,
-/// then point new system-proxy connections at it. Existing streams remain on
-/// the previous listener until they drain or the bounded timeout expires.
-fn hot_swap_runtime(
-    proxy_state: &ProxyState,
-    runtime: RuntimeLaunch,
-    previous: RuntimeSnapshot,
-) -> Result<(), String> {
-    let current = proxy_state.active_process()?;
-    let candidate = Arc::new(current.successor());
-    if let Err(error) = candidate.start(runtime.config_path.to_str().ok_or("Invalid path")?) {
-        return Err(cleanup_unstarted_runtime(&runtime, error));
+fn synchronize_selected_node(runtime: &mut RuntimeLaunch) -> Result<(), String> {
+    if runtime.node_id == "__chain__" {
+        return Ok(());
     }
-
-    if let Err(error) =
-        wait_for_candidate_ready(&candidate, runtime.listen_port, runtime.clash_api_port)
-    {
-        return Err(cleanup_candidate_runtime(
-            proxy_state,
-            &candidate,
-            &runtime,
-            format!("Candidate listener failed: {error}"),
-        ));
+    let groups = crate::mihomo::controller::groups(runtime.clash_api_port)?;
+    let selected = groups
+        .iter()
+        .find(|g| g.name == "Pingu Proxy")
+        .and_then(|g| g.now.as_deref())
+        .ok_or("Active selection unavailable")?;
+    if selected != format!("{} [{}]", runtime.node_name, runtime.node_id) {
+        runtime.node_name = selected.to_string();
+        runtime.node_id = "__subscriptions__".into();
     }
-    let verified_checks = match verify_proxy_content(runtime.listen_port) {
-        Ok(checks) => checks,
-        Err(error) => {
-            proxy_state.clear_preflight_handoff();
-            return Err(cleanup_candidate_runtime(
-                proxy_state,
-                &candidate,
-                &runtime,
-                format!("Candidate content verification failed: {error}"),
-            ));
-        }
-    };
-    proxy_state.owns_system_proxy.store(true, Ordering::SeqCst);
-    if let Err(error) = proxy_state.system_proxy.set(runtime.listen_port) {
-        return Err(cleanup_candidate_runtime(
-            proxy_state,
-            &candidate,
-            &runtime,
-            format!("Failed to promote candidate system proxy: {error}"),
-        ));
-    }
-
-    let previous_process = match proxy_state.replace_active_process(Arc::clone(&candidate)) {
-        Ok(process) => process,
-        Err(error) => {
-            if let Some(previous_port) = previous.listen_port {
-                let _ = proxy_state.system_proxy.set(previous_port);
-            }
-            return Err(cleanup_candidate_runtime(
-                proxy_state,
-                &candidate,
-                &runtime,
-                format!("Failed to promote candidate process: {error}"),
-            ));
-        }
-    };
-    if let Err(error) = set_runtime_connected(proxy_state, &runtime, true) {
-        let _ = proxy_state.replace_active_process(previous_process);
-        if let Some(previous_port) = previous.listen_port {
-            let _ = proxy_state.system_proxy.set(previous_port);
-        }
-        return Err(cleanup_candidate_runtime(
-            proxy_state,
-            &candidate,
-            &runtime,
-            format!("Failed to record candidate runtime: {error}"),
-        ));
-    }
-
-    schedule_drain(
-        Arc::clone(&proxy_state.draining_cores),
-        Arc::clone(&proxy_state.operation_lock),
-        Arc::new(DrainingCore {
-            process: previous_process,
-            clash_api_port: previous.clash_api_port,
-            controller_scope: previous.controller_scope,
-            owned_runtime_dir: previous.owned_runtime_dir,
-        }),
-    );
-    // set_runtime_connected computed the new generation inside the swap.
-    let generation = proxy_state
-        .runtime_snapshot()
-        .map(|s| s.generation)
-        .unwrap_or(0);
-    proxy_state.store_preflight_handoff(&runtime, generation, verified_checks);
     Ok(())
 }
 
+/// Reload the active core in place. A generation is a routing revision, never
+/// a reason to change the public listener or controller identity.
+fn hot_swap_runtime(
+    proxy_state: &ProxyState,
+    mut runtime: RuntimeLaunch,
+    previous: RuntimeSnapshot,
+) -> Result<(), String> {
+    let result = reload_runtime_in_place(proxy_state, &mut runtime, &previous);
+    let cleanup = remove_owned_runtime_dir(runtime.owned_runtime_dir.as_deref());
+    match (result, cleanup) {
+        (Err(error), _) => Err(error),
+        (Ok(()), Err(error)) => {
+            // The routing commit succeeded; cleanup must not roll back only the
+            // saved configuration while leaving the new runtime active.
+            proxy_state.active_process()?.add_log("warn", &error);
+            Ok(())
+        }
+        (Ok(()), Ok(())) => Ok(()),
+    }
+}
+
+fn reload_runtime_in_place(
+    proxy_state: &ProxyState,
+    runtime: &mut RuntimeLaunch,
+    previous: &RuntimeSnapshot,
+) -> Result<(), String> {
+    reload_runtime_in_place_with(proxy_state, runtime, previous, verify_startup_proxy_content)
+}
+
+fn rollback_payload(
+    payload: &str,
+    groups: &[crate::mihomo::controller::StrategyGroup],
+) -> Result<String, String> {
+    let mut value: serde_json::Value = serde_json::from_str(payload).map_err(|e| e.to_string())?;
+    if let Some(configured) = value["proxy-groups"].as_array_mut() {
+        for group in configured {
+            if group["type"] == "select" {
+                if let Some(now) = groups
+                    .iter()
+                    .find(|g| Some(g.name.as_str()) == group["name"].as_str())
+                    .and_then(|g| g.now.as_ref())
+                {
+                    group["default-selected"] = serde_json::json!(now);
+                }
+            }
+        }
+    }
+    serde_json::to_string_pretty(&value).map_err(|e| e.to_string())
+}
+
+fn reload_runtime_in_place_with(
+    proxy_state: &ProxyState,
+    runtime: &mut RuntimeLaunch,
+    previous: &RuntimeSnapshot,
+    verify: impl FnOnce(u16) -> Result<Vec<NetworkContentCheck>, String>,
+) -> Result<(), String> {
+    use crate::mihomo::{controller, private_write};
+    let path = previous
+        .config_path
+        .as_ref()
+        .ok_or("Active config unavailable")?;
+    let port = previous
+        .clash_api_port
+        .ok_or("Active controller unavailable")?;
+    let listen_port = previous.listen_port.ok_or("Active listener unavailable")?;
+    let old_payload = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    // Ordinary selector PUTs do not rewrite the core startup file. Capture
+    // the currently selected groups so rollback cannot resurrect an old node.
+    let old_payload = rollback_payload(&old_payload, &controller::groups(port)?)?;
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&runtime.config_path).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    value["mixed-port"] = serde_json::json!(listen_port);
+    value["external-controller"] = serde_json::json!(format!("127.0.0.1:{port}"));
+    let payload = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    // Invalidate probes that may overlap even a subsequently rolled-back reload.
+    proxy_state.routing_changed(None)?;
+    let applied = (|| {
+        controller::reload(port, &payload)?;
+        let checks = verify(listen_port)?;
+        runtime.clash_api_port = port;
+        runtime.listen_port = listen_port;
+        synchronize_selected_node(runtime)?;
+        private_write(path, payload.as_bytes())?;
+        Ok::<_, String>(checks)
+    })();
+    let checks = match applied {
+        Ok(checks) => checks,
+        Err(error) => {
+            // Mihomo serializes ApplyConfig. This acknowledged rollback also
+            // covers a reload whose HTTP response timed out after it applied.
+            if let Err(rollback) = controller::reload(port, &old_payload)
+                .and_then(|_| private_write(path, old_payload.as_bytes()))
+            {
+                return Err(cleanup_runtime_failure_locked(
+                    proxy_state,
+                    previous.owned_runtime_dir.as_deref(),
+                    format!("Reload failed: {error}; rollback failed: {rollback}"),
+                ));
+            }
+            return Err(format!("Reload failed; previous routing restored: {error}"));
+        }
+    };
+    let mut snapshot = proxy_state.runtime.lock().map_err(|e| e.to_string())?;
+    snapshot.running_node_id = Some(runtime.node_id.clone());
+    snapshot.running_node_name = Some(runtime.node_name.clone());
+    snapshot.running_group_id = Some(runtime.group_id.clone());
+    snapshot.generation = snapshot.generation.saturating_add(1);
+    let generation = snapshot.generation;
+    drop(snapshot);
+    let stable_runtime = RuntimeLaunch {
+        listen_port,
+        clash_api_port: port,
+        config_path: path.clone(),
+        owned_runtime_dir: previous.owned_runtime_dir.clone(),
+        node_id: runtime.node_id.clone(),
+        node_name: runtime.node_name.clone(),
+        node_address: runtime.node_address.clone(),
+        node_port: runtime.node_port,
+        group_id: runtime.group_id.clone(),
+        group_name: runtime.group_name.clone(),
+    };
+    proxy_state.store_preflight_handoff(&stable_runtime, generation, checks);
+    Ok(())
+}
+
+#[cfg(test)]
 fn schedule_drain(
     draining_cores: Arc<Mutex<Vec<Arc<DrainingCore>>>>,
     operation_lock: Arc<Mutex<()>>,
@@ -1148,7 +1265,7 @@ pub fn prepare_runtime_launch(
         .map_err(|error| error.to_string())?
         .clone();
     let generation = proxy_state.runtime_snapshot()?.generation.saturating_add(1);
-    let listen_port = find_available_port(proxy_state.listen_port)?;
+    let listen_port = proxy_state.listen_port;
     let prepared = prepare_runtime_generation_with_port(&config, Some(generation), listen_port)?;
     runtime_launch_from_prepared(prepared, proxy_state)
 }
@@ -1211,12 +1328,14 @@ fn set_runtime_connected(
     *snapshot = RuntimeSnapshot {
         connected_at: Some(connected_at),
         running_node_id: Some(runtime.node_id.clone()),
+        running_node_name: Some(runtime.node_name.clone()),
         running_group_id: Some(runtime.group_id.clone()),
         clash_api_port: Some(runtime.clash_api_port),
         listen_port: Some(runtime.listen_port),
         config_path: Some(runtime.config_path.clone()),
         owned_runtime_dir: runtime.owned_runtime_dir.clone(),
         controller_scope: Some(uuid::Uuid::new_v4().to_string()),
+        traffic_generation: generation,
         generation,
     };
     drop(snapshot);
@@ -1296,33 +1415,6 @@ fn cleanup_unstarted_runtime(runtime: &RuntimeLaunch, error: String) -> String {
     match remove_owned_runtime_dir(runtime.owned_runtime_dir.as_deref()) {
         Ok(()) => error,
         Err(cleanup_error) => format!("{error}; {cleanup_error}"),
-    }
-}
-
-fn cleanup_candidate_runtime(
-    proxy_state: &ProxyState,
-    process: &Arc<MihomoProcess>,
-    runtime: &RuntimeLaunch,
-    error: String,
-) -> String {
-    match process.stop() {
-        Ok(()) => match remove_owned_runtime_dir(runtime.owned_runtime_dir.as_deref()) {
-            Ok(()) => error,
-            Err(cleanup_error) => format!("{error}; {cleanup_error}"),
-        },
-        Err(stop_error) => {
-            if let Ok(mut draining) = proxy_state.draining_cores.lock() {
-                draining.push(Arc::new(DrainingCore {
-                    process: Arc::clone(process),
-                    clash_api_port: None,
-                    controller_scope: None,
-                    owned_runtime_dir: runtime.owned_runtime_dir.clone(),
-                }));
-            }
-            format!(
-                "{error}; candidate exit was not confirmed, runtime artifacts retained: {stop_error}"
-            )
-        }
     }
 }
 

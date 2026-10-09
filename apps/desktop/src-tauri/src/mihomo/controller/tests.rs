@@ -97,6 +97,7 @@ fn real_mihomo_config_controller_and_connections() {
     let mut config = AppConfig::default_config();
     config.active_rule_group_mut().unwrap().rules.clear();
     config.subscriptions.push(Subscription {
+        nodes_only: false,
         id: "smoke".into(),
         name: "Smoke".into(),
         input: String::new(),
@@ -441,6 +442,7 @@ fn real_mihomo_keeps_imported_sources_isolated() {
             });
         }
         config.subscriptions.push(Subscription {
+            nodes_only: false,
             id: id.into(),
             name: name.into(),
             input: String::new(),
@@ -654,4 +656,21 @@ fn real_mihomo_keeps_imported_sources_isolated() {
         std::thread::sleep(Duration::from_millis(50));
     };
     assert_eq!(restarted.now.as_deref(), Some("JP-provider"));
+}
+
+#[test]
+fn reload_preserves_listeners_by_omitting_force_and_passes_payload() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let request = read_request(&mut socket);
+        socket.write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n").unwrap();
+        request
+    });
+    reload(port, "mixed-port: 2080\nrules: [MATCH,DIRECT]").unwrap();
+    let request = server.join().unwrap();
+    assert!(request.starts_with("PUT /configs HTTP/1.1\r\n"));
+    let body: Value = serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(body["payload"], "mixed-port: 2080\nrules: [MATCH,DIRECT]");
 }

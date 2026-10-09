@@ -1,3 +1,4 @@
+pub mod chain;
 pub mod commands;
 pub mod gate;
 pub mod lifecycle;
@@ -13,7 +14,7 @@ use commands::proxy::ProxyState;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use storage::app_config::AppConfig;
-use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 // ---------------------------------------------------------------------------
 // Central quit coordination
@@ -100,6 +101,7 @@ pub fn missing_mihomo_message() -> String {
 
 pub fn run() {
     let app_config = AppConfig::load();
+    let connect_on_start = std::env::args_os().skip(1).any(|arg| arg == "--connect");
 
     let operation_lock = Arc::new(Mutex::new(()));
     let app_state = Arc::new(AppState::new(app_config, Arc::clone(&operation_lock)));
@@ -113,8 +115,28 @@ pub fn run() {
         ))
         .manage(Arc::clone(&app_state))
         .manage(Arc::clone(&proxy_state))
-        .setup(|app| {
+        .setup(move |app| {
             tray::setup_tray(app)?;
+            // Remote deployments can start the normal, verified lifecycle
+            // without a second headless core or a separate system-proxy owner.
+            if connect_on_start {
+                let handle = app.handle().clone();
+                let state = app.state::<Arc<AppState>>().inner().clone();
+                let proxy = app.state::<Arc<ProxyState>>().inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    let result = tauri::async_runtime::spawn_blocking(move || {
+                        commands::proxy::connect_core(&state, &proxy)
+                    })
+                    .await;
+                    match result {
+                        Ok(Ok(())) => {}
+                        Ok(Err(error)) => eprintln!("Pingu startup connection failed: {error}"),
+                        Err(error) => eprintln!("Pingu startup task failed: {error}"),
+                    }
+                    let _ = handle.emit("tray-state-changed", ());
+                    let _ = tray::rebuild_tray_menu_on_main(handle);
+                });
+            }
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
@@ -123,8 +145,20 @@ pub fn run() {
                     interval.tick().await;
                     let proxy_state = app_handle.state::<Arc<ProxyState>>();
                     if proxy_state.is_running() {
-                        let _ = tauri::async_runtime::spawn_blocking(crate::gate::renew_if_enabled)
-                            .await;
+                        let app_state = app_handle.state::<Arc<AppState>>().inner().clone();
+                        let _ = tauri::async_runtime::spawn_blocking(move || {
+                            let _operation = app_state
+                                .operation_lock
+                                .lock()
+                                .map_err(|_| "Operation unavailable".to_string())?;
+                            let config = app_state
+                                .config
+                                .lock()
+                                .map_err(|_| "Configuration unavailable".to_string())?
+                                .clone();
+                            crate::chain::prepare_gate(&config)
+                        })
+                        .await;
                     }
                 }
             });
@@ -132,6 +166,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::chain::get_proxy_chain,
+            commands::chain::get_chain_runtime,
+            commands::chain::get_chain_probe_progress,
+            commands::chain::auto_select_chain,
+            commands::chain::save_proxy_chain,
+            commands::chain::compare_proxy_chain,
+            commands::chain::cancel_chain_comparison,
             commands::config::import_node,
             commands::network::list_subscriptions,
             commands::network::import_subscription,

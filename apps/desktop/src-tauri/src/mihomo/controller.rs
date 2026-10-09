@@ -11,9 +11,18 @@ pub fn authorize(request: ureq::Request) -> ureq::Request {
     request.set("Authorization", &format!("Bearer {}", secret()))
 }
 pub fn request(port: u16, method: &str, path: &str, body: Option<Value>) -> Result<Value, String> {
+    request_with_timeout(port, method, path, body, Duration::from_secs(12))
+}
+fn request_with_timeout(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+    timeout: Duration,
+) -> Result<Value, String> {
     let agent = ureq::AgentBuilder::new()
         .redirects(0)
-        .timeout(Duration::from_secs(12))
+        .timeout(timeout)
         .build();
     let request = authorize(agent.request(method, &format!("http://127.0.0.1:{port}{path}")));
     let response = match body {
@@ -31,6 +40,18 @@ pub fn request(port: u16, method: &str, path: &str, body: Option<Value>) -> Resu
         .into_json()
         .map_err(|_| "Invalid Mihomo controller response.".into())
 }
+/// No force flag: Mihomo preserves the mixed listener and established streams.
+pub fn reload(port: u16, payload: &str) -> Result<(), String> {
+    request_with_timeout(
+        port,
+        "PUT",
+        "/configs",
+        Some(json!({"payload": payload})),
+        Duration::from_secs(90),
+    )?;
+    Ok(())
+}
+
 fn segment(name: &str) -> String {
     percent_encoding::utf8_percent_encode(name, percent_encoding::NON_ALPHANUMERIC)
         .to_string()

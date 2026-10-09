@@ -56,6 +56,7 @@ fn validate_candidate(subscription: &Subscription) -> Result<(), String> {
 pub async fn import_subscription(
     name: String,
     input: String,
+    nodes_only: Option<bool>,
     state: State<'_, Arc<AppState>>,
     proxy_state: State<'_, Arc<ProxyState>>,
 ) -> Result<SubscriptionSummary, String> {
@@ -65,6 +66,7 @@ pub async fn import_subscription(
         let name = profiles::validate_name(&name)?;
         let (fragment, warnings) = profiles::load_input(&input)?;
         let subscription = Subscription {
+            nodes_only: nodes_only.unwrap_or(false),
             id: uuid::Uuid::new_v4().to_string(),
             name,
             input: input.trim().into(),
@@ -206,14 +208,140 @@ fn api_port(proxy: &ProxyState) -> Result<u16, String> {
         .clash_api_port
         .ok_or("Mihomo controller unavailable.".into())
 }
+/// Static choices remain available before connecting, including subscription
+/// nodes. Provider-only members appear when the core has fetched the provider.
+fn offline_strategy_groups(
+    config: &crate::storage::app_config::AppConfig,
+) -> Result<Vec<controller::StrategyGroup>, String> {
+    let value = crate::mihomo::config_gen::try_generate_app_config(
+        config,
+        config.active_rule_group()?,
+        &[],
+        0,
+        0,
+    )?;
+    Ok(value["proxy-groups"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|g| {
+            let all = g["proxies"]
+                .as_array()?
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect::<Vec<_>>();
+            let selected = g["default-selected"]
+                .as_str()
+                .filter(|s| all.iter().any(|n| n == s))
+                .map(str::to_string)
+                .or_else(|| all.first().cloned());
+            Some(controller::StrategyGroup {
+                name: g["name"].as_str()?.into(),
+                kind: g["type"].as_str()?.into(),
+                now: selected,
+                all,
+                alive: false,
+                history: vec![],
+            })
+        })
+        .collect())
+}
 #[tauri::command]
 pub async fn list_strategy_groups(
+    state: State<'_, Arc<AppState>>,
     proxy_state: State<'_, Arc<ProxyState>>,
 ) -> Result<Vec<controller::StrategyGroup>, String> {
+    let app = state.inner().clone();
     let proxy = proxy_state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || controller::groups(api_port(&proxy)?))
-        .await
-        .map_err(|_| "Strategy query failed".to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let _lock = app
+            .operation_lock
+            .lock()
+            .map_err(|_| "Operation unavailable")?;
+        if proxy.is_running() {
+            controller::groups(api_port(&proxy)?)
+        } else {
+            offline_strategy_groups(
+                &app.config
+                    .lock()
+                    .map_err(|_| "Configuration unavailable")?
+                    .clone(),
+            )
+        }
+    })
+    .await
+    .map_err(|_| "Strategy query failed".to_string())?
+}
+
+fn select_strategy_locked(
+    app: &AppState,
+    proxy: &ProxyState,
+    group: String,
+    name: String,
+) -> Result<(), String> {
+    if proxy.is_shutting_down() {
+        return Err("Pingu is shutting down".into());
+    }
+    let _phase = proxy.operation_phase("switching");
+    let mut config = app
+        .config
+        .lock()
+        .map_err(|_| "Configuration unavailable")?
+        .clone();
+    if config.proxy_chain.enabled {
+        return Err("Disable the chain before changing strategy groups.".into());
+    }
+    let port = if proxy.is_running() {
+        Some(api_port(proxy)?)
+    } else {
+        None
+    };
+    let groups = match port {
+        Some(port) => controller::groups(port)?,
+        None => offline_strategy_groups(&config)?,
+    };
+    let g = groups
+        .iter()
+        .find(|g| g.name == group)
+        .ok_or("Strategy group not found")?;
+    if !matches!(g.kind.to_lowercase().as_str(), "selector" | "select") {
+        return Err("Only selector groups allow manual selection.".into());
+    }
+    if !g.all.contains(&name) {
+        return Err("Proxy does not belong to this group.".into());
+    }
+    if g.now.as_ref() == Some(&name) && config.strategy_selections.get(&group) == Some(&name) {
+        return Ok(());
+    }
+    config
+        .strategy_selections
+        .insert(group.clone(), name.clone());
+    let changed = (|| {
+        if let Some(port) = port {
+            proxy.routing_changed(None)?;
+            controller::select(port, &group, &name)?;
+            crate::proxy_runtime::verify_startup_proxy_content(proxy.active_listen_port())?;
+        }
+        config.save()
+    })();
+    if let Err(error) = changed {
+        if let (Some(port), Some(now)) = (port, &g.now) {
+            if let Err(rollback) = controller::select(port, &group, now) {
+                let cleanup = crate::lifecycle::disconnect_locked(proxy, false).err();
+                return Err(format!(
+                    "{error}; selection rollback failed: {rollback}; proxy stopped{}",
+                    cleanup.map(|e| format!(": {e}")).unwrap_or_default()
+                ));
+            }
+        }
+        return Err(error);
+    }
+    let selected_id = crate::proxy_runtime::resolve_runtime_selection(&config)
+        .ok()
+        .map(|s| (s.node.id, s.node.name));
+    *app.config.lock().map_err(|_| "Configuration unavailable")? = config;
+    proxy.routing_changed(selected_id)?;
+    Ok(())
 }
 #[tauri::command]
 pub async fn select_strategy_proxy(
@@ -229,36 +357,7 @@ pub async fn select_strategy_proxy(
             .operation_lock
             .lock()
             .map_err(|_| "Operation unavailable")?;
-        let port = api_port(&proxy)?;
-        let groups = controller::groups(port)?;
-        let g = groups
-            .iter()
-            .find(|g| g.name == group)
-            .ok_or("Strategy group not found")?;
-        if g.kind.to_lowercase() != "selector" && g.kind.to_lowercase() != "select" {
-            return Err("Only selector groups allow manual selection.".into());
-        }
-        if !g.all.contains(&name) {
-            return Err("Proxy does not belong to this group.".into());
-        }
-        controller::select(port, &group, &name)?;
-        let mut config = app.config.lock().map_err(|_| "Configuration unavailable")?;
-        let previous = config.strategy_selections.insert(group.clone(), name);
-        if let Err(error) = config.save() {
-            match previous {
-                Some(previous) => {
-                    config.strategy_selections.insert(group.clone(), previous);
-                }
-                None => {
-                    config.strategy_selections.remove(&group);
-                }
-            }
-            if let Some(now) = &g.now {
-                let _ = controller::select(port, &group, now);
-            }
-            return Err(error);
-        }
-        Ok(())
+        select_strategy_locked(&app, &proxy, group, name)
     })
     .await
     .map_err(|_| "Strategy selection task failed".to_string())?

@@ -72,6 +72,7 @@ fn sample_group(id: &str, name: &str) -> RuleGroup {
 
 fn sample_config() -> AppConfig {
     AppConfig {
+        proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),
         nodes: vec![sample_node("node-1")],
@@ -106,6 +107,8 @@ fn build_proxy_status_returns_group_name_from_config() {
         status,
         ProxyStatus {
             connected: true,
+            phase: "connected".into(), routing_revision: 0,
+            active_node_name: Some(sample_config().nodes[0].name.clone()),
             active_node_id: Some("node-1".to_string()),
             active_group_id: Some("group-1".to_string()),
             active_group_name: Some("Default".to_string()),
@@ -128,6 +131,7 @@ fn build_proxy_status_resets_snapshot_when_disconnected() {
         status,
         ProxyStatus {
             connected: false,
+            phase: "disconnected".into(), routing_revision: 0, active_node_name: None,
             active_node_id: None,
             active_group_id: None,
             active_group_name: None,
@@ -185,6 +189,26 @@ fn ai_preflight_reports_the_effective_route_for_each_service() {
     assert!(!report.ready);
     assert_eq!(report.routes[3].outbound, "direct");
     assert_eq!(report.routes[3].matched_by, "domain: chatgpt.com");
+}
+
+#[test]
+fn ai_preflight_does_not_mistake_dynamic_default_routing_for_direct() {
+    let mut config = AppConfig::default_config();
+    let report = build_ai_service_preflight(
+        &config, "203.0.113.1".into(), content_checks_for_egress("203.0.113.1".into()),
+    ).unwrap();
+    assert!(report.routes.iter().all(|route| route.outbound == "runtime"));
+
+    // A rule before the dataset is still authoritative and can be reported.
+    config.rule_groups[0].rules.insert(0, Rule {
+        id: "explicit".into(), rule_type: "domain".into(),
+        match_value: "api.anthropic.com".into(), outbound: "proxy".into(),
+    });
+    let report = build_ai_service_preflight(
+        &config, "203.0.113.1".into(), content_checks_for_egress("203.0.113.1".into()),
+    ).unwrap();
+    assert_eq!(report.routes[0].outbound, "proxy");
+    assert_eq!(report.routes[1].outbound, "runtime");
 }
 
 #[test]
@@ -415,6 +439,7 @@ fn prepare_runtime_reports_unsupported_subscription_construct() {
     config
         .subscriptions
         .push(crate::mihomo::profiles::Subscription {
+            nodes_only: false,
             id: "source".into(),
             name: "Source".into(),
             input: String::new(),
@@ -474,6 +499,7 @@ fn rejected_generation_removes_only_its_fresh_owned_directory() {
     config
         .subscriptions
         .push(crate::mihomo::profiles::Subscription {
+            nodes_only: false,
             id: "source".into(),
             name: "Source".into(),
             input: String::new(),
@@ -511,4 +537,39 @@ fn rejected_generation_removes_only_its_fresh_owned_directory() {
         b"preview"
     );
     assert_eq!(std::fs::read(persisted).unwrap(), b"persisted");
+}
+
+#[test]
+fn startup_checks_retry_a_listening_but_unready_core() {
+    let mut attempts = 0;
+    let checks = retry_startup_check(Duration::from_secs(1), Duration::ZERO, |_| {
+        attempts += 1;
+        if attempts < 3 {
+            Err("Provider initialization has not finished".into())
+        } else {
+            Ok(content_checks_for_egress("192.0.2.1".into()))
+        }
+    }).unwrap();
+    assert_eq!(attempts, 3);
+    assert_eq!(checks[0].observed_ip.as_deref(), Some("192.0.2.1"));
+}
+
+#[test]
+fn startup_checks_fail_closed_when_no_attempt_is_ready() {
+    let result: Result<(), String> = retry_startup_check(
+        Duration::from_secs(1), Duration::from_secs(2),
+        |_| Err("Provider initialization failed".into()),
+    );
+    assert_eq!(result.unwrap_err(), "Provider initialization failed");
+}
+
+#[test]
+fn saved_subscription_selection_overrides_legacy_manual_node() {
+    let mut config = sample_config();
+    config.strategy_selections.insert("Pingu Proxy".into(), "Source / Exit".into());
+    let selected = resolve_runtime_selection(&config).unwrap();
+    assert_eq!(selected.node.name, "Source / Exit");
+    assert_ne!(selected.node.id, "node-1");
+    config.set_active_node("node-1").unwrap();
+    assert_eq!(resolve_runtime_selection(&config).unwrap().node.id, "node-1");
 }

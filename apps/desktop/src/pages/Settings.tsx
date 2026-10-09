@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Tooltip from "../components/Tooltip";
 import { t, getLang, setLang } from "../lib/i18n";
 import { useI18nRerender } from "../hooks/useI18nRerender";
 import { useGateSettings } from "../hooks/useGateSettings";
@@ -76,15 +77,13 @@ export default function Settings() {
     }
   };
 
-  const gateReady = Boolean(gate.settings?.configured && !gate.settings.last_error);
+  const gateReady = Boolean(gate.settings?.configured && gate.settings.enabled && !gate.settings.last_error);
 
   return (
     <div className="page-shell settings-page">
       <header className="page-header">
         <div>
-          <p className="page-kicker">{t("settings.kicker")}</p>
           <h1 className="page-title">{t("settings.workspace_title")}</h1>
-          <p className="page-description">{t("settings.workspace_desc")}</p>
         </div>
       </header>
 
@@ -97,7 +96,6 @@ export default function Settings() {
           <div className="setting-row">
             <div>
               <strong>{t("settings.autostart")}</strong>
-              <p>{t("settings.autostart_desc")}</p>
             </div>
             <Toggle
               checked={autostart}
@@ -110,7 +108,6 @@ export default function Settings() {
           <div className="setting-row setting-row-language">
             <div>
               <strong>{t("settings.language")}</strong>
-              <p>{t("settings.language_desc")}</p>
             </div>
             <div className="language-selector" role="group" aria-label={t("settings.language")}>
               <button
@@ -139,14 +136,14 @@ export default function Settings() {
               data-state={gate.settings?.last_error ? "attention" : gateReady ? "active" : "idle"}
             >
               <span className="status-dot" />
-              <span>{gateReady ? t("settings.gate_ready") : t("settings.gate_attention")}</span>
+              <span>{!gate.settings?.enabled ? t("workspace.disabled") : gateReady ? t("settings.gate_ready") : t("settings.gate_attention")}</span>
             </div>
           </div>
 
           <div className="settings-gate-title">
             <div>
               <h2>{t("settings.gate")}</h2>
-              <p>{t("settings.gate_desc")}</p>
+              <Tooltip text={t("settings.gate_desc")} />
             </div>
             <Toggle
               checked={Boolean(gate.settings?.enabled)}
@@ -156,7 +153,6 @@ export default function Settings() {
             />
           </div>
 
-          <p className="gate-security-note">{t("settings.access_note")}</p>
 
           <div className="gate-link-form">
             <label htmlFor="gate-access-link">{t("settings.gate_placeholder")}</label>
@@ -184,7 +180,7 @@ export default function Settings() {
             </div>
           </div>
 
-          {gate.settings?.configured && (
+          {gate.settings?.configured && gate.settings.enabled && (
             <div className="gate-lease-details">
               <div>
                 <span>{t("settings.gate_current_ip")}</span>

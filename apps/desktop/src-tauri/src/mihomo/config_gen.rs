@@ -12,11 +12,14 @@ pub struct ExactDnsPolicy {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
+    #[serde(default = "new_rule_id")]
     pub id: String,
     pub rule_type: String,
     pub match_value: String,
     pub outbound: String,
 }
+
+fn new_rule_id() -> String { uuid::Uuid::new_v4().to_string() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleGroup {
@@ -173,7 +176,7 @@ fn target(name: &str) -> &str {
 fn dns_server(name: &str) -> &str {
     match name {
         "system-dns" => "system",
-        "remote-dns" => "https://dns.google/dns-query",
+        "remote-dns" => "https://dns.google/dns-query#Pingu Proxy",
         "local-dns" => "223.5.5.5",
         other => other,
     }
@@ -185,11 +188,18 @@ fn mapped(name: &str, map: &std::collections::HashMap<String, String>) -> String
 /// Mihomo builds an include-all group from every top-level proxy in the generated
 /// document, so namespacing names alone would leak one source's nodes into another.
 /// These three keys are recomposed per source instead of being passed through.
-const SOURCE_SCOPED_GROUP_KEYS: [&str; 3] = ["include-all", "include-all-proxies", "include-all-providers"];
+const SOURCE_SCOPED_GROUP_KEYS: [&str; 3] = [
+    "include-all",
+    "include-all-proxies",
+    "include-all-providers",
+];
 fn flag(value: &Value) -> bool {
     match value {
         Value::Bool(_) => value.as_bool().unwrap_or(false),
-        Value::String(s) => matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "yes" | "on" | "1"),
+        Value::String(s) => matches!(
+            s.trim().to_ascii_lowercase().as_str(),
+            "true" | "yes" | "on" | "1"
+        ),
         _ => false,
     }
 }
@@ -277,7 +287,12 @@ fn source_members(
     // As in the pinned parser, an include-all group with neither proxies nor providers
     // to draw on falls back to its empty-fallback (COMPATIBLE by default).
     if include_proxies && proxies.is_empty() && uses.is_empty() {
-        proxies.push(group["empty-fallback"].as_str().unwrap_or("COMPATIBLE").to_string());
+        proxies.push(
+            group["empty-fallback"]
+                .as_str()
+                .unwrap_or("COMPATIBLE")
+                .to_string(),
+        );
     }
     Ok(SourceMembers {
         proxies: proxies.iter().map(|name| mapped(name, map)).collect(),
@@ -310,7 +325,7 @@ fn rewrite_dns(v: &mut Value, map: &std::collections::HashMap<String, String>) {
 /// Namespace only fields that name source-local runtime objects. Rewriting
 /// every comma-separated token corrupts legitimate payloads when, for example,
 /// a DOMAIN or PROCESS-NAME happens to equal a proxy/group display name.
-fn rewrite_rule(rule: &str, map: &std::collections::HashMap<String, String>) -> String {
+pub(crate) fn rewrite_rule(rule: &str, map: &std::collections::HashMap<String, String>) -> String {
     let mut parts = rule
         .split(',')
         .map(|part| part.trim().to_string())
@@ -328,8 +343,8 @@ fn rewrite_rule(rule: &str, map: &std::collections::HashMap<String, String>) -> 
     // the final field. Ordinary rules use field 2 and preserve trailing params.
     let policy_index = match kind.as_str() {
         "MATCH" | "FINAL" => 1,
-        "NOT" | "OR" | "AND" | "SUB-RULE" | "DOMAIN-REGEX"
-        | "PROCESS-NAME-REGEX" | "PROCESS-PATH-REGEX" => parts.len().saturating_sub(1),
+        "NOT" | "OR" | "AND" | "SUB-RULE" | "DOMAIN-REGEX" | "PROCESS-NAME-REGEX"
+        | "PROCESS-PATH-REGEX" => parts.len().saturating_sub(1),
         _ => 2,
     };
     if parts.len() > policy_index {
@@ -375,7 +390,21 @@ pub fn try_generate_app_config(
     let mut rule_providers = serde_json::Map::new();
     let mut imported_rules = Vec::new();
     let mut imported_default = None;
-    let mut dns = json!({"enable":true,"ipv6":false,"enhanced-mode":"redir-host","nameserver":["https://dns.google/dns-query","https://cloudflare-dns.com/dns-query"],"default-nameserver":["223.5.5.5","1.1.1.1"],"proxy-server-nameserver":["system"],"nameserver-policy":{}});
+    // Direct traffic and IP rules must resolve even when foreign DoH endpoints
+    // are blocked. Proxy protocols resolve destination domains at their exit;
+    // an explicit remote-dns override goes through Pingu Proxy (see dns_server).
+    // Keep local/corporate policies authoritative for direct connections too.
+    let mut dns = json!({
+        "enable": true,
+        "ipv6": false,
+        "enhanced-mode": "redir-host",
+        "nameserver": ["system"],
+        "default-nameserver": ["system"],
+        "proxy-server-nameserver": ["system"],
+        "direct-nameserver": ["system"],
+        "direct-nameserver-follow-policy": true,
+        "nameserver-policy": {}
+    });
     let mut nodes = config.nodes.iter().collect::<Vec<_>>();
     nodes.sort_by_key(|n| config.active_node_id.as_deref() != Some(n.id.as_str()));
     for node in nodes {
@@ -387,7 +416,20 @@ pub fn try_generate_app_config(
         proxies.push(p);
     }
     for subscription in config.subscriptions.iter().filter(|s| s.enabled) {
-        let f = &subscription.fragment;
+        // Keep the provider's original document for refresh, but optionally use
+        // it only as a node catalog without taking over the user's routing/DNS.
+        let mut node_catalog;
+        let f = if subscription.nodes_only {
+            node_catalog = subscription.fragment.clone();
+            if let Some(object) = node_catalog.as_object_mut() {
+                for key in ["rules", "rule-providers", "dns"] {
+                    object.remove(key);
+                }
+            }
+            &node_catalog
+        } else {
+            &subscription.fragment
+        };
         let prefix = format!(
             "{} [{}]",
             subscription.name,
@@ -754,7 +796,7 @@ pub fn try_generate_app_config(
                     } else {
                         "ipcidr"
                     };
-                    rule_providers.insert(key.clone(),json!({"type":"http","behavior":behavior,"format":"mrs","url":format!("https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/{}/{}.mrs",rule.rule_type,value),"path":format!("providers/{key}.mrs"),"interval":86400}));
+                    rule_providers.insert(key.clone(),json!({"type":"http","behavior":behavior,"format":"mrs","url":format!("https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/{}/{}.mrs",rule.rule_type,value),"path":format!("providers/{key}.mrs"),"proxy":"Pingu Proxy","interval":86400}));
                     rules.push(format!("RULE-SET,{key},{t}"));
                 }
             }
@@ -768,7 +810,8 @@ pub fn try_generate_app_config(
     } else {
         imported_default.unwrap_or_else(|| "MATCH,Pingu Proxy".into())
     });
-    let value = json!({"mixed-port":port,"allow-lan":false,"bind-address":"127.0.0.1","mode":"rule","log-level":"info","ipv6":false,"external-controller":format!("127.0.0.1:{api}"),"secret":super::controller::secret(),"profile":{"store-selected":false,"store-fake-ip":false},"find-process-mode":"strict","dns":dns,"proxies":proxies,"proxy-groups":groups,"proxy-providers":proxy_providers,"rule-providers":rule_providers,"rules":rules});
+    let mut value = json!({"mixed-port":port,"allow-lan":false,"bind-address":"127.0.0.1","mode":"rule","log-level":"info","ipv6":false,"external-controller":format!("127.0.0.1:{api}"),"secret":super::controller::secret(),"profile":{"store-selected":false,"store-fake-ip":false},"find-process-mode":"strict","dns":dns,"proxies":proxies,"proxy-groups":groups,"proxy-providers":proxy_providers,"rule-providers":rule_providers,"rules":rules});
+    crate::chain::apply(config, &mut value)?;
     Ok(value)
 }
 #[cfg(test)]

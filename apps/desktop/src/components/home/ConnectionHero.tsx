@@ -19,6 +19,7 @@ function PowerIcon() {
 
 interface ConnectionHeroProps {
   connected: boolean;
+  connectLabel?: string;
   uptimeSeconds: number;
   loading: boolean;
   error: string | null;
@@ -29,6 +30,7 @@ interface ConnectionHeroProps {
 
 export function ConnectionHero({
   connected,
+  connectLabel,
   uptimeSeconds,
   loading,
   error,
@@ -46,61 +48,21 @@ export function ConnectionHero({
     return () => clearInterval(timer);
   }, [connected, uptimeSeconds]);
 
-  const action = connected ? t("home.disconnect_action") : t("home.connect_action");
+  const action = connected ? t("home.disconnect_action") : connectLabel ?? t("home.connect_action");
 
   return (
-    <section className="surface connection-console" data-state={connected ? "active" : "idle"}>
-      <div className="connection-console-head">
-        <span className="section-label">{t("home.link_control")}</span>
+    <section className="surface connection-bar" data-state={connected ? "active" : "idle"}>
+      <span className="connection-indicator" aria-hidden="true" />
+      <div className="connection-summary">
+        <strong aria-live="polite">{loading ? t("home.connecting_status") : connected ? t("home.connected") : t("home.disconnected")}</strong>
+        <span>{activeNodeName ?? t("home.no_node")}</span>
       </div>
-
-      <div className="connection-console-body">
-        <button
-          type="button"
-          onClick={() => void onToggleConnection()}
-          disabled={loading}
-          aria-label={action}
-          aria-pressed={connected}
-          className="power-control"
-        >
-          <span className="power-control-ring" aria-hidden="true" />
-          <PowerIcon />
-        </button>
-
-        <div className="connection-state">
-          <p className="connection-state-name" aria-live="polite">
-            {loading
-              ? t("home.connecting_status")
-              : connected
-                ? t("home.connected_status")
-                : t("home.disconnected_status")}
-          </p>
-          <p className="connection-action-hint">{action}</p>
-          {connected && activeNodeName && (
-            <p className="connection-node">{activeNodeName}</p>
-          )}
-        </div>
-      </div>
-
-      {error && (
-        <button type="button" className="connection-error" onClick={onClearError}>
-          {error}
-          <span className="connection-error-close" aria-hidden="true">×</span>
-        </button>
-      )}
-
-      <div className="connection-console-foot">
-        <div>
-          <span className="section-label">{t("home.uptime")}</span>
-          <strong className="connection-time">{formatTime(elapsed)}</strong>
-        </div>
-        <span className="connection-signal" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-          <i />
-        </span>
-      </div>
+      <span className="connection-elapsed" title={t("home.uptime")}>{connected ? formatTime(elapsed) : "—"}</span>
+      <button type="button" className={connected ? "action-secondary" : "action-primary"} disabled={loading}
+        onClick={() => void onToggleConnection()} aria-pressed={connectLabel ? undefined : connected}>
+        <PowerIcon />{action}
+      </button>
+      {error && <button className="connection-error" role="alert" onClick={onClearError}>{error} ×</button>}
     </section>
   );
 }

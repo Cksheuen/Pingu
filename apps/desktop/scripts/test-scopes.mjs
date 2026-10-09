@@ -14,9 +14,13 @@ export const scopes = {
     // this is a shared production input, not a scope dependency cycle.
     sharedSources: ['src-tauri/src/mihomo/profiles.rs'],
   },
+  chain: {
+    ...rust(['chain.rs', 'chain/probe.rs', 'chain/latency.rs', 'commands/chain.rs'], ['chain::'], ['nodes', 'gate']),
+    sharedSources: ['src-tauri/src/storage/app_config.rs', 'src-tauri/src/mihomo/config_gen.rs', 'src-tauri/src/mihomo/profiles.rs', 'src-tauri/src/mihomo/controller.rs'],
+  },
   config: rust(['storage/app_config.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::'], ['nodes']),
   subscriptions: rust(['mihomo/profiles.rs', 'mihomo/controller.rs', 'commands/network.rs'], ['mihomo::profiles::', 'mihomo::controller::'], ['nodes']),
-  routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions']),
+  routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions', 'chain']),
   runtime: rust(['proxy_runtime.rs'], ['proxy_runtime::'], ['routing']),
   gate: rust(['gate.rs', 'storage/gate_config.rs', 'commands/gate.rs'], ['gate::', 'storage::gate_config::']),
   system: rust(['system/mod.rs', 'system/proxy_macos.rs'], ['system::proxy_macos::']),
@@ -30,8 +34,8 @@ export const scopes = {
   },
   frontend: {
     kind: 'frontend', dependencies: [],
-    sources: ['src/lib/connection-store.ts', 'src/lib/connection-api.ts', 'src/lib/nodes-api.ts', 'src/lib/proxy-api.ts', 'src/lib/tauri-invoke.ts', 'src/lib/types.ts', 'src/lib/mihomo-api.ts', 'src/lib/network-view.ts', 'src/lib/subscription-store.ts'],
-    tests: ['tests/connection-store.test.ts', 'tests/network-view.test.ts', 'tests/subscription-store.test.ts', 'tests/node-shims.d.ts'],
+    sources: ['src/lib/confirm-action.ts', 'src/lib/runtime-operation.ts', 'src/lib/connection-store.ts', 'src/lib/connection-api.ts', 'src/lib/nodes-api.ts', 'src/lib/proxy-api.ts', 'src/lib/tauri-invoke.ts', 'src/lib/types.ts', 'src/lib/mihomo-api.ts', 'src/lib/chain-api.ts', 'src/lib/network-view.ts', 'src/lib/subscription-store.ts'],
+    tests: ['tests/runtime-operation.test.ts', 'tests/chain-api.test.ts', 'tests/connection-store.test.ts', 'tests/network-view.test.ts', 'tests/subscription-store.test.ts', 'tests/node-shims.d.ts'],
   },
   ui: { kind: 'typecheck', sources: ['src/'], tests: [], dependencies: [] },
   runner: {

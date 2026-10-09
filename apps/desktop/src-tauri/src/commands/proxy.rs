@@ -59,8 +59,8 @@ pub fn get_status(
     app_state: State<Arc<AppState>>,
     proxy_state: State<Arc<ProxyState>>,
 ) -> Result<ProxyStatus, String> {
-    let connected = proxy_state.is_running();
     let runtime = proxy_state.runtime_snapshot()?;
+    let connected = proxy_state.is_running() && runtime.connected_at.is_some();
     let uptime = if connected {
         runtime
             .connected_at
@@ -72,13 +72,29 @@ pub fn get_status(
     // Only a short lock: config generation never holds this mutex anymore.
     let config = app_state.config.lock().map_err(|error| error.to_string())?;
 
-    Ok(build_proxy_status(
+    let mut status = build_proxy_status(
         &config,
         connected,
         uptime,
         connected.then_some(runtime.running_node_id).flatten(),
         connected.then_some(runtime.running_group_id).flatten(),
-    ))
+    );
+    status.routing_revision = runtime.generation;
+    if connected {
+        status.active_node_name = runtime.running_node_name;
+    }
+    if let Some(phase) = proxy_state.phase() {
+        status.phase = phase.into();
+    }
+    if !connected {
+        if let Ok(selection) = crate::proxy_runtime::resolve_runtime_selection(&config) {
+            status.active_node_id = Some(selection.node.id);
+            status.active_node_name = Some(selection.node.name);
+            status.active_group_id = Some(selection.rule_group.id);
+            status.active_group_name = Some(selection.rule_group.name);
+        }
+    }
+    Ok(status)
 }
 
 #[tauri::command]

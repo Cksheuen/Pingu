@@ -1,3 +1,4 @@
+import { SectionHeader } from "../components/SectionHeader";
 import { useState } from "react";
 import { t } from "../lib/i18n";
 import { useLogsPageModel } from "../hooks/useLogsPageModel";
@@ -36,7 +37,7 @@ function matchesLevel(level: string, filter: LevelFilter): boolean {
   }
 }
 
-export default function Logs() {
+export default function Logs({ embedded = false }: { embedded?: boolean }) {
   const { logs, logPath, containerRef, handleClear } = useLogsPageModel();
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
   const [query, setQuery] = useState("");
@@ -52,20 +53,15 @@ export default function Logs() {
   });
 
   return (
-    <div className="page-shell">
-      <header className="page-header">
-        <div>
-          <p className="page-kicker">{t("logs.kicker")}</p>
-          <h1 className="page-title">{t("logs.title")}</h1>
-          <p className="page-description">{t("logs.desc")}</p>
-        </div>
+    <div className={embedded ? "workspace-section" : "page-shell"}>
+      <SectionHeader title={t("logs.title")} embedded={embedded}>
         <button
           onClick={handleClear}
           className="action-secondary"
         >
           {t("logs.clear")}
         </button>
-      </header>
+      </SectionHeader>
 
       <div className="log-toolbar">
         {LEVEL_CHIP_KEYS.map((key) => (
@@ -85,6 +81,7 @@ export default function Logs() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("logs.search_placeholder")}
+          aria-label={t("logs.search_placeholder")}
         />
       </div>
 
@@ -98,7 +95,7 @@ export default function Logs() {
       {/* Log area */}
       <div
         ref={containerRef}
-        className="surface flex-1 overflow-y-auto"
+        className="surface log-output overflow-y-auto"
         style={{ padding: "16px" }}
       >
         {visibleLogs.length === 0 ? (

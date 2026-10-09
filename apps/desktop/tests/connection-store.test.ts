@@ -109,3 +109,24 @@ test("a failed status request in refreshAll leaves the previously published snap
   await assert.rejects(useConnectionStore.getState().refreshAll(), /status read failed/);
   assert.equal(useConnectionStore.getState(), before);
 });
+
+test("selector changes with the same node id publish a new routing revision", async () => {
+  useConnectionStore.setState({ status: { ...connected, routing_revision: 1, active_node_name: "Exit A" } });
+  respond(async () => ({ ...connected, routing_revision: 2, active_node_name: "Exit B" }));
+  await useConnectionStore.getState().refreshStatus();
+  assert.equal(useConnectionStore.getState().status.routing_revision, 2);
+  assert.equal(useConnectionStore.getState().status.active_node_name, "Exit B");
+});
+
+test("a late pre-switch poll cannot replace a completed routing readback", async () => {
+  const old = deferred<ProxyStatus>();
+  let statusCalls = 0;
+  respond(async command => {
+    if (command === "get_status") return ++statusCalls === 1 ? old.promise : { ...connected, routing_revision: 5 };
+    return command === "list_nodes" ? [] : { listen_port: 2080 };
+  });
+  const poll = useConnectionStore.getState().refreshStatus();
+  await useConnectionStore.getState().refreshAll();
+  old.resolve({ ...connected, routing_revision: 4 }); await poll;
+  assert.equal(useConnectionStore.getState().status.routing_revision, 5);
+});

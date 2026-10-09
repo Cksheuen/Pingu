@@ -1,3 +1,4 @@
+import Select from "../Select";
 import { useState } from "react";
 import type { Outbound, Rule, RuleType } from "../../lib/types";
 import { t } from "../../lib/i18n";
@@ -42,19 +43,7 @@ export function AddRuleDialog({ onClose, onAdd }: AddRuleDialogProps) {
           <label className="dialog-field-label">
             {t("rules.type_label")}
           </label>
-          <select
-            value={ruleType}
-            onChange={(e) => setRuleType(e.target.value as RuleType)}
-            aria-label={t("rules.type_label")}
-            className="dialog-field"
-          >
-            <option value="geosite">GeoSite</option>
-            <option value="geoip">GeoIP</option>
-            <option value="domain_suffix">Domain Suffix</option>
-            <option value="domain">Domain</option>
-            <option value="ip_cidr">IP CIDR</option>
-            <option value="ip_is_private">IP Private</option>
-          </select>
+          <Select label={t("rules.type_label")} value={ruleType} onChange={value => setRuleType(value as RuleType)} options={[{value:"geosite",label:"GeoSite"},{value:"geoip",label:"GeoIP"},{value:"domain_suffix",label:"Domain Suffix"},{value:"domain",label:"Domain"},{value:"ip_cidr",label:"IP CIDR"},{value:"ip_is_private",label:"IP Private"}]} />
         </div>
 
         {!isPrivateType && (

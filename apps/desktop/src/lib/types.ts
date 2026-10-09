@@ -29,6 +29,9 @@ export interface Rule {
 
 export interface ProxyStatus {
   connected: boolean;
+  phase?: "disconnected" | "connecting" | "verifying" | "connected" | "switching" | "disconnecting";
+  routing_revision?: number;
+  active_node_name?: string | null;
   active_node_id: string | null;
   active_group_id: string | null;
   active_group_name: string | null;

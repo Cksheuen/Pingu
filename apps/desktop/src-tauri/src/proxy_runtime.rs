@@ -1,7 +1,7 @@
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use url::Url;
@@ -23,6 +23,9 @@ const AI_SERVICE_TARGETS: [(&str, &str); 4] = [
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ProxyStatus {
     pub connected: bool,
+    pub phase: String,
+    pub routing_revision: u64,
+    pub active_node_name: Option<String>,
     pub active_node_id: Option<String>,
     pub active_group_id: Option<String>,
     pub active_group_name: Option<String>,
@@ -103,23 +106,43 @@ pub fn app_config_dir() -> Result<PathBuf, String> {
 }
 
 pub fn resolve_runtime_selection(config: &AppConfig) -> Result<RuntimeSelection, String> {
-    let node = config
-        .active_node_id
-        .as_ref()
-        .and_then(|id| config.nodes.iter().find(|n| &n.id == id))
-        .cloned()
-        .or_else(|| {
-            config
-                .subscriptions
-                .iter()
-                .any(|s| s.enabled)
-                .then(|| Node {
-                    id: "__subscriptions__".into(),
-                    name: "Subscriptions".into(),
-                    ..Default::default()
-                })
-        })
-        .ok_or("Select a manual node or enable a subscription")?;
+    let node = if config.proxy_chain.enabled {
+        let (_, exit) = crate::chain::pair(config, &config.proxy_chain)?;
+        Node {
+            id: "__chain__".into(),
+            name: format!("Chain → {}", exit["name"].as_str().unwrap_or("exit")),
+            ..Default::default()
+        }
+    } else if let Some(selected) = config.strategy_selections.get("Pingu Proxy") {
+        config
+            .nodes
+            .iter()
+            .find(|n| format!("{} [{}]", n.name, n.id) == *selected)
+            .cloned()
+            .unwrap_or_else(|| Node {
+                id: "__subscriptions__".into(),
+                name: selected.clone(),
+                ..Default::default()
+            })
+    } else {
+        config
+            .active_node_id
+            .as_ref()
+            .and_then(|id| config.nodes.iter().find(|n| &n.id == id))
+            .cloned()
+            .or_else(|| {
+                config
+                    .subscriptions
+                    .iter()
+                    .any(|s| s.enabled)
+                    .then(|| Node {
+                        id: "__subscriptions__".into(),
+                        name: "Subscriptions".into(),
+                        ..Default::default()
+                    })
+            })
+            .ok_or("Select a manual node or enable a subscription")?
+    };
     let rule_group = config.active_rule_group()?.clone();
 
     Ok(RuntimeSelection { node, rule_group })
@@ -218,6 +241,9 @@ pub fn build_proxy_status(
     if !connected {
         return ProxyStatus {
             connected: false,
+            phase: "disconnected".into(),
+            routing_revision: 0,
+            active_node_name: None,
             active_node_id: None,
             active_group_id: None,
             active_group_name: None,
@@ -231,6 +257,9 @@ pub fn build_proxy_status(
 
     ProxyStatus {
         connected: true,
+        phase: "connected".into(),
+        routing_revision: 0,
+        active_node_name: resolve_runtime_selection(config).ok().map(|s| s.node.name),
         active_node_id,
         active_group_id,
         active_group_name,
@@ -276,7 +305,50 @@ pub fn probe_proxy_egress(listen_port: u16) -> Result<String, String> {
 /// of that address, and a real Google HTTP response. They deliberately do not
 /// claim that an IP is "clean" or that a Cloudflare challenge is passable.
 pub fn verify_proxy_content(listen_port: u16) -> Result<Vec<NetworkContentCheck>, String> {
-    let agent = proxy_probe_agent(listen_port)?;
+    verify_proxy_content_with_timeout(listen_port, Duration::from_secs(8))
+}
+
+/// Mihomo opens its listener before asynchronous provider initialization is
+/// complete. Keep the candidate isolated until real content checks succeed.
+pub fn verify_startup_proxy_content(listen_port: u16) -> Result<Vec<NetworkContentCheck>, String> {
+    retry_startup_check(
+        Duration::from_secs(30),
+        Duration::from_millis(500),
+        |remaining| {
+            verify_proxy_content_with_timeout(listen_port, remaining.min(Duration::from_secs(8)))
+        },
+    )
+}
+
+fn retry_startup_check<T>(
+    timeout: Duration,
+    interval: Duration,
+    mut check: impl FnMut(Duration) -> Result<T, String>,
+) -> Result<T, String> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err("Proxy startup verification timed out".into());
+        }
+        match check(remaining) {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining <= interval {
+                    return Err(error);
+                }
+                std::thread::sleep(interval);
+            }
+        }
+    }
+}
+
+fn verify_proxy_content_with_timeout(
+    listen_port: u16,
+    timeout: Duration,
+) -> Result<Vec<NetworkContentCheck>, String> {
+    let agent = proxy_probe_agent_with_timeout(listen_port, timeout)?;
 
     // The three probes target independent endpoints and each carries its own
     // 8s deadline, so they run concurrently. Every task is joined before
@@ -393,11 +465,18 @@ fn finalize_content_checks(
 }
 
 fn proxy_probe_agent(listen_port: u16) -> Result<ureq::Agent, String> {
+    proxy_probe_agent_with_timeout(listen_port, Duration::from_secs(8))
+}
+
+fn proxy_probe_agent_with_timeout(
+    listen_port: u16,
+    timeout: Duration,
+) -> Result<ureq::Agent, String> {
     let proxy = ureq::Proxy::new(&format!("http://127.0.0.1:{listen_port}"))
         .map_err(|error| format!("Failed to configure egress probe: {error}"))?;
     Ok(ureq::AgentBuilder::new()
         .proxy(proxy)
-        .timeout(Duration::from_secs(8))
+        .timeout(timeout)
         .build())
 }
 
@@ -489,6 +568,15 @@ fn configured_outbound_for_host(
     }
 
     for rule in &rule_group.rules {
+        if matches!(rule.rule_type.as_str(), "geosite" | "geoip" | "ip_cidr") {
+            // Dataset membership and destination IPs are resolved by Mihomo.
+            // Falling through to MATCH would falsely report GFW-routed AI
+            // services as direct under the direct-by-default template.
+            return (
+                "runtime".into(),
+                "Rule-set/IP routing; inspect live connections".into(),
+            );
+        }
         let matched = match rule.rule_type.as_str() {
             "domain" => normalize_policy_suffix(&rule.match_value) == host,
             "domain_suffix" => {
