@@ -44,7 +44,21 @@ try:
 except ImportError:  # pragma: no cover - tests inject a fake module
     pingu_snapshot = None
 
-SOURCE_IPV4 = os.environ.get("PINGU_SOURCE_IPV4", "154.26.187.44")
+def configured_source_ipv4():
+    source = os.environ.get("PINGU_SOURCE_IPV4", "")
+    if not source:
+        try:
+            inventory = json.loads((_HERE / "remote-manifest.json").read_text())
+            source = inventory["host"].rsplit("@", 1)[-1]
+        except (OSError, ValueError, KeyError, AttributeError):
+            return ""
+    try:
+        return str(ipaddress.IPv4Address(source))
+    except ValueError:
+        return ""
+
+
+SOURCE_IPV4 = configured_source_ipv4()
 DEFAULT_REMOTE = os.environ.get("PINGU_RCLONE_REMOTE", "drive-crypt:")
 BACKUP_INDEX_SCHEMA = "pingu-backup-index/v1"
 LATEST_KEY = "LATEST.json"
@@ -318,6 +332,8 @@ def deploy(
 ):
     if not target:
         raise VpsError("--target is required")
+    if not SOURCE_IPV4:
+        raise VpsError("Set PINGU_SOURCE_IPV4 or a private remote-manifest.json before deployment")
     host = target.rsplit("@", 1)[-1]
     if host == SOURCE_IPV4:
         raise VpsError(
@@ -360,6 +376,12 @@ def deploy(
         f" --snapshot {snapshot_id}"
         f" --public-ip {ip}"
     )
+    layout = {name: os.environ[name] for name in ("PINGU_PORTAL_NAME", "PINGU_TLS_CERT_NAME") if name in os.environ}
+    for name, value in layout.items():
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", value) or ".." in value:
+            raise VpsError("Invalid deployment layout name: " + name)
+    if layout:
+        bootstrap_command = "env " + " ".join(name + "=" + shlex.quote(value) for name, value in layout.items()) + " " + bootstrap_command
     if enable_backup:
         bootstrap_command += " --enable-backup"
     if rclone_conf:

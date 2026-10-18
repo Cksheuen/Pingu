@@ -5,7 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/../.." && pwd)"
 manifest="$script_dir/remote-manifest.json"
 vps_host="${PINGU_VPS_HOST:-$(jq -r '.host' "$manifest")}"
-vps_identity="${PINGU_VPS_IDENTITY:-$repo_root/heuen-ed25519./id_rsa.pem}"
+vps_identity="${PINGU_VPS_IDENTITY:-$repo_root/.local/ssh/id_ed25519}"
 
 if [[ ! -f "$vps_identity" ]]; then
   printf 'Missing SSH identity: %s\n' "$vps_identity" >&2

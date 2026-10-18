@@ -83,8 +83,8 @@ Non-Gate HTTPS requests are forwarded to the independently deployed portal on
 processes and release units.
 
 The portal build is produced by `apps/portal` and deployed as immutable release
-directories under `/var/www/cksheuen-portal/releases`. The `current` symlink is
-the only release pointer used by `cksheuen-portal.service`, so a rollback only
+directories under `/var/www/pingu-portal/releases`. The `current` symlink is
+the only release pointer used by `pingu-portal.service`, so a rollback only
 requires repointing that symlink and restarting the service.
 
 Deployment requires a syntax check, a timestamped backup, service restart, live
@@ -144,7 +144,7 @@ The server-side proxy core's `direct` outbound follows the bound-IP policy in
 `sendThrough`). Under Mihomo the actual binding is the `direct` proxy's
 `ip-version: ipv4` together with its `interface-name`; the `pingu-public-ipv4`
 value in the config is metadata used for snapshot identification and remap, not
-a bind. Either way the source is bound to `154.26.187.44`, so IP-check pages
+a bind. Either way the source is bound to `192.0.2.10`, so IP-check pages
 report the VPS address users recognize.
 
 ## Off-site backup
@@ -262,8 +262,8 @@ The old `vps:controls` whole-server WARP switch has a different routing contract
 do not use it on a desktop-managed shared-pool configuration.
 
 `pnpm vps:controls` manages four independent optional policies over the existing
-SSH connection: WARP TCP egress, Reality source-IP restriction, private/CN
-outbound filtering, and automatic traffic-quota enforcement. TLS and client
+SSH connection: WARP TCP egress, Reality source-IP restriction, configurable destination
+filtering, and automatic traffic-quota enforcement. TLS and client
 credentials remain part of the connection protocol. These controls do not
 change SSH, the Cloudflare-only HTTPS origin boundary, listener addresses or
 server identity.
@@ -407,3 +407,29 @@ Cloudflare DNS cutover.
 Tailscale and automatic Magpie installation are outside this migration
 controller's scope. The shared-exit helper above can manage exit bindings for
 a separately installed Magpie service.
+
+## Portable configuration and private deployment data
+
+Copy `remote-manifest.example.json` to ignored `remote-manifest.json` and replace
+its host and artifact hashes with values verified for your own deployment.
+Set `PINGU_VPS_IDENTITY` to your SSH private-key path; never commit that file.
+Set `PINGU_SOURCE_IPV4` for migration source protection, or provide a numeric host
+in the private inventory. Deployment refuses to proceed without that identity.
+
+New templates use `pingu-portal` and `server.{crt,key}`. Existing installations
+and archives with other names must set `PINGU_PORTAL_NAME` and
+`PINGU_TLS_CERT_NAME` to their existing values when backing up, verifying,
+restoring or deploying. The controller forwards these names to bootstrap.
+Use the same values on both ends; no remote service or certificate is renamed
+by updating this repository. Keep layout settings in a private local environment
+file and the relevant server service environment. Gate certificate paths remain
+configurable through `PINGU_GATE_CERT_FILE` and `PINGU_GATE_KEY_FILE`.
+
+The destination filter defaults to private address ranges. To retain or define
+other restrictions, set `pingu-destination-filters` in the private Mihomo config
+to the complete list of REJECT rules before using the runtime switch. Custom
+routing outside that list is rejected, never silently replaced. No country or
+region is assumed. Set `EMAIL_FROM` to a verified sender for direct SMTP alerts.
+
+Historical deployment/audit details belong in private operator records. The
+public source and examples describe a portable layout, not a live host.

@@ -31,6 +31,7 @@ INVENTORY_EXCLUDED = {
     "ops/vps/MIGRATION.md",
     "ops/vps/TRAFFIC.md",
     "ops/vps/remote-manifest.json",
+    "ops/vps/remote-manifest.example.json",
 }
 
 # Test files belong to exactly one scope. Production files may fan out to every
@@ -183,7 +184,7 @@ def toolchain_stamp(repo_root=REPO_ROOT, capabilities=None):
         for path in (repo_root / "ops/vps").rglob("*")
         if path.is_file()
         and "tests" not in path.relative_to(repo_root / "ops/vps").parts
-        and path.name not in {"README.md", "MIGRATION.md", "TRAFFIC.md", "remote-manifest.json"}
+        and path.name not in {"README.md", "MIGRATION.md", "TRAFFIC.md", "remote-manifest.json", "remote-manifest.example.json"}
         and "__pycache__" not in path.parts
     ]
     seed = json.dumps({

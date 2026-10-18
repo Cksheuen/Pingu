@@ -52,7 +52,7 @@ The **v2 Mihomo profile** differs from v1 in three ways:
   `/usr/local/bin/mihomo`, `pingu_mihomo.py` and `mihomo.service`. The Xray
   binary, config, certs and share tree are not.
 - **Canonical Gate certificate paths.** In v2 the TLS cert and key are stored at
-  `/etc/pingu-gate/certs/cksheuen.site.{crt,key}`, which is where the Gate's
+  `/etc/pingu-gate/certs/server.{crt,key}`, which is where the Gate's
   `PINGU_GATE_CERT_FILE` / `PINGU_GATE_KEY_FILE` defaults already point. The
   cutover copies the existing certificate material to those canonical paths and
   changes only those two environment keys to match — the certificate material
@@ -84,10 +84,10 @@ baseline and must not be overwritten by it.
 ```bash
 pnpm vps:status                     # show verified LATEST.json from the crypt remote
 pnpm vps:list                       # list immutable snapshot IDs
-pnpm vps:backup --target root@154.26.187.44 --identity ./heuen-ed25519 --apply
+pnpm vps:backup --target root@192.0.2.10 --identity ./.local/ssh/id_ed25519 --apply
 ```
 
-Current-source examples name a repo-root key (`./heuen-ed25519` or
+Current-source examples name a repo-root key (`./.local/ssh/id_ed25519` or
 `./id_rsa.pem`); use whichever exists locally. New-target examples use
 `/path/to/new-key`.
 
@@ -123,7 +123,7 @@ pnpm vps:deploy \
   --apply
 ```
 
-`--target` is mandatory and the current source IP (`154.26.187.44`) is refused
+`--target` is mandatory and the current source IP (`192.0.2.10`) is refused
 as a deployment target. Without `--apply` the command prints a concrete plan
 and performs no SSH writes. With `--apply` it:
 

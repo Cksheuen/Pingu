@@ -1,4 +1,5 @@
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -13,7 +14,7 @@ from unittest import mock
 from ops.vps.sbin import pingu_snapshot as snap
 
 
-OLD_IP = "154.26.187.44"
+OLD_IP = "192.0.2.10"
 NEW_IP = "198.51.100.20"
 
 XRAY_CONFIG = {
@@ -52,8 +53,8 @@ XRAY_CONFIG = {
                 "tlsSettings": {
                     "certificates": [
                         {
-                            "certificateFile": "certs/cksheuen.site.crt",
-                            "keyFile": "certs/cksheuen.site.key",
+                            "certificateFile": "certs/server.crt",
+                            "keyFile": "certs/server.key",
                         }
                     ]
                 },
@@ -63,9 +64,9 @@ XRAY_CONFIG = {
     "routing": {
         "domainStrategy": "IPIfNonMatch",
         "rules": [
-            {"type": "field", "outboundTag": "direct", "ip": ["geoip:cn"]},
+            {"type": "field", "outboundTag": "direct", "ip": ["geoip:de"]},
             {"type": "field", "outboundTag": "direct",
-             "domain": ["geosite:cn"]},
+             "domain": ["geosite:category-dev"]},
         ],
     },
     "outbounds": [
@@ -88,16 +89,16 @@ def build_source(root):
         "usr/local/sbin/pingu-traffic-report": "#!/bin/sh\necho report\n",
         "usr/local/bin/xray": "XRAY-BINARY-BLOB\n",
         "usr/local/etc/xray/config.json": json.dumps(XRAY_CONFIG, indent=2),
-        "usr/local/etc/xray/certs/cksheuen.site.crt": "TLS-CERT\n",
-        "usr/local/etc/xray/certs/cksheuen.site.key": "TLS-KEY\n",
+        "usr/local/etc/xray/certs/server.crt": "TLS-CERT\n",
+        "usr/local/etc/xray/certs/server.key": "TLS-KEY\n",
         "usr/local/share/xray/geoip.dat": "GEOIP\n",
         "usr/local/share/xray/geosite.dat": "GEOSITE\n",
         "etc/pingu-gate.subscription.txt": (
             "vless://b831381d-6324-4d53-ad4f-8cda48b30811@" + OLD_IP +
-            ":443?security=reality&sni=cksheuen.site&pbk=reality-pubkey"
+            ":443?security=reality&sni=gateway.example.com&pbk=reality-pubkey"
             "&sid=0123abcd&flow=xtls-rprx-vision&type=tcp#Direct-Reality\n"
-            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@cksheuen.site:443"
-            "?type=ws&security=tls&sni=cksheuen.site&path=%2Fws%2Fpath#WS\n"
+            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@gateway.example.com:443"
+            "?type=ws&security=tls&sni=gateway.example.com&path=%2Fws%2Fpath#WS\n"
         ),
         "etc/pingu-gate.token": "gate-token\n",
         "etc/pingu-traffic-guard.conf": "DAILY_LIMIT=100\n",
@@ -106,7 +107,7 @@ def build_source(root):
             {"devices": [{"token_hash": "deadbeef", "uuid": "u1"}]}
         ),
         "etc/systemd/system/pingu-gate.service": "[Unit]\n",
-        "etc/systemd/system/cksheuen-portal.service": "[Unit]\n",
+        "etc/systemd/system/pingu-portal.service": "[Unit]\n",
         "etc/systemd/system/xray.service": "[Unit]\n",
         "etc/systemd/system/pingu-traffic-guard.service": "[Unit]\n",
         "etc/systemd/system/pingu-traffic-guard.timer": "[Unit]\n",
@@ -134,16 +135,16 @@ def build_source(root):
             "net.ipv4.tcp_fastopen=3\n"
         ),
         "etc/os-release": 'ID=ubuntu\nVERSION_ID="24.04"\n',
-        "var/www/cksheuen-portal/releases/20260811-032313/index.html":
+        "var/www/pingu-portal/releases/20260811-032313/index.html":
             "<html>portal</html>\n",
     }
     for rel, content in files.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
-    current = root / "var/www/cksheuen-portal/current"
+    current = root / "var/www/pingu-portal/current"
     current.symlink_to(
-        "/var/www/cksheuen-portal/releases/20260811-032313"
+        "/var/www/pingu-portal/releases/20260811-032313"
     )
     # Must never be staged (outside the fixed allowlist / excluded).
     rclone_conf = root / "root/.config/rclone/rclone.conf"
@@ -187,8 +188,8 @@ def build_mihomo_source(root):
         "etc/mihomo/config.json": json.dumps(MIHOMO_CONFIG, indent=2),
         "etc/mihomo/GeoIP.dat": "GEOIP\n",
         "etc/mihomo/GeoSite.dat": "GEOSITE\n",
-        "etc/pingu-gate/certs/cksheuen.site.crt": "TLS-CERT\n",
-        "etc/pingu-gate/certs/cksheuen.site.key": "TLS-KEY\n",
+        "etc/pingu-gate/certs/server.crt": "TLS-CERT\n",
+        "etc/pingu-gate/certs/server.key": "TLS-KEY\n",
         "etc/systemd/system/mihomo.service": "[Unit]\n",
         "etc/systemd/system/mihomo.service.d/limits.conf": "[Service]\n",
     }
@@ -197,7 +198,7 @@ def build_mihomo_source(root):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
     (root / "etc/mihomo/config.json").chmod(0o600)
-    (root / "etc/pingu-gate/certs/cksheuen.site.key").chmod(0o600)
+    (root / "etc/pingu-gate/certs/server.key").chmod(0o600)
 
 
 def _craft_archive(path, files, symlinks, entries, modes=None,
@@ -254,6 +255,26 @@ class SnapshotTests(unittest.TestCase):
         ):
             return snap.create_snapshot(self.output, self.source)
 
+    def test_custom_portal_layout_verifies_without_embedding_operator_names(self):
+        portal_name = "custom-portal"
+        old_root = self.source / "var/www/pingu-portal"
+        custom_root = self.source / "var/www" / portal_name
+        old_root.rename(custom_root)
+        (custom_root / "current").unlink()
+        (custom_root / "current").symlink_to("releases/20260811-032313")
+        units = self.source / "etc/systemd/system"
+        (units / "pingu-portal.service").rename(units / (portal_name + ".service"))
+        spec = importlib.util.spec_from_file_location("custom_snapshot", snap.__file__)
+        custom = importlib.util.module_from_spec(spec)
+        with mock.patch.dict(os.environ, {"PINGU_PORTAL_NAME": portal_name, "PINGU_TLS_CERT_NAME": "server"}):
+            spec.loader.exec_module(custom)
+        with mock.patch.object(custom, "detect_public_ipv4", return_value=(OLD_IP, "pinned")):
+            result = custom.create_snapshot(self.output, self.source)
+        custom.verify_snapshot(result["archive_path"], result["sha256"])
+        with mock.patch.dict(os.environ, {"PINGU_PORTAL_NAME": "../escape"}):
+            with self.assertRaises(custom.SnapshotError):
+                custom.layout_name("PINGU_PORTAL_NAME", "pingu-portal")
+
     def test_legacy_untagged_archive_still_verifies_and_restores(self):
         result = self._create()
         legacy = self.root / "legacy-v1.tar.gz"
@@ -296,12 +317,12 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("var/lib/pingu-gate/devices.json", paths)
         current = next(
             e for e in manifest["entries"]
-            if e["path"] == "var/www/cksheuen-portal/current"
+            if e["path"] == "var/www/pingu-portal/current"
         )
         self.assertEqual(current["type"], "symlink")
         self.assertEqual(current["link_target"], "releases/20260811-032313")
         self.assertIn(
-            "var/www/cksheuen-portal/releases/20260811-032313/index.html", paths
+            "var/www/pingu-portal/releases/20260811-032313/index.html", paths
         )
 
         dest = self.root / "restore"
@@ -314,11 +335,11 @@ class SnapshotTests(unittest.TestCase):
             (dest / "rootfs/usr/local/bin/xray").read_text(), "XRAY-BINARY-BLOB\n"
         )
         self.assertEqual(
-            os.readlink(dest / "rootfs/var/www/cksheuen-portal/current"),
+            os.readlink(dest / "rootfs/var/www/pingu-portal/current"),
             "releases/20260811-032313",
         )
         self.assertEqual(
-            (dest / "rootfs/var/www/cksheuen-portal/releases/20260811-032313/"
+            (dest / "rootfs/var/www/pingu-portal/releases/20260811-032313/"
              "index.html").read_text(),
             "<html>portal</html>\n",
         )
@@ -433,7 +454,7 @@ class SnapshotTests(unittest.TestCase):
         )
         self.assertEqual(devices["devices"][0]["token_hash"], "deadbeef")
         self.assertEqual(
-            (dest / "rootfs/usr/local/etc/xray/certs/cksheuen.site.crt").read_text(),
+            (dest / "rootfs/usr/local/etc/xray/certs/server.crt").read_text(),
             "TLS-CERT\n",
         )
         # The direct Reality node host is rewritten; the WS node is not.
@@ -442,11 +463,11 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("@" + NEW_IP + ":443", direct_line)
         self.assertNotIn(OLD_IP, direct_line)
         self.assertIn("sid=0123abcd", direct_line)
-        self.assertIn("sni=cksheuen.site", direct_line)
+        self.assertIn("sni=gateway.example.com", direct_line)
         self.assertEqual(
             ws_line,
-            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@cksheuen.site:443"
-            "?type=ws&security=tls&sni=cksheuen.site&path=%2Fws%2Fpath#WS",
+            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@gateway.example.com:443"
+            "?type=ws&security=tls&sni=gateway.example.com&path=%2Fws%2Fpath#WS",
         )
         deployment = json.loads((dest / "deployment.json").read_text())
         self.assertEqual(deployment["schema"], "pingu-vps-deployment/v1")
@@ -505,7 +526,7 @@ class SnapshotTests(unittest.TestCase):
         source = result["manifest"]["source"]
         self.assertEqual(source["public_ipv4"], OLD_IP)
         self.assertEqual(source["public_ipv4_origin"], "xray-config:sendThrough")
-        self.assertEqual(source["public_origin"], "https://cksheuen.site")
+        self.assertEqual(source["public_origin"], "https://gateway.example.com")
 
     def test_detect_public_origin_normalizes_ws_node(self):
         subscription = self.source / "etc/pingu-gate.subscription.txt"
@@ -540,10 +561,10 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("geoip.dat", str(ctx.exception))
 
     def test_missing_referenced_cert_aborts_snapshot(self):
-        (self.source / "usr/local/etc/xray/certs/cksheuen.site.key").unlink()
+        (self.source / "usr/local/etc/xray/certs/server.key").unlink()
         with self.assertRaises(snap.SnapshotError) as ctx:
             snap.create_snapshot(self.output, self.source)
-        self.assertIn("cksheuen.site.key", str(ctx.exception))
+        self.assertIn("server.key", str(ctx.exception))
 
     # --- counterexamples for archive verification / restore safety ---------
 
@@ -581,12 +602,12 @@ class SnapshotTests(unittest.TestCase):
 
         def add_entries(entries):
             entries.append({
-                "path": "var/www/cksheuen-portal/evil-link",
+                "path": "var/www/pingu-portal/evil-link",
                 "type": "symlink", "mode": 0o777,
                 "size": 0, "link_target": "releases/20260811-032313",
             })
             entries.append({
-                "path": "var/www/cksheuen-portal/evil-link/pwned",
+                "path": "var/www/pingu-portal/evil-link/pwned",
                 "type": "file", "mode": 0o644,
                 "size": 5,
                 "sha256": hashlib.sha256(b"pwned").hexdigest(),
@@ -596,10 +617,10 @@ class SnapshotTests(unittest.TestCase):
         self._repack(
             evil, entry_filter=add_entries,
             extra_files={
-                "rootfs/var/www/cksheuen-portal/evil-link/pwned": b"pwned"
+                "rootfs/var/www/pingu-portal/evil-link/pwned": b"pwned"
             },
             extra_symlinks={
-                "rootfs/var/www/cksheuen-portal/evil-link":
+                "rootfs/var/www/pingu-portal/evil-link":
                     "releases/20260811-032313"
             },
         )
@@ -759,7 +780,7 @@ class SnapshotTests(unittest.TestCase):
         foreign_v4 = "203.0.113.9"
         self.source.joinpath("etc/pingu-gate.subscription.txt").write_text(
             "vless://" + owned + "@[" + fake_v6 + "]:443?security=reality"
-            "&sni=cksheuen.site&pbk=reality-pubkey&sid=0123abcd"
+            "&sni=gateway.example.com&pbk=reality-pubkey&sid=0123abcd"
             "&flow=xtls-rprx-vision&type=tcp#Direct-Reality-v6\n"
             "vless://" + foreign + "@[" + fake_v6 + "]:443?security=reality"
             "&sni=foreign.example&pbk=foreign-pubkey&sid=9999"
@@ -767,8 +788,8 @@ class SnapshotTests(unittest.TestCase):
             "vless://" + foreign + "@" + foreign_v4 + ":443?security=reality"
             "&sni=foreign.example&pbk=foreign-pubkey&sid=9999"
             "&type=tcp#Foreign-v4\n"
-            "vless://" + owned + "@cksheuen.site:443?type=ws&security=tls"
-            "&sni=cksheuen.site&path=%2Fws%2Fpath#WS\n"
+            "vless://" + owned + "@gateway.example.com:443?type=ws&security=tls"
+            "&sni=gateway.example.com&path=%2Fws%2Fpath#WS\n"
         )
         result = self._create()
         dest = self.root / "remap-v6"
@@ -784,7 +805,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertNotIn(fake_v6, v6_line)
         # ...with identity and cryptographic material preserved exactly.
         self.assertTrue(v6_line.startswith("vless://" + owned + "@"))
-        for field in ("sni=cksheuen.site", "pbk=reality-pubkey",
+        for field in ("sni=gateway.example.com", "pbk=reality-pubkey",
                       "sid=0123abcd", "flow=xtls-rprx-vision",
                       "#Direct-Reality-v6"):
             self.assertIn(field, v6_line)
@@ -794,8 +815,8 @@ class SnapshotTests(unittest.TestCase):
         # WS node is byte-identical.
         self.assertEqual(
             ws_line,
-            "vless://" + owned + "@cksheuen.site:443?type=ws&security=tls"
-            "&sni=cksheuen.site&path=%2Fws%2Fpath#WS",
+            "vless://" + owned + "@gateway.example.com:443?type=ws&security=tls"
+            "&sni=gateway.example.com&path=%2Fws%2Fpath#WS",
         )
         report = (dest / "deployment.json").read_text()
         deployment = json.loads(report)

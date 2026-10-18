@@ -63,10 +63,10 @@ LEASE_TTL = os.environ.get("PINGU_GATE_LEASE_TTL", "30m")
 LISTEN_HOST = os.environ.get("PINGU_GATE_LISTEN_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("PINGU_GATE_LISTEN_PORT", "443"))
 CERT_FILE = os.environ.get(
-    "PINGU_GATE_CERT_FILE", "/etc/pingu-gate/certs/cksheuen.site.crt"
+    "PINGU_GATE_CERT_FILE", "/etc/pingu-gate/certs/server.crt"
 )
 KEY_FILE = os.environ.get(
-    "PINGU_GATE_KEY_FILE", "/etc/pingu-gate/certs/cksheuen.site.key"
+    "PINGU_GATE_KEY_FILE", "/etc/pingu-gate/certs/server.key"
 )
 IPV6_PREFIX_BITS = int(os.environ.get("PINGU_GATE_IPV6_PREFIX_BITS", "128"))
 WS_BACKEND_HOST = os.environ.get("PINGU_GATE_WS_BACKEND_HOST", "127.0.0.1")
@@ -580,7 +580,7 @@ def html_page(title, body):
 <body>
   <div class="shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="返回 cksheuen 首页">
+      <a class="brand" href="/" aria-label="返回 pingu 首页">
         <span class="brand-mark" aria-hidden="true">P</span>
         <span><strong>Pingu Gate</strong><small>network authorization</small></span>
       </a>
@@ -595,7 +595,7 @@ def html_page(title, body):
       </section>
       <section class="stage"><div class="panel">{body}</div></section>
     </main>
-    <footer><span>CKSHEUEN / PRIVATE INFRASTRUCTURE</span><span>TLS · SHORT LEASE · NFTABLES</span></footer>
+    <footer><span>PINGU / PRIVATE INFRASTRUCTURE</span><span>TLS · SHORT LEASE · NFTABLES</span></footer>
   </div>
 </body>
 </html>"""

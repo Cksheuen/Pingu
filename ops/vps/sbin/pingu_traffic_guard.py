@@ -12,6 +12,7 @@ from pathlib import Path
 
 CONFIG = {
     "EMAIL_TO": "",
+    "EMAIL_FROM": "",
     "WATCH_SERVICE": "mihomo",
     "WATCH_PORTS": "443,8443",
     "MONTHLY_PER_IP_LIMIT_BYTES": str(20 * 1024**3),
@@ -176,12 +177,14 @@ def mx_hosts(domain):
 
 
 def send_direct_smtp(subject, body, to_addr):
+    if not CONFIG["EMAIL_FROM"]:
+        return False, "EMAIL_FROM is not configured"
     domain = to_addr.split("@", 1)[-1]
     hosts = mx_hosts(domain)
     if not hosts:
         return False, "no MX records"
     msg = EmailMessage()
-    msg["From"] = "pingu-guard@cksheuen.site"
+    msg["From"] = CONFIG["EMAIL_FROM"]
     msg["To"] = to_addr
     msg["Subject"] = subject
     msg.set_content(body)

@@ -40,6 +40,18 @@ class SnapshotError(Exception):
     """Raised for any snapshot creation, verification or restore failure."""
 
 
+def layout_name(variable, default):
+    value = os.environ.get(variable, default)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", value) or ".." in value:
+        raise SnapshotError("invalid deployment layout name: " + variable)
+    return value
+
+
+# Optional names preserve existing deployments without publishing their identity.
+PORTAL_NAME = layout_name("PINGU_PORTAL_NAME", "pingu-portal")
+TLS_CERT_NAME = layout_name("PINGU_TLS_CERT_NAME", "server")
+
+
 # --- Fixed allowlist of required assets (paths relative to source_root) ----
 
 REQUIRED_FILES = [
@@ -54,7 +66,7 @@ REQUIRED_FILES = [
     "etc/nftables.d/pingu-guard.nft",
     "var/lib/pingu-gate/devices.json",
     "etc/systemd/system/pingu-gate.service",
-    "etc/systemd/system/cksheuen-portal.service",
+    f"etc/systemd/system/{PORTAL_NAME}.service",
     "etc/systemd/system/pingu-traffic-guard.service",
     "etc/systemd/system/pingu-traffic-guard.timer",
     "etc/systemd/system/pingu-traffic-report.service",
@@ -74,7 +86,7 @@ REQUIRED_DIRS = [
 
 # Symlinks that must exist in every snapshot (checked at create and verify).
 REQUIRED_SYMLINKS = [
-    "var/www/cksheuen-portal/current",
+    f"var/www/{PORTAL_NAME}/current",
 ]
 
 # Optional assets: staged when present, reported when missing.
@@ -92,7 +104,7 @@ OPTIONAL_PATHS = [
 OPTIONAL_DROPIN_DIRS = [
     "etc/systemd/system/pingu-gate.service.d",
     "etc/systemd/system/xray.service.d",
-    "etc/systemd/system/cksheuen-portal.service.d",
+    f"etc/systemd/system/{PORTAL_NAME}.service.d",
 ]
 
 # Defence-in-depth allowlist enforced at verify time: even a manifest with
@@ -120,7 +132,7 @@ ALLOWED_RESTORE_PREFIXES = [
     "etc/nftables.d/pingu-guard.nft",
     "var/lib/pingu-gate/devices.json",
     "etc/systemd/system/pingu-gate.service",
-    "etc/systemd/system/cksheuen-portal.service",
+    f"etc/systemd/system/{PORTAL_NAME}.service",
     "etc/systemd/system/xray.service",
     "etc/systemd/system/pingu-traffic-guard.service",
     "etc/systemd/system/pingu-traffic-guard.timer",
@@ -131,10 +143,10 @@ ALLOWED_RESTORE_PREFIXES = [
     "etc/systemd/system/pingu-backup.path",
     "etc/systemd/system/pingu-gate.service.d",
     "etc/systemd/system/xray.service.d",
-    "etc/systemd/system/cksheuen-portal.service.d",
+    f"etc/systemd/system/{PORTAL_NAME}.service.d",
     "root/pingu-secrets",
     "var/lib/pingu-traffic-guard",
-    "var/www/cksheuen-portal",
+    f"var/www/{PORTAL_NAME}",
 ]
 
 # Profiles are deliberately disjoint: a Mihomo backup neither requires nor
@@ -153,8 +165,8 @@ MIHOMO_FILES = [
     "etc/mihomo/config.json",
     "etc/mihomo/GeoIP.dat",
     "etc/mihomo/GeoSite.dat",
-    "etc/pingu-gate/certs/cksheuen.site.crt",
-    "etc/pingu-gate/certs/cksheuen.site.key",
+    f"etc/pingu-gate/certs/{TLS_CERT_NAME}.crt",
+    f"etc/pingu-gate/certs/{TLS_CERT_NAME}.key",
     "etc/systemd/system/mihomo.service",
 ]
 RUNTIME_CONTROL_PATHS = [
@@ -300,13 +312,13 @@ def _copy_tree(src_dir, dst_dir, rel_prefix):
 
 def _stage_portal(source_root, rootfs, missing):
     """Stage portal ``current`` symlink (normalized relative) + its release."""
-    portal = source_root / "var/www/cksheuen-portal"
+    portal = source_root / f"var/www/{PORTAL_NAME}"
     current = portal / "current"
     if not current.is_symlink():
-        missing.append("var/www/cksheuen-portal/current")
+        missing.append(f"var/www/{PORTAL_NAME}/current")
         return
     raw_target = os.readlink(current)
-    releases_prefix = "/var/www/cksheuen-portal/releases/"
+    releases_prefix = f"/var/www/{PORTAL_NAME}/releases/"
     if os.path.isabs(raw_target):
         norm = os.path.normpath(raw_target)
         if not norm.startswith(releases_prefix) or norm == releases_prefix.rstrip("/"):
@@ -323,11 +335,11 @@ def _stage_portal(source_root, rootfs, missing):
         rel = os.path.relpath(resolved, str(portal))
     release_src = portal / rel
     if not release_src.is_dir():
-        missing.append("var/www/cksheuen-portal/" + rel)
+        missing.append(f"var/www/{PORTAL_NAME}/" + rel)
         return
-    _copy_tree(release_src, rootfs / "var/www/cksheuen-portal" / rel,
-               "var/www/cksheuen-portal/" + rel)
-    link_parent = rootfs / "var/www/cksheuen-portal"
+    _copy_tree(release_src, rootfs / f"var/www/{PORTAL_NAME}" / rel,
+               f"var/www/{PORTAL_NAME}/" + rel)
+    link_parent = rootfs / f"var/www/{PORTAL_NAME}"
     link_parent.mkdir(parents=True, exist_ok=True)
     os.symlink(rel, link_parent / "current")
 

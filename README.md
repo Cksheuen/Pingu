@@ -3,7 +3,7 @@
 This repository contains independently built applications:
 
 - `apps/desktop` — the Pingu Tauri desktop client.
-- `apps/portal` — the public `cksheuen.site` landing page.
+- `apps/portal` — a configurable public gateway landing page.
 - `apps/eva-blog` — the public Eva Blog reader only.
 - `apps/eva-blog-admin` — the private Eva Blog article editor/API.
 - `apps/eva-blog-status` — the local-only author status publisher.
@@ -193,10 +193,12 @@ only ever sent as a bearer header to `127.0.0.1`.
 **App-owned runtime settings.** The generated config binds `mixed-port` to a
 loopback-only listener (default `2080`, advancing to the next free port when it
 is taken), sets `external-controller` to `127.0.0.1:<port>`, and keeps
-`allow-lan: false`, `mode: rule` and `ipv6: false`. No `tun` section is
-emitted, and no TUN device or privileged helper is started. The macOS system
-proxy is set to the app's own loopback listener and cleared again on stop — the
-app only clears a system proxy it recorded itself as owning.
+`allow-lan: false` and `mode: rule`. In system-proxy mode, the app uses its
+loopback listener and only clears system proxy settings it recorded itself as
+owning. Optional macOS TUN mode enables IPv4/IPv6 routing through the scoped
+network helper; see `apps/desktop/README.md` for setup and lifecycle details.
+Default routing is region-neutral: private addresses go direct and other
+traffic uses the selected proxy unless user rules specify otherwise.
 
 **Retained manual nodes and the legacy config directory.** Manual VLESS nodes
 keep their IDs and share-link secrets; an active manual node is selected through
@@ -224,3 +226,12 @@ PINGU_VPS_IDENTITY=/path/to/private-key pnpm audit:vps
 
 The audit is read-only. Runtime secrets, Xray credentials, subscriptions,
 firewall state, reports, and logs are intentionally excluded from this repo.
+
+
+## Configuration privacy
+
+Pingu ships region-neutral defaults. Routing groups, DNS policies, provider
+endpoints and deployment identities belong to the user's private configuration.
+Use reserved example domains in fixtures and documentation. Do not commit local
+runtime configuration, deployment inventories, keys or captured network data.
+Desktop starts in English; users can choose another supported language.

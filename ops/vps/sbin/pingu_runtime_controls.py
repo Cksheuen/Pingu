@@ -23,11 +23,22 @@ STATE_KEY = 'pingu-runtime-controls'
 LOCK_PATH = '/run/pingu-runtime-controls.lock'
 BACKUP_ROOT = Path('/var/lib/pingu-runtime-controls')
 BYPASS = 'pingu runtime source guard off'
-FILTERS = ['GEOIP,private,REJECT', 'GEOSITE,cn,REJECT', r'DOMAIN-REGEX,.*\.cn$,REJECT', 'GEOIP,cn,REJECT']
+FILTERS = ['GEOIP,private,REJECT']
+FILTERS_KEY = 'pingu-destination-filters'
 FIELDS = ('warp', 'source_guard', 'destination_filter', 'traffic_guard')
 
 class ControlError(Exception):
     pass
+
+def destination_filters(config):
+    filters = config.get(FILTERS_KEY, FILTERS)
+    if (not isinstance(filters, list) or not filters or len(filters) > 128
+            or any(not isinstance(rule, str) or "\n" in rule or "\r" in rule
+                   or not rule.endswith(',REJECT') or rule.count(',') < 2 for rule in filters)
+            or len(set(filters)) != len(filters)):
+        raise ControlError('Destination filters must be a nonempty list of distinct REJECT rules')
+    return filters
+
 
 def run(argv, **kwargs):
     result = subprocess.run(argv, capture_output=True, text=True, timeout=30, **kwargs)
@@ -102,15 +113,15 @@ def live_policy(config):
     if len(match) != 1 or match[0].get('proxy') not in ('direct', 'WARP'):
         raise ControlError('Unrecognized live final route')
     rejected = [r for r in rules if r.get('proxy') == 'REJECT']
-    if len(rejected) not in (0, len(FILTERS)):
+    if len(rejected) not in (0, len(destination_filters(config))):
         raise ControlError('Unrecognized live destination filter')
     return {'warp': match[0]['proxy'] == 'WARP', 'destination_filter': bool(rejected)}
 
 def observe(config):
     timer = timer_state()
     rules = config.get('rules', [])
-    present = [rule for rule in FILTERS if rule in rules]
-    if present and len(present) != len(FILTERS): raise ControlError('Destination filter is partially configured; inspect before switching')
+    present = [rule for rule in destination_filters(config) if rule in rules]
+    if present and len(present) != len(destination_filters(config)): raise ControlError('Destination filter is partially configured; inspect before switching')
     live = live_policy(config)
     if live['destination_filter'] != bool(present): raise ControlError('Saved and live destination policies differ')
     return {**live, 'source_guard': source_guard_enabled(), 'traffic_guard': timer['active'],
@@ -126,7 +137,7 @@ def validate_contract(config):
     matches = [r for r in rules if r.startswith(('MATCH,', 'FINAL,'))]
     if len(matches) != 1 or rules[-1] not in ('MATCH,WARP', 'MATCH,direct'):
         raise ControlError('Unexpected final route; refusing to overwrite custom routing')
-    if any(rule not in FILTERS + ['NETWORK,UDP,direct', 'MATCH,WARP', 'MATCH,direct'] for rule in rules):
+    if any(rule not in destination_filters(config) + ['NETWORK,UDP,direct', 'MATCH,WARP', 'MATCH,direct'] for rule in rules):
         raise ControlError('Unknown routing policy; refusing to replace unrelated rules')
 
 def candidate(config, settings):
@@ -138,7 +149,7 @@ def candidate(config, settings):
         warp = next((p for p in result['proxies'] if p.get('name') == 'WARP'), {})
         if (warp.get('type'), warp.get('server'), warp.get('port'), warp.get('udp')) != ('socks5', '127.0.0.1', 40000, False):
             raise ControlError('WARP loopback proxy is not configured')
-    result['rules'] = (list(FILTERS) if settings['destination_filter'] else []) + ['NETWORK,UDP,direct', 'MATCH,' + ('WARP' if settings['warp'] else 'direct')]
+    result['rules'] = (list(destination_filters(config)) if settings['destination_filter'] else []) + ['NETWORK,UDP,direct', 'MATCH,' + ('WARP' if settings['warp'] else 'direct')]
     result[STATE_KEY] = dict(settings)
     return result
 

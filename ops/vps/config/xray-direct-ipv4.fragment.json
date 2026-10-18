@@ -1,7 +1,6 @@
 {
   "tag": "direct",
   "protocol": "freedom",
-  "sendThrough": "154.26.187.44",
   "settings": {
     "domainStrategy": "UseIPv4"
   }

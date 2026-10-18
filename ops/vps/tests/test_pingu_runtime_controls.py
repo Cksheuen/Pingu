@@ -28,6 +28,20 @@ class RuntimeControlsTests(unittest.TestCase):
         self.assertEqual(enabled['rules'],original['rules'])
         self.assertEqual(original,before)
 
+    def test_custom_destination_filters_survive_disable_and_reenable(self):
+        original = config()
+        filters = ['DOMAIN-SUFFIX,blocked.example,REJECT', 'IP-CIDR,192.0.2.0/24,REJECT']
+        original[controls.FILTERS_KEY] = filters
+        original['rules'] = filters + ['NETWORK,UDP,direct', 'MATCH,WARP']
+        disabled = controls.candidate(original, {key: False for key in controls.FIELDS})
+        enabled = controls.candidate(disabled, {key: True for key in controls.FIELDS})
+        self.assertEqual(enabled['rules'], original['rules'])
+        self.assertEqual(disabled[controls.FILTERS_KEY], filters)
+        invalid = config()
+        invalid[controls.FILTERS_KEY] = ['MATCH,direct']
+        with self.assertRaises(controls.ControlError):
+            controls.candidate(invalid, {key: False for key in controls.FIELDS})
+
     def test_unknown_policy_and_wrong_warp_are_not_silently_overwritten(self):
         c=config();c['rules'].insert(0,'DOMAIN,work.example,direct')
         with self.assertRaises(controls.ControlError):controls.candidate(c,{k:False for k in controls.FIELDS})

@@ -24,6 +24,15 @@
 #   PINGU_ARCH   override architecture detection
 set -euo pipefail
 
+export PINGU_PORTAL_NAME="${PINGU_PORTAL_NAME:-pingu-portal}"
+export PINGU_TLS_CERT_NAME="${PINGU_TLS_CERT_NAME:-server}"
+for layout_name in "$PINGU_PORTAL_NAME" "$PINGU_TLS_CERT_NAME"; do
+  if [[ ! "$layout_name" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ || "$layout_name" == *..* ]]; then
+    echo "Invalid deployment layout name" >&2
+    exit 2
+  fi
+done
+
 ARCHIVE=""
 SHA_SUMS=""
 HELPER=""
@@ -180,7 +189,7 @@ if not ((schema == "pingu-vps-snapshot/v1" and profile == "xray")
 print(profile)
 PY
 )" || die "snapshot verification failed"
-  SERVICES=(pingu-gate.service "$RUNTIME_PROFILE.service" cksheuen-portal.service)
+  SERVICES=(pingu-gate.service "$RUNTIME_PROFILE.service" ${PINGU_PORTAL_NAME}.service)
 }
 
 idempotent_health_check() {
@@ -229,11 +238,11 @@ fresh_host_guard() {
     "$ROOT/etc/systemd/system/mihomo.service" \
     "$ROOT/usr/local/sbin/pingu-runtime-controls" \
     "$ROOT/etc/systemd/system/pingu-runtime-controls.service" \
-    "$ROOT/etc/pingu-gate/certs/cksheuen.site.crt" \
-    "$ROOT/etc/pingu-gate/certs/cksheuen.site.key" \
+    "$ROOT/etc/pingu-gate/certs/${PINGU_TLS_CERT_NAME}.crt" \
+    "$ROOT/etc/pingu-gate/certs/${PINGU_TLS_CERT_NAME}.key" \
     "$ROOT/etc/systemd/system/pingu-gate.service" \
     "$ROOT/etc/systemd/system/xray.service" \
-    "$ROOT/etc/systemd/system/cksheuen-portal.service" \
+    "$ROOT/etc/systemd/system/${PINGU_PORTAL_NAME}.service" \
     "$ROOT/etc/systemd/system/pingu-firewall.service" \
     "$ROOT/usr/local/sbin/pingu-firewall-loader.sh" \
     "$ROOT/etc/nftables.d/pingu-guard.nft" ; do
@@ -345,7 +354,7 @@ EOF
 [Unit]
 Description=Pingu managed nftables table (inet pingu_guard)
 After=network-pre.target nftables.service
-Before=pingu-gate.service $RUNTIME_PROFILE.service cksheuen-portal.service
+Before=pingu-gate.service $RUNTIME_PROFILE.service ${PINGU_PORTAL_NAME}.service
 Wants=network-pre.target
 
 [Service]

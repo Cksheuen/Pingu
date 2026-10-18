@@ -2,7 +2,7 @@
 set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/../.." && pwd)"
-identity="${PINGU_VPS_IDENTITY:-$repo_root/heuen-ed25519./id_rsa.pem}"
+identity="${PINGU_VPS_IDENTITY:-$repo_root/.local/ssh/id_ed25519}"
 host="${PINGU_VPS_HOST:-$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["host"])' "$script_dir/remote-manifest.json")}"
 if [[ $# -eq 0 ]]; then set -- status; fi
 for argument in "$@"; do

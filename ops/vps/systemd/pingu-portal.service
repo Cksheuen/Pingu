@@ -1,5 +1,5 @@
 [Unit]
-Description=cksheuen private services portal
+Description=pingu private services portal
 After=network-online.target
 Wants=network-online.target
 
@@ -7,15 +7,15 @@ Wants=network-online.target
 Type=simple
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/cksheuen-portal/current
-ExecStart=/usr/bin/python3 -m http.server 10080 --bind 127.0.0.1 --directory /var/www/cksheuen-portal/current
+WorkingDirectory=/var/www/pingu-portal/current
+ExecStart=/usr/bin/python3 -m http.server 10080 --bind 127.0.0.1 --directory /var/www/pingu-portal/current
 Restart=on-failure
 RestartSec=2s
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadOnlyPaths=/var/www/cksheuen-portal
+ReadOnlyPaths=/var/www/pingu-portal
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

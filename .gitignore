@@ -29,8 +29,10 @@ Thumbs.db
 config.json
 sing-box-config.json
 *.log
-heuen-ed25519./
-heuen-ed25519..zip
+/*-ed25519*/
+/*-ed25519*.zip
+/*.pem
+/*.key
 ops/vps/**/*.env
 ops/vps/**/*.token
 ops/vps/**/*.tokens
@@ -71,3 +73,7 @@ config.json.bak*
 /web-design-engineer/
 /main/passport_time.c
 /main/passport_time.h
+
+# Private deployment inventory and environment-specific overrides
+/ops/vps/remote-manifest.json
+/ops/vps/*.local.json

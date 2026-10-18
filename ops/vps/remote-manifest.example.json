@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "host": "root@vps.example.com",
+  "artifacts": [
+    {
+      "remote_path": "/usr/local/sbin/pingu-gate",
+      "local_path": "ops/vps/sbin/pingu_gate.py",
+      "remote_sha256": "REPLACE_WITH_VERIFIED_REMOTE_SHA256",
+      "import_policy": "exact"
+    }
+  ]
+}

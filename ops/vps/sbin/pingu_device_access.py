@@ -29,7 +29,7 @@ DEVICE_SUBSCRIPTION_PREFIX = os.environ.get(
 DEVICE_STATE_FILE = os.environ.get(
     "PINGU_GATE_DEVICE_STATE_FILE", "/var/lib/pingu-gate/devices.json"
 )
-PUBLIC_ORIGIN = os.environ.get("PINGU_GATE_PUBLIC_ORIGIN", "https://cksheuen.site")
+PUBLIC_ORIGIN = os.environ.get("PINGU_GATE_PUBLIC_ORIGIN", "https://gateway.example.com")
 QR_ENCODE_BIN = os.environ.get("PINGU_GATE_QRENCODE_BIN", "/usr/bin/qrencode")
 
 _LABEL_RE = re.compile(r"[^\w .@+:/-]+", re.UNICODE)

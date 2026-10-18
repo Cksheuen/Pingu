@@ -1,4 +1,5 @@
 EMAIL_TO=operator@example.com
+EMAIL_FROM=pingu-guard@example.com
 WATCH_SERVICE=mihomo
 WATCH_PORTS=443,8443
 MONTHLY_PER_IP_LIMIT_BYTES=21474836480

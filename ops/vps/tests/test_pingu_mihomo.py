@@ -25,8 +25,8 @@ def source_config():
                       {"tag": "blocked", "protocol": "blackhole"}],
         "routing": {"domainStrategy": "IPIfNonMatch", "rules": [
             {"type": "field", "ip": ["geoip:private"], "outboundTag": "blocked"},
-            {"type": "field", "domain": ["geosite:cn", "regexp:.*\\.cn$"], "outboundTag": "blocked"},
-            {"type": "field", "ip": ["geoip:cn"], "outboundTag": "blocked"},
+            {"type": "field", "domain": ["geosite:category-dev", "regexp:.*\\.example$"], "outboundTag": "blocked"},
+            {"type": "field", "ip": ["geoip:de"], "outboundTag": "blocked"},
         ]},
     }
 
@@ -44,7 +44,7 @@ class ConversionTests(unittest.TestCase):
         self.assertEqual(ws["listen"], "127.0.0.1")
         self.assertTrue(ws["allow-insecure"])
         self.assertEqual(ws["ws-path"], "/")
-        self.assertEqual(cfg["rules"], ["GEOIP,private,REJECT", "GEOSITE,cn,REJECT", "DOMAIN-REGEX,.*\\.cn$,REJECT", "GEOIP,cn,REJECT", "MATCH,direct"])
+        self.assertEqual(cfg["rules"], ["GEOIP,private,REJECT", "GEOSITE,category-dev,REJECT", "DOMAIN-REGEX,.*\\.example$,REJECT", "GEOIP,de,REJECT", "MATCH,direct"])
         self.assertEqual(cfg["proxies"][0]["interface-name"], "ens3")
         self.assertEqual(cfg["proxies"][0]["ip-version"], "ipv4")
         self.assertEqual(cfg["external-controller"], "127.0.0.1:19090")

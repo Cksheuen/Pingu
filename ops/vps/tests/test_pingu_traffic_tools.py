@@ -28,6 +28,17 @@ class TrafficGuardTests(unittest.TestCase):
         self.assertEqual(guard.CONFIG["EMAIL_TO"], "operator@example.com")
         self.assertEqual(guard.CONFIG["WATCH_PORTS"], "8443")
 
+    def test_direct_smtp_uses_only_the_configured_sender(self):
+        guard.CONFIG["EMAIL_FROM"] = ""
+        with mock.patch.object(guard, "mx_hosts") as mx:
+            self.assertFalse(guard.send_direct_smtp("subject", "body", "recipient@example.net")[0])
+            mx.assert_not_called()
+        guard.CONFIG["EMAIL_FROM"] = "alerts@example.com"
+        with mock.patch.object(guard, "mx_hosts", return_value=["mx.example.net"]), mock.patch.object(guard.smtplib, "SMTP") as smtp:
+            self.assertTrue(guard.send_direct_smtp("subject", "body", "recipient@example.net")[0])
+            message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
+            self.assertEqual(message["From"], "alerts@example.com")
+
     def test_nft_set_bytes_parses_counters(self):
         output = """
           elements = { 192.0.2.10 counter packets 4 bytes 8192,

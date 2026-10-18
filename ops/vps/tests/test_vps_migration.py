@@ -58,6 +58,7 @@ class ControllerTestBase(unittest.TestCase):
         sys.modules["pingu_snapshot"] = self.fake_snapshot
         self.vps = importlib.import_module("ops.vps.vps")
         importlib.reload(self.vps)
+        self.vps.SOURCE_IPV4 = "192.0.2.10"
         self.tmp = Path(tempfile.mkdtemp(prefix="pingu-ctrl-test-"))
         self.identity = self.tmp / "id_rsa"
         self.identity.write_text("fixture-key")
@@ -314,10 +315,21 @@ class SshHardeningTest(ControllerTestBase):
 
 
 class SourceHostRefusalTest(ControllerTestBase):
+    def test_source_guard_requires_local_configuration_and_reads_private_inventory(self):
+        with mock.patch.object(self.vps, "SOURCE_IPV4", ""):
+            with self.assertRaisesRegex(self.vps.VpsError, "PINGU_SOURCE_IPV4"):
+                self.vps.deploy("root@198.51.100.20", str(self.identity), "198.51.100.20", "latest", "drive-crypt:", apply=True)
+        self.assertEqual(self.commands(), [])
+        (self.tmp / "remote-manifest.json").write_text(json.dumps({"host": "root@192.0.2.10"}))
+        with mock.patch.object(self.vps, "_HERE", self.tmp), mock.patch.dict(os.environ, {"PINGU_SOURCE_IPV4": ""}):
+            self.assertEqual(self.vps.configured_source_ipv4(), "192.0.2.10")
+        with mock.patch.dict(os.environ, {"PINGU_SOURCE_IPV4": "198.51.100.8"}):
+            self.assertEqual(self.vps.configured_source_ipv4(), "198.51.100.8")
+
     def test_refuses_current_source_host(self):
         with self.assertRaises(self.vps.VpsError):
             self.vps.deploy(
-                "root@154.26.187.44",
+                "root@192.0.2.10",
                 str(self.identity),
                 "10.0.0.9",
                 "latest",
@@ -459,7 +471,7 @@ def restore_snapshot(archive_path, destination, expected_sha256=None, public_ip=
         cfg = os.path.join(destination, "rootfs", "usr/local/etc/xray/config.json")
         with open(cfg) as handle:
             text = handle.read()
-        remapped = text.replace("154.26.187.44", public_ip)
+        remapped = text.replace("192.0.2.10", public_ip)
         if remapped != text:
             with open(cfg, "w") as handle:
                 handle.write(remapped)
@@ -606,7 +618,7 @@ class BootstrapHarness:
     """Builds a fixture snapshot archive and a sandboxed host root."""
 
     SNAPSHOT_ID = "20260905-010101-abc123"
-    OLD_IP = "154.26.187.44"
+    OLD_IP = "192.0.2.10"
     NEW_IP = "10.0.0.9"
 
     def __init__(self, test, config_fail=False, source_arch="amd64"):
@@ -647,14 +659,14 @@ class BootstrapHarness:
             ).encode(),
             "rootfs/etc/systemd/system/pingu-gate.service": b"[Unit]\n",
             "rootfs/etc/systemd/system/xray.service": b"[Unit]\n",
-            "rootfs/etc/systemd/system/cksheuen-portal.service": b"[Unit]\n",
+            "rootfs/etc/systemd/system/pingu-portal.service": b"[Unit]\n",
             "rootfs/etc/systemd/system/pingu-traffic-guard.timer": b"[Unit]\n",
             "rootfs/etc/systemd/system/pingu-traffic-report.timer": b"[Unit]\n",
             "rootfs/etc/nftables.d/pingu-guard.nft": b"table inet pingu_guard {\n}\n",
             "rootfs/etc/pingu-gate.token": b"snapshot-token\n",
             "rootfs/var/lib/pingu-gate/devices.json": b'{"revocations": 1}\n',
             "rootfs/var/lib/pingu-traffic-guard/state.json": b'{"counter": 5}\n',
-            "rootfs/var/www/cksheuen-portal/releases/20260811-032313/index.html": b"hello\n",
+            "rootfs/var/www/pingu-portal/releases/20260811-032313/index.html": b"hello\n",
         }
         manifest = {
             "schema": "pingu-vps-snapshot/v1",
@@ -683,7 +695,7 @@ class BootstrapHarness:
                 info.size = len(data)
                 info.mode = 0o755 if path.endswith("/xray") else 0o644
                 tar.addfile(info, io.BytesIO(data))
-            info = tarfile.TarInfo("rootfs/var/www/cksheuen-portal/current")
+            info = tarfile.TarInfo("rootfs/var/www/pingu-portal/current")
             info.type = tarfile.SYMTYPE
             info.linkname = "releases/20260811-032313"
             tar.addfile(info)
@@ -786,7 +798,7 @@ class BootstrapTest(unittest.TestCase):
             self.harness.NEW_IP,
         )
         self.assertEqual(
-            os.readlink(root / "var/www/cksheuen-portal/current"),
+            os.readlink(root / "var/www/pingu-portal/current"),
             "releases/20260811-032313",
         )
         # global nftables.conf is preserved byte-for-byte
@@ -797,7 +809,7 @@ class BootstrapTest(unittest.TestCase):
         for unit in (
             "pingu-gate.service",
             "xray.service",
-            "cksheuen-portal.service",
+            "pingu-portal.service",
             "pingu-traffic-guard.timer",
             "pingu-traffic-report.timer",
             "pingu-firewall.service",
@@ -1023,7 +1035,7 @@ class BootstrapTest(unittest.TestCase):
         state.write_text('{"counter": 1}\n')
         index = (
             self.harness.root
-            / "var/www/cksheuen-portal/releases/20260811-032313/index.html"
+            / "var/www/pingu-portal/releases/20260811-032313/index.html"
         )
         index.parent.mkdir(parents=True, exist_ok=True)
         index.write_text("old homepage\n")
@@ -1047,7 +1059,7 @@ class BootstrapTest(unittest.TestCase):
             self.harness.root / "etc/systemd/system/pingu-firewall.service"
         ).read_text()
         self.assertIn(
-            "Before=pingu-gate.service xray.service cksheuen-portal.service", unit
+            "Before=pingu-gate.service xray.service pingu-portal.service", unit
         )
         self.assertIn("WantedBy=multi-user.target", unit)
         loader = (
@@ -1165,7 +1177,7 @@ class MihomoBootstrapTest(unittest.TestCase):
         marker = json.loads((h.root / "etc/pingu-migration/deployment.json").read_text())
         self.assertEqual(marker["runtime_profile"], "mihomo")
         self.assertEqual(marker["target_interface"], "ens3")
-        self.assertIn("Before=pingu-gate.service mihomo.service cksheuen-portal.service",
+        self.assertIn("Before=pingu-gate.service mihomo.service pingu-portal.service",
                       (h.root / "etc/systemd/system/pingu-firewall.service").read_text())
         before = (h.root / "etc/mihomo/config.json").read_bytes()
         second = h.run_bootstrap(env_extra={"PINGU_FAKE_INTERFACE": "ens3"})
@@ -1179,7 +1191,7 @@ class MihomoBootstrapTest(unittest.TestCase):
         self.assertIn("mihomo config test failed", proc.stderr)
         self.assertIn("rolling back", proc.stderr)
         for path in ("etc/mihomo/config.json", "usr/local/bin/mihomo",
-                     "etc/pingu-gate/certs/cksheuen.site.key",
+                     "etc/pingu-gate/certs/server.key",
                      "etc/systemd/system/mihomo.service",
                      "etc/pingu-migration/deployment.json"):
             self.assertFalse((h.root / path).exists(), path)
