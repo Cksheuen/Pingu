@@ -18,7 +18,7 @@ export const scopes = {
     ...rust(['chain.rs', 'chain/probe.rs', 'chain/latency.rs', 'commands/chain.rs'], ['chain::'], ['nodes', 'gate']),
     sharedSources: ['src-tauri/src/storage/app_config.rs', 'src-tauri/src/mihomo/config_gen.rs', 'src-tauri/src/mihomo/profiles.rs', 'src-tauri/src/mihomo/controller.rs'],
   },
-  config: rust(['storage/app_config.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::'], ['nodes']),
+  config: rust(['storage/app_config.rs', 'storage/rule_stack.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::', 'storage::rule_stack::'], ['nodes']),
   subscriptions: rust(['mihomo/profiles.rs', 'mihomo/controller.rs', 'commands/network.rs'], ['mihomo::profiles::', 'mihomo::controller::'], ['nodes']),
   routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions', 'chain']),
   runtime: rust(['proxy_runtime.rs'], ['proxy_runtime::'], ['routing']),

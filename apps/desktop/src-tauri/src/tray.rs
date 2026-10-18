@@ -174,10 +174,12 @@ fn build_tray_menu(app_handle: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn s
     let sep3 = PredefinedMenuItem::separator(app_handle)?;
 
     // --- Rule groups submenu ---
-    let active_group_id = &config.active_group_id;
+    let enabled_group_ids = config.routing_stack().enabled_group_ids;
     let mut group_items: Vec<MenuItem<tauri::Wry>> = Vec::new();
-    for group in &config.rule_groups {
-        let prefix = if &group.id == active_group_id {
+    let mut ordered_groups = config.rule_groups.iter().collect::<Vec<_>>();
+    ordered_groups.sort_by_key(|group| enabled_group_ids.iter().position(|id| id == &group.id).unwrap_or(usize::MAX));
+    for group in ordered_groups {
+        let prefix = if enabled_group_ids.contains(&group.id) {
             "\u{2713} "
         } else {
             "   "
@@ -400,7 +402,7 @@ fn handle_config_switch(app: &AppHandle, id: &str, event: &'static str, target: 
             crate::lifecycle::apply_runtime_config_change(&app_state, &proxy_state, |config| {
                 match target {
                     SwitchTarget::Node => config.set_active_node(&id),
-                    SwitchTarget::Group => config.set_active_group(&id),
+                    SwitchTarget::Group => config.toggle_rule_group(&id),
                 }
             })
         })

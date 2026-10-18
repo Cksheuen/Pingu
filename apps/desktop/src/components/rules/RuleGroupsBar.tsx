@@ -2,204 +2,76 @@ import { confirmAction } from "../../lib/confirm-action";
 import { useState } from "react";
 import type { RuleGroup } from "../../lib/types";
 import { t } from "../../lib/i18n";
-import Tooltip from "../Tooltip";
-
-function PencilIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18" />
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-    </svg>
-  );
-}
 
 interface RuleGroupsBarProps {
   groups: RuleGroup[];
-  activeGroupId: string;
-  onSwitchGroup: (id: string) => Promise<void>;
+  enabledGroupIds: string[];
+  onSetEnabledGroups: (ids: string[]) => Promise<void>;
+  onEditGroup: (id: string) => void;
   onCreateGroup: (name: string) => Promise<void>;
-  onRenameGroup: (id: string, name: string) => Promise<void>;
   onDeleteGroup: (id: string) => Promise<void>;
 }
 
-export function RuleGroupsBar({
-  groups,
-  activeGroupId,
-  onSwitchGroup,
-  onCreateGroup,
-  onRenameGroup,
-  onDeleteGroup,
-}: RuleGroupsBarProps) {
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [showNewGroup, setShowNewGroup] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
+export function RuleGroupsBar({ groups, enabledGroupIds, onSetEnabledGroups,
+  onEditGroup, onCreateGroup, onDeleteGroup }: RuleGroupsBarProps) {
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const ordered = [
+    ...enabledGroupIds.flatMap(id => groups.filter(group => group.id === id)),
+    ...groups.filter(group => !enabledGroupIds.includes(group.id)),
+  ];
+  const invoke = (action: Promise<void>) => { void action.catch(() => undefined); };
+  const toggle = (id: string) => onSetEnabledGroups(enabledGroupIds.includes(id)
+    ? enabledGroupIds.filter(entry => entry !== id) : [...enabledGroupIds, id]);
+  const move = (index: number, offset: number) => {
+    const ids = [...enabledGroupIds];
+    [ids[index], ids[index + offset]] = [ids[index + offset], ids[index]];
+    return onSetEnabledGroups(ids);
+  };
+  const saveName = async () => {
+    if (!name.trim()) return;
+    await onCreateGroup(name.trim());
+    setCreating(false); setName("");
+  };
 
-  if (groups.length === 0) {
-    return null;
-  }
-
-  async function handleCreateGroup() {
-    const trimmed = newGroupName.trim();
-    if (!trimmed) return;
-
-    await onCreateGroup(trimmed);
-    setNewGroupName("");
-    setShowNewGroup(false);
-  }
-
-  async function handleRenameGroup(id: string, name: string) {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setEditingGroupId(null);
-      setEditingName("");
-      return;
-    }
-
-    await onRenameGroup(id, trimmed);
-    setEditingGroupId(null);
-    setEditingName("");
-  }
-
-  async function handleDeleteGroup(id: string) {
-    if (!await confirmAction(t("rules.delete_group_confirm"))) return;
-    await onDeleteGroup(id);
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <Tooltip text={t("tooltip.rule_groups")} />
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {groups.map((group) => {
-          const isActive = group.id === activeGroupId;
-          const isEditing = editingGroupId === group.id;
-
-          return (
-            <div
-              key={group.id}
-              className="rule-group-tab"
-              data-active={isActive}
-              style={{
-                fontWeight: isActive ? 600 : 500,
-              }}
-            >
-              {isEditing ? (
-                <input
-                  autoFocus
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleRenameGroup(group.id, editingName).catch(() => undefined);
-                    if (e.key === "Escape") {
-                      setEditingGroupId(null);
-                      setEditingName("");
-                    }
-                  }}
-                  onBlur={() => void handleRenameGroup(group.id, editingName).catch(() => undefined)}
-                  className="bg-transparent font-mono text-sm outline-none"
-                  style={{
-                    color: "var(--color-text-primary)",
-                    borderBottom: "1px solid var(--line-strong)",
-                    width: "96px",
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="rule-group-tab-main"
-                  onClick={() => void onSwitchGroup(group.id).catch(() => undefined)}
-                >
-                  {group.name}
-                </button>
-              )}
-              {!isEditing && isActive && (
-                <div className="rule-group-tab-actions">
-                  <button
-                    type="button"
-                    className="rule-group-icon-action"
-                    onClick={() => {
-                      setEditingGroupId(group.id);
-                      setEditingName(group.name);
-                    }}
-                    aria-label={t("rules.rename")}
-                    title={t("rules.rename")}
-                  >
-                    <PencilIcon />
-                  </button>
-                  {groups.length > 1 && (
-                    <button
-                      type="button"
-                      className="rule-group-icon-action"
-                      onClick={() => void handleDeleteGroup(group.id).catch(() => undefined)}
-                      aria-label={t("rules.delete_group")}
-                      title={t("rules.delete_group")}
-                    >
-                      <TrashIcon />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {showNewGroup ? (
-          <div className="flex items-center gap-2 shrink-0">
-            <input
-              autoFocus
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreateGroup().catch(() => undefined);
-                if (e.key === "Escape") {
-                  setShowNewGroup(false);
-                  setNewGroupName("");
-                }
-              }}
-              placeholder={t("rules.group_name_placeholder")}
-              className="rule-group-input"
-              style={{
-                width: "128px",
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => void handleCreateGroup().catch(() => undefined)}
-              disabled={!newGroupName.trim()}
-              className="action-primary"
-            >
-              {t("rules.create")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowNewGroup(false);
-                setNewGroupName("");
-              }}
-              className="rule-group-cancel"
-            >
-              {t("nodes.cancel")}
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowNewGroup(true)}
-            className="rule-group-add"
-          >
-            + {t("rules.new_group")}
-          </button>
-        )}
-      </div>
+  return <div className="rule-stack">
+    <p className="rule-stack-description">{t("rules.stack_description")}</p>
+    <div className="rule-stack-scroll surface">
+      <table className="rule-stack-table">
+        <thead><tr>
+          <th>{t("rules.enabled")}</th><th>{t("rules.priority")}</th>
+          <th>{t("rules.group")}</th><th>{t("rules.contents")}</th><th>{t("rules.actions")}</th>
+        </tr></thead>
+        <tbody>{ordered.map(group => {
+          const priority = enabledGroupIds.indexOf(group.id);
+          return <tr key={group.id}>
+            <td><input type="checkbox" checked={priority >= 0}
+              aria-label={`${t("rules.enabled")} ${group.name}`} onChange={() => invoke(toggle(group.id))} /></td>
+            <td><div className="rule-stack-priority"><span>{priority >= 0 ? priority + 1 : "—"}</span>
+              <button type="button" disabled={priority <= 0} aria-label={`${t("rules.move_up")} ${group.name}`}
+                onClick={() => invoke(move(priority, -1))}>↑</button>
+              <button type="button" disabled={priority < 0 || priority === enabledGroupIds.length - 1}
+                aria-label={`${t("rules.move_down")} ${group.name}`} onClick={() => invoke(move(priority, 1))}>↓</button>
+            </div></td>
+            <td><strong className="rule-stack-group">{group.name}</strong></td>
+            <td className="rule-stack-count">{group.rules.length} {t("rules.rule_count")} · {group.nameserver_policy?.length ?? 0} DNS</td>
+            <td><div className="rule-stack-actions">
+              <button type="button" aria-label={`${t("rules.edit_group")} ${group.name}`}
+                onClick={() => onEditGroup(group.id)}>{t("rules.edit")}</button>
+              <button type="button" disabled={groups.length <= 1} aria-label={`${t("rules.delete_group")} ${group.name}`}
+                onClick={() => { void (async () => {
+                  if (await confirmAction(t("rules.delete_group_confirm"))) await onDeleteGroup(group.id);
+                })().catch(() => undefined); }}>{t("rules.delete_group")}</button>
+            </div></td>
+          </tr>;
+        })}</tbody>
+      </table>
     </div>
-  );
+    {creating ? <form className="rule-stack-form" onSubmit={event => { event.preventDefault(); invoke(saveName()); }}>
+      <input autoFocus value={name} onChange={event => setName(event.target.value)}
+        aria-label={t("rules.group_name_placeholder")} placeholder={t("rules.group_name_placeholder")} className="rule-group-input" />
+      <button className="action-primary" type="submit" disabled={!name.trim()}>{t("rules.create")}</button>
+      <button type="button" onClick={() => { setCreating(false); setName(""); }}>{t("nodes.cancel")}</button>
+    </form> : <button type="button" className="rule-group-add" onClick={() => { setCreating(true); setName(""); }}>+ {t("rules.new_group")}</button>}
+  </div>;
 }

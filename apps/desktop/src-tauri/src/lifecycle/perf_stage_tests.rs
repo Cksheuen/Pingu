@@ -30,6 +30,7 @@ fn empty_state() -> (Arc<AppState>, ProxyState) {
         active_node_id: None,
         rule_groups: vec![],
         active_group_id: String::new(),
+        rule_stack: None,
         host_overrides: vec![],
         autostart: false,
         language: "zh".to_string(),

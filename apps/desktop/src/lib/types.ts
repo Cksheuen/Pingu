@@ -49,6 +49,8 @@ export interface RuleGroup {
   name: string;
   rules: Rule[];
   default_strategy: Strategy;
+  nameserver_policy?: { domain_suffix: string; server?: string; servers?: string[] }[];
+  fake_ip_filter?: string[];
 }
 
 export interface ProxyInfo {

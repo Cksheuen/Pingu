@@ -2611,3 +2611,52 @@ body { font-size: 13px; }
 .chain-candidate-results .chain-table { margin-top: 10px; }
 .chain-candidate-results tr[data-selected="true"] { background: var(--accent-soft); color: var(--color-accent); }
 .chain-measurements .chain-table a { color: inherit; text-decoration: none; }
+
+/* Ordered local routing groups */
+.rule-stack { display: grid; gap: 12px; margin-bottom: 16px; }
+.rule-stack-description, .rule-stack-preview p { color: var(--color-text-secondary); font-size: 12px; line-height: 1.7; margin: 0; }
+.rule-stack-scroll { overflow-x: auto; box-shadow: none; }
+.rule-stack-table { width: 100%; min-width: 650px; border-collapse: collapse; font-size: 12px; text-align: left; }
+.rule-stack-table th { padding: 11px 12px; color: var(--color-text-muted); font-weight: 500; background: var(--color-inset); }
+.rule-stack-table td { padding: 12px; border-top: 1px solid var(--line); }
+.rule-stack-table tr[data-selected="true"] td { background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+.rule-stack-table input[type="checkbox"] { accent-color: var(--color-accent); width: 16px; height: 16px; cursor: pointer; }
+.rule-stack-priority, .rule-stack-actions, .rule-stack-form { display: flex; align-items: center; gap: 8px; }
+.rule-stack-priority > span { min-width: 14px; font-variant-numeric: tabular-nums; }
+.rule-stack-priority button { border: 1px solid var(--line); border-radius: 4px; width: 24px; height: 26px; }
+.rule-stack-table button:disabled { opacity: .3; cursor: default; }
+.rule-stack-table button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.rule-stack-group { color: var(--color-text-primary); text-align: left; font-weight: 600; }
+.rule-stack-count, .rule-stack-actions { white-space: nowrap; color: var(--color-text-secondary); }
+.rule-stack-form { flex-wrap: wrap; }
+.rule-stack-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0 10px; font-size: 12px; }
+.rule-stack-preview { margin-top: 16px; font-size: 12px; }
+.rule-stack-preview summary { cursor: pointer; padding: 10px 0; }
+.rule-stack-preview ol { padding-left: 24px; }
+.rule-stack-preview li { padding: 5px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.rule-stack-preview li > span { margin-left: 16px; color: var(--color-text-secondary); }
+
+.modal-panel-wide { max-width: 900px; max-height: calc(100dvh - 32px); display: flex; flex-direction: column; }
+.rule-group-editor { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.rule-group-editor-heading { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rule-group-editor-heading .dialog-field-group { margin: 0; }
+.rule-group-editor-body { min-height: 100px; overflow-y: auto; }
+.rule-group-editor-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.rule-group-editor-section { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 12px; font-size: 13px; }
+.rule-group-editor-scroll { overflow-x: auto; }
+.rule-group-editor-grid { display: grid; grid-template-columns: 40px 135px minmax(180px, 1fr) 105px 90px; gap: 8px; align-items: center; min-width: 650px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.rule-group-editor-labels { color: var(--color-text-muted); font-size: 11px; }
+.rule-group-editor-grid .dialog-field, .rule-group-editor-grid .select-trigger { min-width: 0; font-size: 12px; }
+.rule-group-editor-index { color: var(--color-text-secondary); text-align: center; font-size: 12px; }
+.rule-group-editor-actions { display: flex; gap: 3px; justify-content: flex-end; }
+.rule-group-editor-actions button { width: 27px; height: 30px; border: 1px solid var(--line); border-radius: 5px; }
+.rule-group-editor button:disabled { opacity: .4; }
+.rule-group-editor-empty { color: var(--color-text-secondary); padding: 18px 0; }
+.rule-group-editor-details { margin: 16px 0; font-size: 12px; }
+.rule-group-editor-details summary { cursor: pointer; padding: 8px 0; }
+.rule-group-editor-dns { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(200px, 2fr) 28px; gap: 8px; margin: 8px 0; }
+.rule-group-editor-dns .dialog-field { min-width: 0; font-size: 12px; }
+.rule-group-editor-footer { border-top: 1px solid var(--line); padding-top: 10px; }
+.rule-group-editor-footer p { margin: 0; color: var(--color-text-secondary); font-size: 12px; }
+.rule-group-editor-footer .dialog-actions { margin-top: 12px; }
+@media (max-width: 600px) { .rule-group-editor-heading { grid-template-columns: 1fr; } }

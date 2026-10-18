@@ -5,9 +5,10 @@ interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  wide?: boolean;
 }
 
-export function Modal({ title, onClose, children }: ModalProps) {
+export function Modal({ title, onClose, children, wide = false }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
     >
       <div
         ref={panelRef}
-        className="surface modal-panel"
+        className={`surface modal-panel${wide ? " modal-panel-wide" : ""}`}
         onClick={(event) => event.stopPropagation()}
       >
         <h2 className="dialog-title">{title}</h2>

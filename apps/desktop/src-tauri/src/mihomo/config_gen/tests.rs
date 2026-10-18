@@ -1,4 +1,27 @@
 use super::*;
+
+#[test]
+fn enabled_stack_uses_one_global_fallback_after_all_groups_and_subscription_rules() {
+    use crate::storage::rule_stack::RuleStack;
+    let mut config = AppConfig::default_config();
+    let first = config.rule_groups[0].id.clone();
+    config.rule_groups[0].rules = vec![Rule { id: "first".into(), rule_type: "domain".into(), match_value: "first.test".into(), outbound: "direct".into() }];
+    let second = config.create_rule_group("Second".into());
+    config.set_active_group(&second.id).unwrap();
+    config.add_rule_to_active_group(Rule { id: "second".into(), rule_type: "domain".into(), match_value: "second.test".into(), outbound: "block".into() }).unwrap();
+    config.subscriptions.push(subscription("stack"));
+    config.set_rule_stack(RuleStack { enabled_group_ids: vec![first, second.id], default_strategy: "proxy".into() }).unwrap();
+    let value = try_generate_app_config(&config, config.active_rule_group().unwrap(), &[], 0, 0).unwrap();
+    let rules = value["rules"].as_array().unwrap();
+    let first_index = rules.iter().position(|r| r == "DOMAIN,first.test,DIRECT").unwrap();
+    let second_index = rules.iter().position(|r| r == "DOMAIN,second.test,REJECT").unwrap();
+    assert!(first_index < second_index);
+    assert_eq!(rules.iter().filter(|r| r.as_str().unwrap().starts_with("MATCH,")).count(), 1);
+    assert_eq!(rules.last().unwrap(), "MATCH,Pingu Proxy");
+    config.set_global_default_strategy("direct").unwrap();
+    let value = try_generate_app_config(&config, config.active_rule_group().unwrap(), &[], 0, 0).unwrap();
+    assert_eq!(value["rules"].as_array().unwrap().last().unwrap(), "MATCH,DIRECT");
+}
 use crate::mihomo::profiles::{parse_body, Subscription};
 use crate::storage::app_config::AppConfig;
 fn subscription(id: &str) -> Subscription {

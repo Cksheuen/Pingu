@@ -26,6 +26,9 @@ pub struct AppConfig {
     pub active_node_id: Option<String>,
     pub rule_groups: Vec<RuleGroup>,
     pub active_group_id: String,
+    /// Ordered enabled groups; active_group_id is only the editor selection.
+    #[serde(default)]
+    pub rule_stack: Option<super::rule_stack::RuleStack>,
     #[serde(default)]
     pub host_overrides: Vec<HostOverride>,
     #[serde(default)]
@@ -51,19 +54,28 @@ impl AppConfig {
         Ok(config_dir.join("config.json"))
     }
 
+    fn fresh_config() -> Self {
+        let mut config = Self::default_config();
+        config.migrate_rule_stack();
+        config
+    }
+
     pub fn load() -> Self {
         let path = match Self::config_path() {
             Ok(path) => path,
-            Err(_) => return Self::default_config(),
+            Err(_) => return Self::fresh_config(),
         };
         match fs::read_to_string(&path) {
             Ok(content) => {
                 // Try new format first
                 if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
-                    let mut changed = config.normalize_legacy_default_rule_group();
+                    let mut changed = config.rule_stack.is_none() && config.normalize_legacy_default_rule_group();
                     changed = config.backfill_node_security() || changed;
                     changed = config.normalize_host_overrides() || changed;
-                    changed = config.normalize_rule_groups() || changed;
+                    if config.rule_stack.is_none() {
+                        changed = config.normalize_rule_groups() || changed;
+                    }
+                    changed = config.migrate_rule_stack() || changed;
                     if changed {
                         config.save().ok();
                     }
@@ -88,6 +100,7 @@ impl AppConfig {
                         active_node_id: old.active_node_id,
                         rule_groups: vec![group],
                         active_group_id: active_id,
+                        rule_stack: None,
                         host_overrides: vec![],
                         autostart: false,
                         language: default_language(),
@@ -95,12 +108,13 @@ impl AppConfig {
                     let mut config = config;
                     let _ = config.normalize_legacy_default_rule_group();
                     let _ = config.normalize_rule_groups();
+                    let _ = config.migrate_rule_stack();
                     config.save().ok();
                     return config;
                 }
-                Self::default_config()
+                Self::fresh_config()
             }
-            Err(_) => Self::default_config(),
+            Err(_) => Self::fresh_config(),
         }
     }
 
@@ -295,6 +309,7 @@ impl AppConfig {
             active_node_id: None,
             rule_groups: vec![default_group, byted_internal_dns, full_proxy, direct_only],
             active_group_id: active_id,
+            rule_stack: None,
             host_overrides: vec![],
             autostart: false,
             language: default_language(),
@@ -366,6 +381,9 @@ impl AppConfig {
         }
 
         self.rule_groups.retain(|group| group.id != id);
+        if let Some(stack) = self.rule_stack.as_mut() {
+            stack.enabled_group_ids.retain(|group_id| group_id != id);
+        }
         if self.active_group_id == id {
             self.active_group_id = self.rule_groups[0].id.clone();
         }
@@ -403,12 +421,14 @@ impl AppConfig {
         Ok(())
     }
 
-    pub fn set_active_group_default_strategy(&mut self, strategy: &str) -> Result<(), String> {
+    pub fn set_global_default_strategy(&mut self, strategy: &str) -> Result<(), String> {
         if strategy != "proxy" && strategy != "direct" {
             return Err("Strategy must be 'proxy' or 'direct'".to_string());
         }
 
-        self.active_rule_group_mut()?.default_strategy = strategy.to_string();
+        let mut stack = self.routing_stack();
+        stack.default_strategy = strategy.to_string();
+        self.rule_stack = Some(stack);
         Ok(())
     }
 
@@ -428,6 +448,9 @@ impl AppConfig {
     }
 
     pub fn find_rule_group_name(&self, id: &str) -> Option<String> {
+        if id == super::rule_stack::STACK_ID {
+            return self.effective_rule_group().ok().map(|group| group.name);
+        }
         self.rule_groups
             .iter()
             .find(|group| group.id == id)

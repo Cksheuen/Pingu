@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addRule, createRuleGroup, deleteRule, deleteRuleGroup, getActiveGroupId,
-  listRuleGroups, listRules, renameRuleGroup, setActiveGroup, setDefaultStrategy } from "../lib/rules-api";
+import { createRuleGroup, deleteRuleGroup, listRuleGroups, setDefaultStrategy,
+  getRuleStack, setRuleStack, updateRuleGroup, deduplicateRules, type RuleStack } from "../lib/rules-api";
 import { useConnectionStore } from "../lib/connection-store";
 import { useRuntimeOperation } from "../lib/runtime-operation";
 import { errorMessage } from "../lib/network-view";
-import type { Rule, RuleGroup, Strategy } from "../lib/types";
+import type { RuleGroup, Strategy } from "../lib/types";
 
 export function useRulesPageModel() {
-  const [rules, setRules] = useState<Rule[]>([]);
   const [groups, setGroups] = useState<RuleGroup[]>([]);
-  const [strategy, setStrategy] = useState<Strategy>("proxy");
-  const [activeGroupId, setActiveGroupId] = useState("");
+  const [stack, setStack] = useState<RuleStack>({ enabled_group_ids: [], default_strategy: "proxy" });
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
@@ -19,20 +17,16 @@ export function useRulesPageModel() {
 
   const refresh = useCallback(async () => {
     const revision = ++request.current;
-    const [nextGroups, nextActiveGroupId, nextRules] = await Promise.all([listRuleGroups(), getActiveGroupId(), listRules()]);
+    const [nextGroups, nextStack] = await Promise.all([listRuleGroups(), getRuleStack()]);
     if (revision !== request.current) return;
-    setGroups(nextGroups); setActiveGroupId(nextActiveGroupId); setRules(nextRules);
-    const group = nextGroups.find(g => g.id === nextActiveGroupId);
-    if (group) setStrategy(group.default_strategy);
+    setGroups(nextGroups); setStack(nextStack);
   }, []);
   useEffect(() => { void refresh().catch(e => setError(errorMessage(e))); }, [refresh]);
 
-  // Publish only canonical readback. Failures remain visible and do not close
-  // dialogs that still contain the user's unapplied input.
-  const run = useCallback(async (action: () => Promise<unknown>) => {
+  const run = useCallback(async <T,>(action: () => Promise<T>): Promise<T> => {
     if (busy.current || useRuntimeOperation.getState().command) throw new Error("A routing change is still in progress.");
     busy.current = true; setPending(true); setError(null); ++request.current;
-    try { await action(); await refresh(); }
+    try { const result = await action(); await refresh(); return result; }
     catch (cause) {
       setError(errorMessage(cause));
       await refresh().catch(() => undefined);
@@ -43,16 +37,12 @@ export function useRulesPageModel() {
     }
   }, [refresh]);
   return {
-    rules, groups, strategy, activeGroupId, error, pending: pending || !!operation,
-    switchGroup: (id: string) => run(() => setActiveGroup(id)),
-    createGroup: (name: string) => run(async () => {
-      if (!name.trim()) return;
-      const group = await createRuleGroup(name.trim()); await setActiveGroup(group.id);
-    }),
-    renameGroup: (id: string, name: string) => run(() => renameRuleGroup(id, name.trim())),
+    groups, stack, strategy: stack.default_strategy, error, pending: pending || !!operation,
+    setEnabledGroups: (ids: string[]) => run(() => setRuleStack({ ...stack, enabled_group_ids: ids })),
+    deduplicate: () => run(deduplicateRules),
+    createGroup: (name: string) => run(() => createRuleGroup(name.trim())),
+    updateGroup: (group: RuleGroup) => run(() => updateRuleGroup(group)),
     deleteGroup: (id: string) => run(() => deleteRuleGroup(id)),
     changeStrategy: (next: Strategy) => run(() => setDefaultStrategy(next)),
-    addRuleToActiveGroup: (rule: Omit<Rule, "id">) => run(() => addRule(rule)),
-    deleteRuleFromActiveGroup: (id: string) => run(() => deleteRule(id)),
   };
 }

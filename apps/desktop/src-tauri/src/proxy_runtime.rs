@@ -143,7 +143,7 @@ pub fn resolve_runtime_selection(config: &AppConfig) -> Result<RuntimeSelection,
             })
             .ok_or("Select a manual node or enable a subscription")?
     };
-    let rule_group = config.active_rule_group()?.clone();
+    let rule_group = config.effective_rule_group()?;
 
     Ok(RuntimeSelection { node, rule_group })
 }
@@ -521,11 +521,11 @@ pub fn build_ai_service_preflight(
             ready: false,
         });
     }
-    let rule_group = config.active_rule_group()?;
+    let rule_group = config.effective_rule_group()?;
     let routes = AI_SERVICE_TARGETS
         .iter()
         .map(|(service, host)| {
-            let (outbound, matched_by) = configured_outbound_for_host(config, rule_group, host);
+            let (outbound, matched_by) = configured_outbound_for_host(config, &rule_group, host);
             AiServiceRoute {
                 service: (*service).to_string(),
                 host: (*host).to_string(),

@@ -174,9 +174,9 @@ fn rule_group_crud_and_strategy_updates_stay_inside_app_config() {
     assert!(!inserted.id.is_empty());
     assert_eq!(config.list_rules().unwrap().len(), 1);
 
-    config.set_active_group_default_strategy("direct").unwrap();
+    config.set_global_default_strategy("direct").unwrap();
     assert_eq!(
-        config.active_rule_group().unwrap().default_strategy,
+        config.effective_rule_group().unwrap().default_strategy,
         "direct"
     );
 
@@ -265,6 +265,7 @@ fn normalize_rule_groups_backfills_existing_byted_internal_group() {
             }],
         }],
         active_group_id: "group-1".to_string(),
+        rule_stack: None,
         host_overrides: vec![],
         autostart: false,
         language: "zh".to_string(),

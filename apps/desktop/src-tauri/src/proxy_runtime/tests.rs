@@ -79,6 +79,7 @@ fn sample_config() -> AppConfig {
         active_node_id: Some("node-1".to_string()),
         rule_groups: vec![sample_group("group-1", "Default")],
         active_group_id: "group-1".to_string(),
+        rule_stack: None,
         host_overrides: vec![],
         autostart: false,
         language: "zh".to_string(),

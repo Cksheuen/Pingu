@@ -6,6 +6,65 @@ use crate::commands::config::AppState;
 use crate::commands::proxy::ProxyState;
 use crate::lifecycle::{apply_runtime_config_change, mutate_config_only, LifecycleError};
 use crate::mihomo::config_gen::{Rule, RuleGroup};
+use crate::storage::rule_stack::RuleStack;
+
+#[tauri::command]
+pub async fn update_rule_group(
+    app_handle: tauri::AppHandle,
+    group: RuleGroup,
+    state: State<'_, Arc<AppState>>,
+    proxy_state: State<'_, Arc<ProxyState>>,
+) -> Result<RuleGroup, LifecycleError> {
+    let app_state = state.inner().clone();
+    let proxy_state = proxy_state.inner().clone();
+    let saved = tauri::async_runtime::spawn_blocking(move || {
+        apply_runtime_config_change(&app_state, &proxy_state, |config| config.update_rule_group(group))
+    }).await.map_err(|error| LifecycleError::external("lifecycle_failed", error.to_string(), true))??;
+    crate::tray::rebuild_tray_menu_on_main(app_handle)
+        .map_err(|error| LifecycleError::external("lifecycle_failed", error, true))?;
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn get_rule_stack(state: State<Arc<AppState>>) -> Result<RuleStack, String> {
+    Ok(state.config.lock().map_err(|e| e.to_string())?.routing_stack())
+}
+
+#[tauri::command]
+pub fn get_effective_rules(state: State<Arc<AppState>>) -> Result<RuleGroup, String> {
+    state.config.lock().map_err(|e| e.to_string())?.effective_rule_group()
+}
+
+#[tauri::command]
+pub async fn set_rule_stack(
+    app_handle: tauri::AppHandle,
+    stack: RuleStack,
+    state: State<'_, Arc<AppState>>,
+    proxy_state: State<'_, Arc<ProxyState>>,
+) -> Result<(), LifecycleError> {
+    let app_state = state.inner().clone();
+    let proxy_state = proxy_state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        apply_runtime_config_change(&app_state, &proxy_state, |config| config.set_rule_stack(stack))
+    }).await.map_err(|error| LifecycleError::external("lifecycle_failed", error.to_string(), true))??;
+    crate::tray::rebuild_tray_menu_on_main(app_handle)
+        .map_err(|error| LifecycleError::external("lifecycle_failed", error, true))
+}
+
+#[tauri::command]
+pub async fn deduplicate_rules(
+    state: State<'_, Arc<AppState>>,
+    proxy_state: State<'_, Arc<ProxyState>>,
+) -> Result<(), LifecycleError> {
+    let app_state = state.inner().clone();
+    let proxy_state = proxy_state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        apply_runtime_config_change(&app_state, &proxy_state, |config| {
+            config.deduplicate_rules();
+            Ok(())
+        })
+    }).await.map_err(|error| LifecycleError::external("lifecycle_failed", error.to_string(), true))?
+}
 
 #[tauri::command]
 pub fn list_rule_groups(state: State<Arc<AppState>>) -> Result<Vec<RuleGroup>, String> {
@@ -21,22 +80,17 @@ pub fn get_active_group_id(state: State<Arc<AppState>>) -> Result<String, String
 
 #[tauri::command]
 pub async fn set_active_group(
-    app_handle: tauri::AppHandle,
     id: String,
     state: State<'_, Arc<AppState>>,
-    proxy_state: State<'_, Arc<ProxyState>>,
 ) -> Result<(), LifecycleError> {
     let app_state = state.inner().clone();
-    let proxy_state = proxy_state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        apply_runtime_config_change(&app_state, &proxy_state, |config| {
+        mutate_config_only(&app_state, |config| {
             config.set_active_group(&id)
         })
     })
     .await
-    .map_err(|error| LifecycleError::external("lifecycle_failed", error.to_string(), true))??;
-    crate::tray::rebuild_tray_menu_on_main(app_handle)
-        .map_err(|error| LifecycleError::external("lifecycle_failed", error, true))
+    .map_err(|error| LifecycleError::external("lifecycle_failed", error.to_string(), true))?
 }
 
 #[tauri::command]
@@ -136,7 +190,7 @@ pub async fn set_default_strategy(
     let proxy_state = proxy_state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         apply_runtime_config_change(&app_state, &proxy_state, |config| {
-            config.set_active_group_default_strategy(&strategy)
+            config.set_global_default_strategy(&strategy)
         })
     })
     .await

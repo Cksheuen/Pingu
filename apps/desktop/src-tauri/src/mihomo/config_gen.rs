@@ -381,6 +381,10 @@ pub fn try_generate_app_config(
     port: u16,
 ) -> Result<Value, String> {
     use std::collections::HashMap;
+    // All production consumers share the same ordered routing policy. The
+    // explicit group parameter remains for legacy/import validation callers.
+    let effective = config.rule_stack.as_ref().map(|_| config.effective_rule_group()).transpose()?;
+    let group = effective.as_ref().unwrap_or(group);
     let mut proxies = Vec::new();
     let mut groups = Vec::new();
     let mut choices = Vec::new();
@@ -807,9 +811,14 @@ pub fn try_generate_app_config(
     rules.extend(imported_rules);
     rules.push(if group.default_strategy == "direct" {
         "MATCH,DIRECT".into()
+    } else if config.rule_stack.is_some() {
+        "MATCH,Pingu Proxy".into()
     } else {
         imported_default.unwrap_or_else(|| "MATCH,Pingu Proxy".into())
     });
+    // Preserve first-match order while avoiding identical imported/local rules.
+    let mut seen_rules = std::collections::HashSet::new();
+    rules.retain(|rule| seen_rules.insert(rule.clone()));
     let mut value = json!({"mixed-port":port,"allow-lan":false,"bind-address":"127.0.0.1","mode":"rule","log-level":"info","ipv6":false,"external-controller":format!("127.0.0.1:{api}"),"secret":super::controller::secret(),"profile":{"store-selected":false,"store-fake-ip":false},"find-process-mode":"strict","dns":dns,"proxies":proxies,"proxy-groups":groups,"proxy-providers":proxy_providers,"rule-providers":rule_providers,"rules":rules});
     crate::chain::apply(config, &mut value)?;
     Ok(value)
