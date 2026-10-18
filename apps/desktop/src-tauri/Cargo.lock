@@ -2447,6 +2447,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "core-foundation",
  "dirs 5.0.1",
  "percent-encoding",
  "regex",

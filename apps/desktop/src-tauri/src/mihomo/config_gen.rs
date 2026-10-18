@@ -773,6 +773,9 @@ pub fn try_generate_app_config(
             "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
             "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
             "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+            "IP-CIDR6,::1/128,DIRECT,no-resolve",
+            "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
+            "IP-CIDR6,fe80::/10,DIRECT,no-resolve",
         ]
         .iter()
         .map(|s| s.to_string()),
@@ -821,6 +824,7 @@ pub fn try_generate_app_config(
     rules.retain(|rule| seen_rules.insert(rule.clone()));
     let mut value = json!({"mixed-port":port,"allow-lan":false,"bind-address":"127.0.0.1","mode":"rule","log-level":"info","ipv6":false,"external-controller":format!("127.0.0.1:{api}"),"secret":super::controller::secret(),"profile":{"store-selected":false,"store-fake-ip":false},"find-process-mode":"strict","dns":dns,"proxies":proxies,"proxy-groups":groups,"proxy-providers":proxy_providers,"rule-providers":rule_providers,"rules":rules});
     crate::chain::apply(config, &mut value)?;
+    crate::system::tun::configure(config.network_mode, &mut value)?;
     Ok(value)
 }
 #[cfg(test)]

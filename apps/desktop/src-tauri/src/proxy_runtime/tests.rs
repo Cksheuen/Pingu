@@ -72,6 +72,7 @@ fn sample_group(id: &str, name: &str) -> RuleGroup {
 
 fn sample_config() -> AppConfig {
     AppConfig {
+        network_mode: Default::default(),
         proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),
@@ -107,6 +108,7 @@ fn build_proxy_status_returns_group_name_from_config() {
     assert_eq!(
         status,
         ProxyStatus {
+            network_mode: Default::default(),
             connected: true,
             phase: "connected".into(), routing_revision: 0,
             active_node_name: Some(sample_config().nodes[0].name.clone()),
@@ -131,6 +133,7 @@ fn build_proxy_status_resets_snapshot_when_disconnected() {
     assert_eq!(
         status,
         ProxyStatus {
+            network_mode: Default::default(),
             connected: false,
             phase: "disconnected".into(), routing_revision: 0, active_node_name: None,
             active_node_id: None,

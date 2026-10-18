@@ -28,6 +28,7 @@ export interface Rule {
 }
 
 export interface ProxyStatus {
+  network_mode?: "system" | "tun";
   connected: boolean;
   phase?: "disconnected" | "connecting" | "verifying" | "connected" | "switching" | "disconnecting";
   routing_revision?: number;

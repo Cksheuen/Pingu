@@ -26,6 +26,8 @@ pub struct LogEntry {
 }
 
 pub struct MihomoProcess {
+    #[cfg(target_os = "macos")]
+    privileged: Mutex<Option<crate::system::tun::PrivilegedProcess>>,
     // The child paired with a receiver that closes when both stdout/stderr
     // reader threads finish draining their pipes.
     child: Mutex<Option<(Child, mpsc::Receiver<()>)>>,
@@ -110,6 +112,8 @@ impl MihomoProcess {
 
     fn with_binary_inner(binary_path: impl Into<String>) -> Self {
         Self {
+            #[cfg(target_os = "macos")]
+            privileged: Mutex::new(None),
             child: Mutex::new(None),
             logs: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_LOG_LINES))),
             binary_path: binary_path.into(),
@@ -175,6 +179,28 @@ impl MihomoProcess {
             return Err("mihomo is already running".into());
         }
 
+        #[cfg(target_os = "macos")]
+        if crate::system::tun::enabled(config_path) {
+            let mut privileged = self.privileged.lock().map_err(|e| e.to_string())?;
+            if privileged.is_some() { return Err("TUN is already running or awaiting cleanup".into()); }
+            if let Ok(mut logs) = self.logs.lock() { logs.clear(); }
+            let logs = self.logs.clone();
+            let process = crate::system::tun::PrivilegedProcess::start(config_path, move |line| {
+                let entry = parse_log_line(&line);
+                if let Ok(mut buf) = logs.lock() {
+                    if buf.len() >= MAX_LOG_LINES { buf.pop_front(); }
+                    buf.push_back(entry.clone());
+                }
+                persist_to_file(&entry);
+            })?;
+            *privileged = Some(process);
+            return Ok(());
+        }
+        #[cfg(not(target_os = "macos"))]
+        if crate::system::tun::enabled(config_path) {
+            return Err("TUN authorization is currently supported on macOS only".into());
+        }
+
         // Clear old logs
         if let Ok(mut logs) = self.logs.lock() {
             logs.clear();
@@ -226,6 +252,19 @@ impl MihomoProcess {
     }
 
     pub fn stop(&self) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        {
+            let mut guard = self.privileged.lock().map_err(|e| e.to_string())?;
+            if let Some(mut process) = guard.take() {
+                drop(guard);
+                if let Err(error) = process.stop() {
+                    *self.privileged.lock().map_err(|e| e.to_string())? = Some(process);
+                    return Err(error);
+                }
+                log_writer::flush_for_shutdown();
+                return Ok(());
+            }
+        }
         // Take the child (and its drain receiver) out of the mutex, then DROP
         // the guard before kill/wait/flush. The UI also takes this mutex in
         // get_status/is_running, so holding it across the wait would block the
@@ -278,6 +317,12 @@ impl MihomoProcess {
     }
 
     pub fn is_running(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        if let Ok(guard) = self.privileged.try_lock() {
+            if let Some(process) = guard.as_ref() { return process.is_running(); }
+        } else {
+            return false;
+        }
         let mut guard = match self.child.lock() {
             Ok(g) => g,
             Err(_) => return false,

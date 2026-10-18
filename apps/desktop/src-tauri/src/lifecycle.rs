@@ -710,28 +710,37 @@ pub fn connect_core(app_state: &AppState, proxy_state: &ProxyState) -> Result<()
         ));
     }
 
+    if gate_config.network_mode == crate::system::tun::NetworkMode::Tun {
+        if let Err(error) = crate::system::tun::verify_interface(runtime.clash_api_port) {
+            return Err(cleanup_runtime_failure_locked(proxy_state, runtime.owned_runtime_dir.as_deref(), error));
+        }
+    }
+
     // A running local listener only means mihomo parsed the configuration.
     // Verify proxied content (IP, Cloudflare trace, and Google) before
     // claiming the relay is usable or changing the user's system proxy settings.
     let _verifying = proxy_state.operation_phase("verifying");
-    let verified_checks = match verify_startup_proxy_content(runtime.listen_port) {
-        Ok(checks) => checks,
-        Err(error) => {
+    let verified_checks =
+        match verify_startup_proxy_content(runtime.listen_port) {
+            Ok(checks) => checks,
+            Err(error) => {
+                return Err(cleanup_runtime_failure_locked(
+                    proxy_state,
+                    runtime.owned_runtime_dir.as_deref(),
+                    format!("VPS content verification failed: {error}"),
+                ))
+            }
+        };
+
+    if gate_config.network_mode == crate::system::tun::NetworkMode::System {
+        proxy_state.owns_system_proxy.store(true, Ordering::SeqCst);
+        if let Err(error) = proxy_state.system_proxy.set(runtime.listen_port) {
             return Err(cleanup_runtime_failure_locked(
                 proxy_state,
                 runtime.owned_runtime_dir.as_deref(),
-                format!("VPS content verification failed: {error}"),
-            ))
+                format!("Failed to configure system proxy: {error}"),
+            ));
         }
-    };
-
-    proxy_state.owns_system_proxy.store(true, Ordering::SeqCst);
-    if let Err(error) = proxy_state.system_proxy.set(runtime.listen_port) {
-        return Err(cleanup_runtime_failure_locked(
-            proxy_state,
-            runtime.owned_runtime_dir.as_deref(),
-            format!("Failed to configure system proxy: {error}"),
-        ));
     }
 
     if let Err(error) = set_runtime_connected(proxy_state, &runtime, false) {
@@ -1132,6 +1141,7 @@ fn reload_runtime_in_place_with(
     proxy_state.routing_changed(None)?;
     let applied = (|| {
         controller::reload(port, &payload)?;
+        if value["tun"]["enable"] == true { crate::system::tun::verify_interface(port)?; }
         let checks = verify(listen_port)?;
         runtime.clash_api_port = port;
         runtime.listen_port = listen_port;

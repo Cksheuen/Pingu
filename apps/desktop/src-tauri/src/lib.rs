@@ -166,6 +166,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::proxy::set_network_mode,
             commands::chain::get_proxy_chain,
             commands::chain::get_chain_runtime,
             commands::chain::get_chain_probe_progress,

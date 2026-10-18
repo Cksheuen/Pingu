@@ -7,7 +7,7 @@ const rust = (files, filters, dependencies = []) => ({
 // not invalidate its consumers. Add a new module here with its real consumers.
 export const scopes = {
   traffic: rust(['traffic_monitor.rs', 'commands/traffic.rs'], ['traffic_monitor::']),
-  logs: rust(['mihomo/log_writer.rs', 'mihomo/process.rs', 'commands/logs.rs'], ['mihomo::log_writer::', 'mihomo::process::']),
+  logs: rust(['mihomo/log_writer.rs', 'mihomo/process.rs', 'commands/logs.rs'], ['mihomo::log_writer::', 'mihomo::process::'], ['system']),
   nodes: {
     ...rust(['mihomo/uri_parser.rs', 'mihomo/subscription.rs'], ['mihomo::uri_parser::', 'mihomo::subscription::']),
     // subscription.rs reuses the fetch security boundary implemented here;
@@ -18,12 +18,12 @@ export const scopes = {
     ...rust(['chain.rs', 'chain/probe.rs', 'chain/latency.rs', 'commands/chain.rs'], ['chain::'], ['nodes', 'gate']),
     sharedSources: ['src-tauri/src/storage/app_config.rs', 'src-tauri/src/mihomo/config_gen.rs', 'src-tauri/src/mihomo/profiles.rs', 'src-tauri/src/mihomo/controller.rs'],
   },
-  config: rust(['storage/app_config.rs', 'storage/rule_stack.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::', 'storage::rule_stack::'], ['nodes']),
+  config: rust(['storage/app_config.rs', 'storage/rule_stack.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::', 'storage::rule_stack::'], ['nodes', 'system']),
   subscriptions: rust(['mihomo/profiles.rs', 'mihomo/controller.rs', 'commands/network.rs'], ['mihomo::profiles::', 'mihomo::controller::'], ['nodes']),
   routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions', 'chain']),
   runtime: rust(['proxy_runtime.rs'], ['proxy_runtime::'], ['routing']),
   gate: rust(['gate.rs', 'storage/gate_config.rs', 'commands/gate.rs'], ['gate::', 'storage::gate_config::']),
-  system: rust(['system/mod.rs', 'system/proxy_macos.rs'], ['system::proxy_macos::']),
+  system: rust(['system/mod.rs', 'system/proxy_macos.rs', 'system/tun.rs', 'system/tun/helper.rs', 'system/tun/dns.rs'], ['system::proxy_macos::', 'system::tun::']),
   lifecycle: rust(['lifecycle.rs', 'commands/proxy.rs'], ['lifecycle::'], ['runtime', 'traffic', 'logs', 'system', 'gate']),
   quit: rust(['lib.rs', 'tray.rs', 'commands/mod.rs', 'mihomo/mod.rs', 'storage/mod.rs'], ['exit_coordination_tests::']),
   cli: {

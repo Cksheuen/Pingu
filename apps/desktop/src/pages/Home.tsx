@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ConnectionHero } from "../components/home/ConnectionHero";
+import { NetworkModeCard } from "../components/home/NetworkModeCard";
 import { TerminalProxyCard } from "../components/home/TerminalProxyCard";
 import { TrafficCard } from "../components/home/TrafficCard";
 import { AiPreflightCard } from "../components/home/AiPreflightCard";
@@ -37,11 +38,12 @@ export default function Home() {
     <ConnectionHero connected={status.connected} uptimeSeconds={status.uptime_seconds} loading={loading} error={error}
       activeNodeName={status.active_node_name ?? (chainMode ? t("nav.chain") : subscriptionMode ? t("home.subscription_route") : activeNode?.name ?? null)}
       connectLabel={needsSource ? t("workspace.add_source") : undefined} onClearError={clearError} onToggleConnection={needsSource ? async () => navigate("/sources") : toggleConnection} />
-    <div className="connection-metrics"><TrafficCard /><AiPreflightCard connected={status.connected} proxyInfo={proxyInfo} preflight={preflight} /></div>
+    <NetworkModeCard />
+    <div className="connection-metrics"><TrafficCard /><AiPreflightCard connected={status.connected} proxyInfo={status.network_mode === "tun" ? null : proxyInfo} preflight={preflight} /></div>
     <div id="chain"><Chain embedded onRouteChange={setChainRoute} /></div>
     <div className="home-tools"><details className="surface workspace-disclosure" id="strategies" open={strategiesOpen} onToggle={event => setStrategiesOpen(event.currentTarget.open)}>
       <summary>{t("nav.strategies")}</summary>{strategiesOpen && <Strategies embedded />}
     </details>
-    <details className="surface workspace-disclosure" open={terminalOpen} onToggle={event => setTerminalOpen(event.currentTarget.open)}><summary>{t("home.terminal_proxy")}</summary>{terminalOpen && <TerminalProxyCard connected={status.connected} proxyInfo={proxyInfo} />}</details></div>
+    <details className="surface workspace-disclosure" open={terminalOpen} onToggle={event => setTerminalOpen(event.currentTarget.open)}><summary>{t("home.terminal_proxy")}</summary>{terminalOpen && (status.network_mode === "tun" ? <p className="network-hint tun-terminal-hint">{t("tun.terminal_hint")}</p> : <TerminalProxyCard connected={status.connected} proxyInfo={proxyInfo} />)}</details></div>
   </div>;
 }

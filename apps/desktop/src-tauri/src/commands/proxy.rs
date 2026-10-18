@@ -55,6 +55,27 @@ pub async fn disconnect(
 }
 
 #[tauri::command]
+pub async fn set_network_mode(
+    mode: crate::system::tun::NetworkMode,
+    app_state: State<'_, Arc<AppState>>,
+    proxy_state: State<'_, Arc<ProxyState>>,
+) -> Result<(), String> {
+    let app = app_state.inner().clone();
+    let proxy = proxy_state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        lifecycle::mutate_config_only(&app, |config| {
+            if mode == config.network_mode { return Ok(()); }
+            if proxy.is_running() { return Err("Disconnect before changing network mode.".into()); }
+            if mode == crate::system::tun::NetworkMode::Tun && !cfg!(target_os = "macos") {
+                return Err("TUN authorization is currently supported on macOS only.".into());
+            }
+            config.network_mode = mode;
+            Ok(())
+        }).map_err(|e| e.message)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub fn get_status(
     app_state: State<Arc<AppState>>,
     proxy_state: State<Arc<ProxyState>>,

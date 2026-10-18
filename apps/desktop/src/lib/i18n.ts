@@ -1,6 +1,13 @@
 type Lang = "en" | "zh";
 
 const translations: Record<string, Record<Lang, string>> = {
+  "tun.network_mode": { en: "Network mode", zh: "网络模式" },
+  "tun.label": { en: "TUN", zh: "TUN" },
+  "tun.system": { en: "System proxy", zh: "系统代理" },
+  "tun.description": { en: "Automatically enabled when connected. Uses your routing rules without proxy environment variables. Approve the network helper once. After installation, reconnects, restarts and interface updates need no further approval.", zh: "连接时自动启用，沿用当前分流规则，无需代理环境变量。网络助手首次授权一次。安装后，重连、重启和界面更新无需再次授权。" },
+  "tun.system_description": { en: "Uses macOS proxy settings. Terminal apps may need their own proxy configuration.", zh: "使用 macOS 系统代理；终端应用可能需要单独设置代理。" },
+  "tun.disconnect_to_change": { en: "Disconnect to change network mode.", zh: "断开连接后可切换网络模式。" },
+  "tun.terminal_hint": { en: "TUN routes terminal traffic automatically. No HTTP_PROXY, HTTPS_PROXY or ALL_PROXY variables are needed. Existing variables are not changed by Pingu.", zh: "TUN 会自动接管终端流量，无需设置 HTTP_PROXY、HTTPS_PROXY 或 ALL_PROXY。Pingu 不会修改已有环境变量。" },
 
   "workspace.connection": { en: "Connection", zh: "连接与线路" },
   "workspace.sources": { en: "Sources", zh: "订阅与节点" },

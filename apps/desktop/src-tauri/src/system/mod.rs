@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+pub mod tun;
+
 #[cfg(target_os = "macos")]
 pub mod proxy_macos;
 

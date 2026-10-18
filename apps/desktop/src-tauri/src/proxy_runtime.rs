@@ -22,6 +22,7 @@ const AI_SERVICE_TARGETS: [(&str, &str); 4] = [
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ProxyStatus {
+    pub network_mode: crate::system::tun::NetworkMode,
     pub connected: bool,
     pub phase: String,
     pub routing_revision: u64,
@@ -240,6 +241,7 @@ pub fn build_proxy_status(
 ) -> ProxyStatus {
     if !connected {
         return ProxyStatus {
+            network_mode: config.network_mode,
             connected: false,
             phase: "disconnected".into(),
             routing_revision: 0,
@@ -256,6 +258,7 @@ pub fn build_proxy_status(
         .and_then(|id| config.find_rule_group_name(id));
 
     ProxyStatus {
+        network_mode: config.network_mode,
         connected: true,
         phase: "connected".into(),
         routing_revision: 0,

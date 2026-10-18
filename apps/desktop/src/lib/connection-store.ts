@@ -34,6 +34,7 @@ let requestEpoch = 0;
 function sameStatus(left: ProxyStatus, right: ProxyStatus): boolean {
   return (
     left.connected === right.connected &&
+    left.network_mode === right.network_mode &&
     left.phase === right.phase &&
     left.routing_revision === right.routing_revision &&
     left.active_node_name === right.active_node_name &&

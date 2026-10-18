@@ -2612,6 +2612,15 @@ body { font-size: 13px; }
 .chain-candidate-results tr[data-selected="true"] { background: var(--accent-soft); color: var(--color-accent); }
 .chain-measurements .chain-table a { color: inherit; text-decoration: none; }
 
+.network-mode-card { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 20px; }
+.network-mode-copy { flex: 1 1 280px; }
+.network-mode-copy strong { font-size: 13px; }
+.network-mode-copy p { opacity: 0.7; font-size: 12px; line-height: 1.6; margin: 6px 0 0; }
+.network-mode-options { display: flex; gap: 8px; flex-shrink: 0; }
+.network-mode-options button { min-width: 84px; }
+.network-mode-error { flex-basis: 100%; color: #d85a60; font-size: 12px; margin: 0; }
+.tun-terminal-hint { padding: 12px 20px; }
+
 /* Ordered local routing groups */
 .rule-stack { display: grid; gap: 12px; margin-bottom: 16px; }
 .rule-stack-description, .rule-stack-preview p { color: var(--color-text-secondary); font-size: 12px; line-height: 1.7; margin: 0; }

@@ -139,6 +139,52 @@ fn source_dns_does_not_override_controller_or_tun() {
 }
 
 #[test]
+fn tun_mode_keeps_existing_policies_and_outbound_credentials() {
+    let mut config = AppConfig::default_config();
+    config.subscriptions = vec![subscription("source")];
+    let mut baseline = generate_app_config(&config, config.active_rule_group().unwrap(), &[], 19090, 12080);
+    config.network_mode = crate::system::tun::NetworkMode::Tun;
+    let mut tunneled = generate_app_config(&config, config.active_rule_group().unwrap(), &[], 19090, 12080);
+    assert_eq!(tunneled["tun"]["auto-route"], true);
+    assert_eq!(tunneled["tun"]["dns-hijack"], json!(["any:53", "tcp://any:53"]));
+    assert!(tunneled["tun"]["inet6-address"].as_array().is_some_and(|v| !v.is_empty()));
+    assert_eq!(tunneled["ipv6"], true);
+    assert_eq!(baseline["ipv6"], false);
+    #[cfg(target_os = "macos")]
+    {
+        assert_eq!(tunneled["dns"]["ipv6"], true);
+        assert_eq!(tunneled["dns"]["fake-ip-range6"], "fdfe:dcba:9876::1/64");
+    }
+    assert_eq!(tunneled["dns"]["nameserver-policy"], baseline["dns"]["nameserver-policy"]);
+    assert_eq!(tunneled["dns"]["fake-ip-filter"], baseline["dns"]["fake-ip-filter"]);
+    tunneled.as_object_mut().unwrap().remove("tun");
+    tunneled.as_object_mut().unwrap().remove("dns");
+    baseline.as_object_mut().unwrap().remove("dns");
+    tunneled.as_object_mut().unwrap().remove("ipv6");
+    baseline.as_object_mut().unwrap().remove("ipv6");
+    assert_eq!(tunneled, baseline);
+}
+
+#[test]
+fn ipv6_private_rules_precede_user_cidrs_and_global_fallback() {
+    let c = AppConfig::default_config();
+    let mut group = c.active_rule_group().unwrap().clone();
+    group.default_strategy = "proxy".into();
+    group.rules = vec![Rule {
+        id: "v6".into(), rule_type: "ip_cidr".into(),
+        match_value: "2001:db8::/32".into(), outbound: "block".into(),
+    }];
+    let out = generate_app_config(&c, &group, &[], 19090, 12080);
+    let rules = out["rules"].as_array().unwrap();
+    let custom = rules.iter().position(|r| r == "IP-CIDR,2001:db8::/32,REJECT").unwrap();
+    for cidr in ["::1/128", "fc00::/7", "fe80::/10"] {
+        let private = rules.iter().position(|r| r == &format!("IP-CIDR6,{cidr},DIRECT,no-resolve")).unwrap();
+        assert!(private < custom);
+    }
+    assert_eq!(rules.last().unwrap(), "MATCH,Pingu Proxy");
+}
+
+#[test]
 fn default_routes_blocked_domains_before_ip_resolution_and_defaults_direct() {
     let mut c = AppConfig::default_config();
     c.subscriptions = vec![subscription("source")];
