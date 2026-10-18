@@ -177,7 +177,7 @@ fn dns_server(name: &str) -> &str {
     match name {
         "system-dns" => "system",
         "remote-dns" => "https://dns.google/dns-query#Pingu Proxy",
-        "local-dns" => "223.5.5.5",
+        "local-dns" => "system",
         other => other,
     }
 }
@@ -394,10 +394,10 @@ pub fn try_generate_app_config(
     let mut rule_providers = serde_json::Map::new();
     let mut imported_rules = Vec::new();
     let mut imported_default = None;
-    // Direct traffic and IP rules must resolve even when foreign DoH endpoints
+    // Direct traffic and IP rules must resolve even when upstream DoH endpoints
     // are blocked. Proxy protocols resolve destination domains at their exit;
     // an explicit remote-dns override goes through Pingu Proxy (see dns_server).
-    // Keep local/corporate policies authoritative for direct connections too.
+    // Keep user-defined DNS policies authoritative for direct connections too.
     let mut dns = json!({
         "enable": true,
         "ipv6": false,
@@ -787,11 +787,7 @@ pub fn try_generate_app_config(
             "domain_suffix" => rules.push(format!("DOMAIN-SUFFIX,{},{}", rule.match_value, t)),
             "ip_cidr" => rules.push(format!("IP-CIDR,{},{}", rule.match_value, t)),
             "geosite" | "geoip" => {
-                let value = if rule.rule_type == "geosite" && rule.match_value == "geolocation-cn" {
-                    "cn"
-                } else {
-                    &rule.match_value
-                };
+                let value = &rule.match_value;
                 if !value.is_empty()
                     && value
                         .chars()

@@ -1,5 +1,4 @@
 use super::*;
-use crate::storage::byted_internal::{BYTED_INTERNAL_PRIMARY_DNS, BYTED_INTERNAL_SECONDARY_DNS};
 
 fn sample_node(id: &str, name: &str) -> Node {
     Node {
@@ -39,48 +38,28 @@ fn settings_load_from_old_config_and_survive_serialization() {
     )
     .unwrap();
     assert!(!config.autostart);
-    assert_eq!(config.language, "zh");
+    assert_eq!(config.language, "en");
     config.autostart = true;
-    config.language = "en".into();
+    config.language = "zh".into();
     let restored: AppConfig =
         serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
     assert!(restored.autostart);
-    assert_eq!(restored.language, "en");
+    assert_eq!(restored.language, "zh");
 }
 
 #[test]
-fn legacy_default_migration_preserves_ids_and_user_groups_and_runs_once() {
+fn normalization_preserves_user_rules_and_does_not_inject_network_presets() {
     let mut config = AppConfig::default_config();
-    let group = &mut config.rule_groups[0];
-    group.rules.retain(|rule| rule.match_value != "gfw");
-    group.default_strategy = "proxy".into();
-    let id = group.id.clone();
-    let rule_ids: Vec<_> = group.rules.iter().map(|r| r.id.clone()).collect();
-    let other_groups = serde_json::to_value(&config.rule_groups[1..]).unwrap();
-
-    assert!(config.normalize_legacy_default_rule_group());
-    let group = config.active_rule_group().unwrap();
-    assert_eq!(group.id, id);
-    assert_eq!(group.default_strategy, "direct");
-    assert_eq!(group.rules[0].id, rule_ids[0]);
-    assert_eq!(group.rules[2].id, rule_ids[1]);
-    assert_eq!(group.rules[1].match_value, "gfw");
-    assert_eq!(group.rules[1].outbound, "proxy");
-    assert_eq!(serde_json::to_value(&config.rule_groups[1..]).unwrap(), other_groups);
-
-    config.rule_groups[0].default_strategy = "proxy".into();
-    assert!(!config.normalize_legacy_default_rule_group());
-    assert_eq!(config.rule_groups[0].default_strategy, "proxy");
-}
-
-#[test]
-fn legacy_default_migration_leaves_custom_rules_untouched() {
-    let mut config = AppConfig::default_config();
-    config.rule_groups[0].rules.retain(|r| r.match_value != "gfw");
-    config.rule_groups[0].rules.push(sample_rule("custom", "proxy"));
-    let before = serde_json::to_value(&config).unwrap();
-    assert!(!config.normalize_legacy_default_rule_group());
-    assert_eq!(serde_json::to_value(&config).unwrap(), before);
+    config.rule_groups.truncate(1);
+    config.rule_groups[0].rules = vec![sample_rule("custom", "direct")];
+    config.rule_groups[0].default_strategy = "direct".into();
+    let before = serde_json::to_value(&config.rule_groups).unwrap();
+    assert!(!config.normalize_rule_groups());
+    config.migrate_rule_stack();
+    assert_eq!(serde_json::to_value(&config.rule_groups).unwrap(), before);
+    assert_eq!(config.routing_stack().default_strategy, "direct");
+    let restored: AppConfig = serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+    assert_eq!(restored.effective_rule_group().unwrap().rules[0].id, "custom");
 }
 
 #[test]
@@ -211,93 +190,22 @@ fn deleting_last_group_is_rejected() {
 }
 
 #[test]
-fn default_config_contains_strengthened_byted_internal_dns_group() {
-    let config = AppConfig::default_config();
-    let group = config
-        .rule_groups
-        .iter()
-        .find(|group| group.name == BYTED_INTERNAL_DNS_GROUP_NAME)
-        .expect("Byted Internal DNS group");
-
-    assert_eq!(group.default_strategy, "proxy");
-    assert!(group.rules.iter().any(|rule| {
-        rule.rule_type == "domain_suffix"
-            && rule.match_value == "tiktok-row.net"
-            && rule.outbound == "direct"
-    }));
-    assert!(group.rules.iter().any(|rule| {
-        rule.rule_type == "ip_cidr" && rule.match_value == "10.0.0.0/8" && rule.outbound == "direct"
-    }));
-
-    let policy = group
-        .nameserver_policy
-        .iter()
-        .find(|policy| policy.domain_suffix == "+.tiktok-row.org")
-        .expect("tiktok-row.org policy");
-    assert_eq!(policy.server, BYTED_INTERNAL_PRIMARY_DNS);
-    assert_eq!(
-        policy.servers,
-        vec![
-            BYTED_INTERNAL_PRIMARY_DNS.to_string(),
-            BYTED_INTERNAL_SECONDARY_DNS.to_string()
-        ]
-    );
-}
-
-#[test]
-fn normalize_rule_groups_backfills_existing_byted_internal_group() {
-    let mut config = AppConfig {
-        network_mode: Default::default(),
-        vps_egress: Default::default(),
-        proxy_chain: Default::default(),
-        subscriptions: vec![],
-        strategy_selections: Default::default(),
-        nodes: vec![],
-        active_node_id: None,
-        rule_groups: vec![RuleGroup {
-            id: "group-1".to_string(),
-            name: BYTED_INTERNAL_DNS_GROUP_NAME.to_string(),
-            rules: vec![],
-            default_strategy: "direct".to_string(),
-            fake_ip_filter: vec![],
-            nameserver_policy: vec![crate::mihomo::config_gen::NameServerPolicy {
-                domain_suffix: "+.byted.org".to_string(),
-                server: BYTED_INTERNAL_SECONDARY_DNS.to_string(),
-                servers: vec![],
-            }],
-        }],
-        active_group_id: "group-1".to_string(),
-        rule_stack: None,
-        host_overrides: vec![],
-        autostart: false,
-        language: "zh".to_string(),
-    };
-
+fn normalize_rule_groups_keeps_custom_dns_without_adding_domains_or_groups() {
+    let mut config = AppConfig::default_config();
+    config.rule_groups[0].nameserver_policy = vec![crate::mihomo::config_gen::NameServerPolicy {
+        domain_suffix: "+.private.example".into(),
+        server: "192.0.2.53".into(),
+        servers: vec![],
+    }];
+    let before_count = config.rule_groups.len();
     assert!(config.normalize_rule_groups());
-
+    assert!(!config.normalize_rule_groups());
+    assert_eq!(config.rule_groups.len(), before_count);
     let group = &config.rule_groups[0];
-    assert_eq!(group.default_strategy, "proxy");
-    assert!(group.rules.iter().any(|rule| {
-        rule.rule_type == "domain_suffix"
-            && rule.match_value == "byted.org"
-            && rule.outbound == "direct"
-    }));
-    assert!(group.rules.iter().any(|rule| {
-        rule.rule_type == "domain_suffix"
-            && rule.match_value == "tiktok-row.org"
-            && rule.outbound == "direct"
-    }));
-    assert!(group.rules.iter().any(|rule| {
-        rule.rule_type == "ip_cidr" && rule.match_value == "10.0.0.0/8" && rule.outbound == "direct"
-    }));
-
-    let policy = group
-        .nameserver_policy
-        .iter()
-        .find(|policy| policy.domain_suffix == "+.byted.org")
-        .expect("byted.org policy");
-    assert_eq!(policy.server, BYTED_INTERNAL_PRIMARY_DNS);
-    assert_eq!(policy.servers.len(), 2);
+    assert!(group.rules.is_empty());
+    assert_eq!(group.nameserver_policy.len(), 1);
+    assert_eq!(group.nameserver_policy[0].domain_suffix, "+.private.example");
+    assert_eq!(group.nameserver_policy[0].servers, ["192.0.2.53"]);
 }
 
 #[test]
@@ -306,7 +214,7 @@ fn host_override_crud_normalizes_and_updates_timestamp() {
 
     let created = config
         .create_host_override(
-            "HTTPS://BNPM.BYTED.ORG/",
+            "HTTPS://REGISTRY.PRIVATE.EXAMPLE/",
             Some("system-dns"),
             Some("direct"),
             Some(true),
@@ -315,7 +223,7 @@ fn host_override_crud_normalizes_and_updates_timestamp() {
         )
         .unwrap();
 
-    assert_eq!(created.host, "bnpm.byted.org");
+    assert_eq!(created.host, "registry.private.example");
     assert_eq!(created.resolver_mode, "system-dns");
     assert_eq!(created.outbound_mode, "direct");
     assert_eq!(created.source, "manual");
@@ -351,12 +259,12 @@ fn host_override_crud_normalizes_and_updates_timestamp() {
 fn duplicate_host_override_is_rejected_after_normalization() {
     let mut config = AppConfig::default_config();
     config
-        .create_host_override("bnpm.byted.org", Some("system-dns"), None, None, None, None)
+        .create_host_override("registry.private.example", Some("system-dns"), None, None, None, None)
         .unwrap();
 
     let error = config
         .create_host_override(
-            "https://bnpm.byted.org/",
+            "https://registry.private.example/",
             Some("remote-dns"),
             None,
             None,

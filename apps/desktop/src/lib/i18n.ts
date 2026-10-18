@@ -440,16 +440,16 @@ const translations: Record<string, Record<Lang, string>> = {
 
   // Tooltips
   "tooltip.geosite": {
-    en: "GeoSite: Match by domain category from maintained lists. E.g. 'geolocation-cn' matches all known Chinese domains including Apple CN, Google CN services.",
-    zh: "GeoSite：按维护列表中的域名分类匹配。如 'geolocation-cn' 匹配所有已知中国域名，包括 Apple CN、Google CN 等服务。",
+    en: "GeoSite: Match by domain category from maintained lists. Enter a category supported by your rule provider.",
+    zh: "GeoSite：按维护列表中的域名分类匹配。填写规则提供方支持的分类名称。",
   },
   "tooltip.geoip": {
-    en: "GeoIP: Match by IP geolocation. E.g. 'cn' matches IP addresses located in China.",
-    zh: "GeoIP：按 IP 地理位置匹配。如 'cn' 匹配位于中国的 IP 地址。",
+    en: "GeoIP: Match by IP geolocation. Enter the region code supported by your rule provider.",
+    zh: "GeoIP：按 IP 地理位置匹配。填写规则提供方支持的地区代码。",
   },
   "tooltip.domain_suffix": {
-    en: "Domain Suffix: Match domains ending with this suffix. E.g. '.edu.cn' matches all Chinese education domains.",
-    zh: "域名后缀：匹配以此后缀结尾的域名。如 '.edu.cn' 匹配所有中国教育域名。",
+    en: "Domain Suffix: Match domains ending with this suffix. E.g. 'example.com' matches that domain and its subdomains.",
+    zh: "域名后缀：匹配以此后缀结尾的域名。如 'example.com' 匹配该域名及其子域名。",
   },
   "tooltip.domain": {
     en: "Domain: Match exact domain name. E.g. 'google.com' only matches google.com itself.",
@@ -602,9 +602,9 @@ const translations: Record<string, Record<Lang, string>> = {
 
 let currentLang: Lang = (() => {
   try {
-    return (localStorage.getItem("lang") as Lang) || "zh";
+    return localStorage.getItem("lang") === "zh" ? "zh" : "en";
   } catch {
-    return "zh" as Lang;
+    return "en" as Lang;
   }
 })();
 

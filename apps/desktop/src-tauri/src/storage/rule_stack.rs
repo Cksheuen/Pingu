@@ -14,11 +14,7 @@ pub struct RuleStack {
 }
 
 fn rule_key(rule: &Rule) -> (String, String, String) {
-    let value = if rule.rule_type == "geosite" && rule.match_value == "geolocation-cn" {
-        "cn"
-    } else {
-        &rule.match_value
-    };
+    let value = &rule.match_value;
     (
         rule.rule_type.clone(),
         value.to_string(),

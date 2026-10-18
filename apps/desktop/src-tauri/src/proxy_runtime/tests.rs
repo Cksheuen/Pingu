@@ -12,7 +12,7 @@ impl RegistryEnv {
     fn install() -> Self {
         let lock = REGISTRY_ENV_LOCK.lock().unwrap();
         let previous = std::env::var_os("NPM_CONFIG_REGISTRY");
-        std::env::set_var("NPM_CONFIG_REGISTRY", "https://bnpm.byted.org/");
+        std::env::set_var("NPM_CONFIG_REGISTRY", "https://registry.private.example/");
         Self {
             previous,
             _lock: lock,
@@ -147,13 +147,13 @@ fn build_proxy_status_resets_snapshot_when_disconnected() {
 
 #[test]
 fn parse_egress_ip_accepts_a_plain_text_ip_response() {
-    assert_eq!(parse_egress_ip("154.26.187.44\n").unwrap(), "154.26.187.44");
+    assert_eq!(parse_egress_ip("192.0.2.10\n").unwrap(), "192.0.2.10");
     assert_eq!(parse_egress_ip("2001:db8::1").unwrap(), "2001:db8::1");
 }
 
 #[test]
 fn parse_egress_ip_rejects_an_html_page() {
-    assert!(parse_egress_ip("<html><body>154.26.187.44</body></html>").is_err());
+    assert!(parse_egress_ip("<html><body>192.0.2.10</body></html>").is_err());
 }
 
 #[test]
@@ -169,11 +169,11 @@ fn ai_preflight_reports_the_effective_route_for_each_service() {
 
     let report = build_ai_service_preflight(
         &config,
-        "154.26.187.44".to_string(),
-        content_checks_for_egress("154.26.187.44".to_string()),
+        "192.0.2.10".to_string(),
+        content_checks_for_egress("192.0.2.10".to_string()),
     )
     .unwrap();
-    assert_eq!(report.egress_ip, "154.26.187.44");
+    assert_eq!(report.egress_ip, "192.0.2.10");
     assert!(!report.ready);
     assert_eq!(report.routes[0].outbound, "proxy");
     assert_eq!(report.routes[1].outbound, "direct");
@@ -187,8 +187,8 @@ fn ai_preflight_reports_the_effective_route_for_each_service() {
     });
     let report = build_ai_service_preflight(
         &config,
-        "154.26.187.44".to_string(),
-        content_checks_for_egress("154.26.187.44".to_string()),
+        "192.0.2.10".to_string(),
+        content_checks_for_egress("192.0.2.10".to_string()),
     )
     .unwrap();
     assert!(!report.ready);
@@ -199,6 +199,10 @@ fn ai_preflight_reports_the_effective_route_for_each_service() {
 #[test]
 fn ai_preflight_does_not_mistake_dynamic_default_routing_for_direct() {
     let mut config = AppConfig::default_config();
+    config.rule_groups[0].rules.push(Rule {
+        id: "dataset".into(), rule_type: "geosite".into(),
+        match_value: "category-dev".into(), outbound: "proxy".into(),
+    });
     let report = build_ai_service_preflight(
         &config, "203.0.113.1".into(), content_checks_for_egress("203.0.113.1".into()),
     ).unwrap();
@@ -226,7 +230,7 @@ fn discover_runtime_host_override_adds_system_dns_for_matching_npm_registry() {
         default_strategy: "proxy".to_string(),
         fake_ip_filter: vec![],
         nameserver_policy: vec![NameServerPolicy {
-            domain_suffix: "+.byted.org".to_string(),
+            domain_suffix: "+.private.example".to_string(),
             server: "100.82.0.1".to_string(),
             servers: vec![],
         }],
@@ -235,8 +239,8 @@ fn discover_runtime_host_override_adds_system_dns_for_matching_npm_registry() {
     let item = discover_runtime_host_override(&group, &std::collections::HashSet::new())
         .expect("runtime fallback override");
 
-    assert_eq!(item.id, "runtime-fallback-bnpm.byted.org");
-    assert_eq!(item.host, "bnpm.byted.org");
+    assert_eq!(item.id, "runtime-fallback-registry.private.example");
+    assert_eq!(item.host, "registry.private.example");
     assert_eq!(item.resolver_mode, "system-dns");
     assert_eq!(item.outbound_mode, "inherit");
     assert!(item.enabled);
@@ -254,7 +258,7 @@ fn resolve_runtime_host_overrides_prefers_persisted_host_override() {
     let mut config = sample_config();
     config.host_overrides.push(HostOverride {
         id: "manual-1".to_string(),
-        host: "bnpm.byted.org".to_string(),
+        host: "registry.private.example".to_string(),
         resolver_mode: "remote-dns".to_string(),
         outbound_mode: "direct".to_string(),
         enabled: true,
@@ -263,7 +267,7 @@ fn resolve_runtime_host_overrides_prefers_persisted_host_override() {
         updated_at: "1".to_string(),
     });
     config.rule_groups[0].nameserver_policy = vec![NameServerPolicy {
-        domain_suffix: "+.byted.org".to_string(),
+        domain_suffix: "+.private.example".to_string(),
         server: "100.82.0.1".to_string(),
         servers: vec![],
     }];
@@ -369,35 +373,35 @@ fn run_parallel_checks_joins_all_and_reports_panics_as_errors() {
 #[test]
 fn finalize_content_checks_accepts_consistent_egress_and_204() {
     let checks = finalize_content_checks(
-        Ok("154.26.187.44".to_string()),
-        Ok("154.26.187.44".to_string()),
+        Ok("192.0.2.10".to_string()),
+        Ok("192.0.2.10".to_string()),
         Ok(204),
     )
     .expect("matching IPv4 egress and HTTP 204 must succeed");
 
     assert_eq!(
         checks,
-        content_checks_for_egress("154.26.187.44".to_string())
+        content_checks_for_egress("192.0.2.10".to_string())
     );
 }
 
 #[test]
 fn finalize_content_checks_accepts_and_reports_policy_specific_egress() {
     let checks = finalize_content_checks(
-        Ok("154.26.187.44".into()),
+        Ok("192.0.2.10".into()),
         Ok("154.26.187.99".into()),
         Ok(204),
     )
     .unwrap();
-    assert_eq!(checks[0].observed_ip.as_deref(), Some("154.26.187.44"));
+    assert_eq!(checks[0].observed_ip.as_deref(), Some("192.0.2.10"));
     assert_eq!(checks[1].observed_ip.as_deref(), Some("154.26.187.99"));
 }
 
 #[test]
 fn finalize_content_checks_rejects_non_204_google_response() {
     let error = finalize_content_checks(
-        Ok("154.26.187.44".to_string()),
-        Ok("154.26.187.44".to_string()),
+        Ok("192.0.2.10".to_string()),
+        Ok("192.0.2.10".to_string()),
         Ok(200),
     )
     .expect_err("HTTP 200 from generate_204 must fail");
@@ -412,14 +416,14 @@ fn finalize_content_checks_rejects_non_204_google_response() {
 fn finalize_content_checks_propagates_each_probe_failure() {
     let egress_error = finalize_content_checks(
         Err("egress probe down".to_string()),
-        Ok("154.26.187.44".to_string()),
+        Ok("192.0.2.10".to_string()),
         Ok(204),
     )
     .expect_err("egress failure must fail");
     assert_eq!(egress_error, "egress probe down");
 
     let cloudflare_error = finalize_content_checks(
-        Ok("154.26.187.44".to_string()),
+        Ok("192.0.2.10".to_string()),
         Err("trace down".to_string()),
         Ok(204),
     )
@@ -427,8 +431,8 @@ fn finalize_content_checks_propagates_each_probe_failure() {
     assert_eq!(cloudflare_error, "trace down");
 
     let google_error = finalize_content_checks(
-        Ok("154.26.187.44".to_string()),
-        Ok("154.26.187.44".to_string()),
+        Ok("192.0.2.10".to_string()),
+        Ok("192.0.2.10".to_string()),
         Err("google down".to_string()),
     )
     .expect_err("google failure must fail");

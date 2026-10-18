@@ -135,6 +135,7 @@ CASE_COUNT=0
 
 while IFS=$'\t' read -r case_id case_label case_url case_host case_port expected_route allowed_prefixes case_source; do
   [[ -n "${case_id}" ]] || continue
+  if [[ "${expected_route}" == "block" ]]; then continue; fi
   CASE_COUNT=$((CASE_COUNT + 1))
   code="$(request "${case_url}")"
   echo "${case_id} route=${expected_route} source=${case_source} url=${case_url} http_code=${code}"
@@ -148,7 +149,7 @@ while IFS=$'\t' read -r case_id case_label case_url case_host case_port expected
 
   if [[ "${expected_route}" == "direct" ]]; then
     echo "outbound/direct[direct]: outbound connection to ${case_host}:${case_port}" >> "${PATTERN_FILE}"
-  else
+  elif [[ "${expected_route}" == "proxy" ]]; then
     echo "outbound/vless[proxy]: outbound connection to ${case_host}:${case_port}" >> "${PATTERN_FILE}"
   fi
 done < <(python3 "${ROOT_DIR}/scripts/routing_case_matrix.py" --format tsv)

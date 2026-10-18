@@ -45,7 +45,6 @@ fn reputation_without_system_proxy(config: &AppConfig) -> Result<(), String> {
                 "Scamalytics",
                 format!("https://scamalytics.com/ip/{egress_ip}"),
             ),
-            ("ping0.cc", "https://ping0.cc".to_string()),
             (
                 "IPQualityScore",
                 format!(
@@ -148,7 +147,6 @@ fn extract_metric_context(name: &str, body: &str) -> Option<String> {
                 "<form"
             }
         }
-        "ping0.cc" => return Some("no risk label in this HTTP response".to_string()),
         _ => return None,
     };
     let start = body.find(anchor)?;

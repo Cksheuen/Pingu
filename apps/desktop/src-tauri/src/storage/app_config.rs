@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-use super::byted_internal::{
-    make_byted_internal_dns_group, normalize_nameserver_policy,
-    strengthen_byted_internal_dns_group, BYTED_INTERNAL_DNS_GROUP_NAME,
-};
+use super::dns_policy::normalize_nameserver_policy;
 pub use super::host_overrides::HostOverride;
 use super::host_overrides::{
     current_timestamp_string, normalize_host, normalize_host_override_source,
@@ -73,8 +70,7 @@ impl AppConfig {
             Ok(content) => {
                 // Try new format first
                 if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
-                    let mut changed = config.rule_stack.is_none() && config.normalize_legacy_default_rule_group();
-                    changed = config.backfill_node_security() || changed;
+                    let mut changed = config.backfill_node_security();
                     changed = config.normalize_host_overrides() || changed;
                     if config.rule_stack.is_none() {
                         changed = config.normalize_rule_groups() || changed;
@@ -112,7 +108,6 @@ impl AppConfig {
                         language: default_language(),
                     };
                     let mut config = config;
-                    let _ = config.normalize_legacy_default_rule_group();
                     let _ = config.normalize_rule_groups();
                     let _ = config.migrate_rule_stack();
                     config.save().ok();
@@ -121,42 +116,6 @@ impl AppConfig {
                 Self::fresh_config()
             }
             Err(_) => Self::fresh_config(),
-        }
-    }
-
-    fn normalize_legacy_default_rule_group(&mut self) -> bool {
-        let mut changed = false;
-        for group in &mut self.rule_groups {
-            // Only migrate the unmodified shipped template. The added GFW rule
-            // also makes this idempotent without resetting later user choices.
-            if group.name != "Default" || group.rules.len() != 2 {
-                continue;
-            }
-            let has_geosite_cn = group.rules.iter().any(|rule| {
-                rule.rule_type == "geosite"
-                    && matches!(rule.match_value.as_str(), "cn" | "geolocation-cn")
-                    && rule.outbound == "direct"
-            });
-            let geoip_index = group.rules.iter().position(|rule| {
-                rule.rule_type == "geoip" && rule.match_value == "cn" && rule.outbound == "direct"
-            });
-            if let Some(index) = geoip_index.filter(|_| has_geosite_cn) {
-                // Match blocked domains before any IP lookup, which could be
-                // poisoned or unavailable on the direct network.
-                group.rules.insert(index, Self::blocked_domains_rule());
-                group.default_strategy = "direct".into();
-                changed = true;
-            }
-        }
-        changed
-    }
-
-    fn blocked_domains_rule() -> Rule {
-        Rule {
-            id: uuid::Uuid::new_v4().to_string(),
-            rule_type: "geosite".into(),
-            match_value: "gfw".into(),
-            outbound: "proxy".into(),
         }
     }
 
@@ -237,21 +196,7 @@ impl AppConfig {
             }
         }
 
-        changed = self.ensure_byted_internal_dns_group() || changed;
         changed
-    }
-
-    fn ensure_byted_internal_dns_group(&mut self) -> bool {
-        if let Some(group) = self
-            .rule_groups
-            .iter_mut()
-            .find(|group| group.name == BYTED_INTERNAL_DNS_GROUP_NAME)
-        {
-            return strengthen_byted_internal_dns_group(group);
-        }
-
-        self.rule_groups.push(make_byted_internal_dns_group());
-        true
     }
 
     pub fn save(&self) -> Result<(), String> {
@@ -270,26 +215,11 @@ impl AppConfig {
         let default_group = RuleGroup {
             id: uuid::Uuid::new_v4().to_string(),
             name: "Default".into(),
-            rules: vec![
-                Rule {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    rule_type: "geosite".into(),
-                    match_value: "geolocation-cn".into(),
-                    outbound: "direct".into(),
-                },
-                Self::blocked_domains_rule(),
-                Rule {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    rule_type: "geoip".into(),
-                    match_value: "cn".into(),
-                    outbound: "direct".into(),
-                },
-            ],
-            default_strategy: "direct".into(),
+            rules: vec![],
+            default_strategy: "proxy".into(),
             fake_ip_filter: vec![],
             nameserver_policy: vec![],
         };
-        let byted_internal_dns = make_byted_internal_dns_group();
         let full_proxy = RuleGroup {
             id: uuid::Uuid::new_v4().to_string(),
             name: "Full Proxy".into(),
@@ -315,7 +245,7 @@ impl AppConfig {
             strategy_selections: Default::default(),
             nodes: Vec::new(),
             active_node_id: None,
-            rule_groups: vec![default_group, byted_internal_dns, full_proxy, direct_only],
+            rule_groups: vec![default_group, full_proxy, direct_only],
             active_group_id: active_id,
             rule_stack: None,
             host_overrides: vec![],
@@ -577,7 +507,7 @@ impl AppConfig {
 }
 
 fn default_language() -> String {
-    "zh".to_string()
+    "en".to_string()
 }
 
 #[cfg(test)]

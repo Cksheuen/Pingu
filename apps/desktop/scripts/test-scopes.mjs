@@ -18,7 +18,7 @@ export const scopes = {
     ...rust(['chain.rs', 'chain/probe.rs', 'chain/latency.rs', 'commands/chain.rs'], ['chain::'], ['nodes', 'gate']),
     sharedSources: ['src-tauri/src/storage/app_config.rs', 'src-tauri/src/mihomo/config_gen.rs', 'src-tauri/src/mihomo/profiles.rs', 'src-tauri/src/mihomo/controller.rs'],
   },
-  config: rust(['storage/app_config.rs', 'storage/rule_stack.rs', 'storage/byted_internal.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::', 'storage::rule_stack::'], ['nodes', 'system']),
+  config: rust(['storage/app_config.rs', 'storage/rule_stack.rs', 'storage/dns_policy.rs', 'storage/host_overrides.rs', 'commands/config.rs', 'commands/rules.rs', 'commands/host_overrides.rs', 'commands/settings.rs'], ['storage::app_config::', 'storage::rule_stack::'], ['nodes', 'system']),
   egress: rust(['egress.rs', 'commands/egress.rs'], ['egress::'], ['config']),
   subscriptions: rust(['mihomo/profiles.rs', 'mihomo/controller.rs', 'commands/network.rs'], ['mihomo::profiles::', 'mihomo::controller::'], ['nodes']),
   routing: rust(['mihomo/config_gen.rs'], ['mihomo::config_gen::'], ['config', 'subscriptions', 'chain', 'egress']),
@@ -39,6 +39,7 @@ export const scopes = {
     tests: ['tests/egress-store.test.ts', 'tests/runtime-operation.test.ts', 'tests/chain-api.test.ts', 'tests/connection-store.test.ts', 'tests/network-view.test.ts', 'tests/subscription-store.test.ts', 'tests/node-shims.d.ts'],
   },
   ui: { kind: 'typecheck', sources: ['src/'], tests: [], dependencies: [] },
+  routing_probes: { kind: 'python', dependencies: [], sources: ['scripts/routing_case_matrix.py', 'scripts/test-routing.py', 'scripts/verify-routing.sh'], tests: ['scripts/test_routing_probes.py'] },
   runner: {
     kind: 'node', dependencies: [],
     sources: ['scripts/test.mjs', 'scripts/test-scopes.mjs'],

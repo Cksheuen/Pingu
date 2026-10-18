@@ -12,15 +12,7 @@ from typing import Optional
 from routing_case_matrix import build_case_matrix
 
 
-DOMESTIC_IP_ECHO_URLS = [
-    "https://myip.ipip.net",
-    "https://cip.cc",
-]
-
-FOREIGN_IP_ECHO_URLS = [
-    "https://api.ipify.org",
-    "https://ifconfig.me/ip",
-]
+IP_ECHO_URLS = ["https://api.ipify.org", "https://ifconfig.me/ip"]
 
 CONFIG_CANDIDATES = [
     Path.home() / "Library" / "Application Support" / "sing-proxy" / "mihomo-config.json",
@@ -40,6 +32,7 @@ def run_curl(url: str, proxy: Optional[str], timeout: int, body: bool) -> CurlRe
     last_result = CurlResult(False, "", "no request attempted", None)
     for _ in range(3):
         cmd = ["curl", "-sS", "-L", "--connect-timeout", str(timeout), "--max-time", str(timeout)]
+        cmd += ["--noproxy", ""] if proxy else ["--noproxy", "*"]
         if proxy:
             cmd += ["--proxy", proxy]
 
@@ -80,7 +73,7 @@ def read_route_final() -> Optional[str]:
         if path.exists():
             try:
                 data = json.loads(path.read_text())
-                return data.get("route", {}).get("final")
+                return next((rule.split(",", 1)[1] for rule in reversed(data.get("rules", [])) if rule.startswith("MATCH,")), None)
             except Exception:
                 return None
     return None
@@ -115,105 +108,34 @@ def smoke_check(cases: list[dict], proxy: str, timeout: int, label: str) -> bool
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="验证 SingProxy 启动后的本地代理连通性与分流表现")
+    parser = argparse.ArgumentParser(description="Check local proxy connectivity without geographic assumptions")
     parser.add_argument("--proxy-host", default="127.0.0.1")
     parser.add_argument("--proxy-port", type=int, default=2080)
     parser.add_argument("--timeout", type=int, default=15)
     args = parser.parse_args()
-
     proxy = f"http://{args.proxy_host}:{args.proxy_port}"
-    route_final = read_route_final()
-    cases = build_case_matrix()
-    direct_cases = [case for case in cases if case["expected_route"] == "direct"]
-    proxy_cases = [case for case in cases if case["expected_route"] == "proxy"]
-    policy_cases = [case for case in cases if case["source"] == "policy-domain"]
-
-    if route_final:
-        print(f"当前生成配置的 route.final: {route_final}")
-
-    print(f"检查本地代理监听: {args.proxy_host}:{args.proxy_port}")
+    print(f"Configured fallback: {read_route_final() or 'unknown'}")
     try:
         ensure_proxy_listening(args.proxy_host, args.proxy_port, args.timeout)
     except OSError as exc:
-        print(f"FAIL: 本地代理未监听或无法连接: {exc}")
-        print("请先在应用内点击连接，确认 mihomo 已启动。")
+        print(f"FAIL: Local proxy is not listening: {exc}")
         return 1
-
-    ip_probe_failed = False
-    try:
-        local_ip_url, local_ip_result = fetch_first_success(
-            DOMESTIC_IP_ECHO_URLS, proxy=None, timeout=args.timeout, body=True
-        )
-    except RuntimeError as exc:
-        print(f"FAIL: 获取本机直连出口失败: {exc}")
-        return 1
-
-    try:
-        proxy_ip_url, proxy_ip_result = fetch_first_success(
-            FOREIGN_IP_ECHO_URLS, proxy=proxy, timeout=args.timeout, body=True
-        )
-    except RuntimeError as exc:
-        proxy_ip_url, proxy_ip_result = "<failed>", CurlResult(False, "", str(exc))
-        ip_probe_failed = True
-
-    try:
-        cn_proxy_ip_url, cn_proxy_ip_result = fetch_first_success(
-            DOMESTIC_IP_ECHO_URLS, proxy=proxy, timeout=args.timeout, body=True
-        )
-    except RuntimeError as exc:
-        cn_proxy_ip_url, cn_proxy_ip_result = "<failed>", CurlResult(False, "", str(exc))
-        ip_probe_failed = True
-
-    local_ip = extract_ip(local_ip_result.output)
-    proxy_ip = extract_ip(proxy_ip_result.output)
-    cn_proxy_ip = extract_ip(cn_proxy_ip_result.output)
-
-    print("\n[IP 探针]")
-    print(f"- 本机直连出口 ({local_ip_url}): {local_ip or 'unknown'}")
-    print(f"- 代理出口 ({proxy_ip_url} via proxy): {proxy_ip or 'unknown'}")
-    print(f"- 国内站点经代理访问出口 ({cn_proxy_ip_url} via proxy): {cn_proxy_ip or 'unknown'}")
-
-    passed = True
-
-    if route_final and route_final != "proxy":
-        print("FAIL: 当前生成配置的默认出站不是 proxy，无法满足“国外代理、国内直连”的基准预期")
-        passed = False
-
-    if ip_probe_failed:
-        print("WARN: 至少一个代理 IP 探针失败")
-        if proxy_ip_result.error:
-            print(f"  foreign probe error: {proxy_ip_result.error}")
-        if cn_proxy_ip_result.error:
-            print(f"  domestic probe error: {cn_proxy_ip_result.error}")
-    elif not local_ip or not proxy_ip:
-        print("WARN: 无法解析本机或代理出口 IP")
-    elif local_ip == proxy_ip:
-        print("WARN: 国外探针经本地代理后的出口 IP 与本机相同；这不一定代表失败，也可能是出口探针口径差异或代理端与本机出口一致")
-    else:
-        print("OK: 国外探针显示代理出口 IP 与本机不同")
-
-    if local_ip and cn_proxy_ip:
-        if cn_proxy_ip == local_ip:
-            print("OK: 国内探针经本地代理后的出口仍是本机 IP，说明国内流量大概率走直连")
-        elif proxy_ip and cn_proxy_ip == proxy_ip:
-            print("WARN: 国内探针经本地代理后的出口看起来与代理出口一致，请结合运行日志继续判断")
-        else:
-            print("WARN: 国内探针出口 IP 无法明确归类，请结合日志继续判断")
-    else:
-        print("WARN: 无法解析国内探针出口 IP")
-
-    passed = smoke_check(direct_cases, proxy=proxy, timeout=args.timeout, label="直连目标可达性") and passed
-    passed = smoke_check(proxy_cases, proxy=proxy, timeout=args.timeout, label="代理目标可达性") and passed
-
-    if policy_cases:
-        passed = smoke_check(policy_cases, proxy=proxy, timeout=args.timeout, label="规则相关目标可达性") and passed
-
+    for label, route in [("Direct network", None), ("Through local proxy", proxy)]:
+        try:
+            url, result = fetch_first_success(IP_ECHO_URLS, proxy=route, timeout=args.timeout, body=True)
+            print(f"{label}: {extract_ip(result.output) or 'unknown'} ({url})")
+        except RuntimeError as exc:
+            print(f"WARN: {label} IP probe failed: {exc}")
+    cases = build_case_matrix()
+    blocked = [case for case in cases if case['expected_route'] == 'block']
+    for case in blocked:
+        print(f"SKIP: {case['label']} is explicitly blocked by user policy")
+    passed = smoke_check([case for case in cases if case not in blocked], proxy, args.timeout, "Connectivity")
     if passed:
-        print("\nPASS: 代理可用，且脚本观测到国外流量走代理、国内流量大概率走直连；扩展 URL 与规则相关目标均可达。")
-        return 0
-
-    print("\nFAIL: 至少一项代理/分流检查失败。")
-    return 1
+        print("PASS: Selected targets responded through the local listener. Confirm actual routing in live connections; IP equality alone does not prove a route.")
+    else:
+        print("FAIL: At least one connectivity probe failed.")
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

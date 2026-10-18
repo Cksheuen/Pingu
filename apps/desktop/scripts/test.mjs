@@ -128,6 +128,9 @@ if (selected.includes('ui')) {
   run('pnpm', ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json']);
   console.log('UI typecheck passed. Rendering and native interactions require a separate focused UI check.');
 }
+for (const name of selected.filter(name => scopes[name].kind === 'python')) {
+  run('python3', scopes[name].tests);
+}
 if (selected.includes('runner')) {
   run(process.execPath, ['--test', ...scopes.runner.tests]);
 }

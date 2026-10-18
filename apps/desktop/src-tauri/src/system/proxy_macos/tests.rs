@@ -130,7 +130,7 @@ fn failed_hot_swap_keeps_original_lease_for_later_restore() {
 }
 #[test]
 fn idle_or_authenticated_proxy_is_never_overwritten() {
-    let mut before = std::array::from_fn(|_| endpoint("corporate.example", 8080));
+    let mut before = std::array::from_fn(|_| endpoint("private.example", 8080));
     before[0].authenticated = true;
     let mut io = Fake::new(before.clone());
     let mut state = None;

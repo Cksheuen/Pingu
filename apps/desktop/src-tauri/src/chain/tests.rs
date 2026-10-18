@@ -12,12 +12,12 @@ fn fixture() -> AppConfig {
         ..Default::default()
     });
     c.active_node_id = Some("own".into());
-    c.subscriptions.push(crate::mihomo::profiles::Subscription { nodes_only: false, id:"source".into(), name:"Airport".into(), input:"private".into(), enabled:true, updated_at:"".into(), last_error:None, warnings:vec![], fragment:json!({"proxies":[{"name":"Taiwan","type":"ss","server":"192.0.2.20","port":443,"cipher":"aes-128-gcm","password":"example-only","udp":true}]}) });
+    c.subscriptions.push(crate::mihomo::profiles::Subscription { nodes_only: false, id:"source".into(), name:"Airport".into(), input:"private".into(), enabled:true, updated_at:"".into(), last_error:None, warnings:vec![], fragment:json!({"proxies":[{"name":"Relay A","type":"ss","server":"192.0.2.20","port":443,"cipher":"aes-128-gcm","password":"example-only","udp":true}]}) });
     c.proxy_chain = ChainSettings {
         enabled: true,
         entry: Some(NodeRef::Subscription {
             subscription_id: "source".into(),
-            proxy_name: "Taiwan".into(),
+            proxy_name: "Relay A".into(),
         }),
         exit: Some(NodeRef::Manual {
             node_id: "own".into(),
@@ -96,14 +96,15 @@ fn only_personal_reality_exit_requests_gate() {
 #[test]
 fn full_generated_configuration_routes_proxy_rules_through_chain() {
     let c = fixture();
-    let group = c.active_rule_group().unwrap().clone();
+    let mut group = c.active_rule_group().unwrap().clone();
+    group.rules.push(crate::mihomo::config_gen::Rule { id: "custom".into(), rule_type: "domain".into(), match_value: "service.example".into(), outbound: "proxy".into() });
     let v = crate::mihomo::config_gen::try_generate_app_config(&c, &group, &[], 0, 0).unwrap();
     assert!(v["rules"].as_array().unwrap().contains(&json!(
-        "RULE-SET,pingu-geosite-gfw,Pingu Chain Route"
+        "DOMAIN,service.example,Pingu Chain Route"
     )));
     assert_eq!(
         v["rules"].as_array().unwrap().last().unwrap(),
-        "MATCH,DIRECT"
+        "MATCH,Pingu Chain Route"
     );
     assert_eq!(
         v["proxies"]
@@ -120,19 +121,19 @@ fn node_only_subscription_does_not_take_over_single_hop_routing_or_dns() {
     let mut c = fixture();
     c.proxy_chain.enabled = false;
     c.subscriptions[0].nodes_only = true;
-    c.subscriptions[0].fragment["rules"] = json!(["MATCH,Taiwan"]);
+    c.subscriptions[0].fragment["rules"] = json!(["MATCH,Relay A"]);
     c.subscriptions[0].fragment["dns"] = json!({"nameserver":["192.0.2.1"]});
     let mut group = c.active_rule_group().unwrap().clone();
     group.rules.clear();
     let v = crate::mihomo::config_gen::try_generate_app_config(&c, &group, &[], 0, 0).unwrap();
     assert_eq!(
         v["rules"].as_array().unwrap().last().unwrap(),
-        "MATCH,DIRECT"
+        "MATCH,Pingu Proxy"
     );
     assert_ne!(v["dns"]["nameserver"], json!(["192.0.2.1"]));
     assert_eq!(
         c.subscriptions[0].fragment["rules"],
-        json!(["MATCH,Taiwan"])
+        json!(["MATCH,Relay A"])
     );
 }
 
@@ -181,7 +182,7 @@ fn no_gain_clears_entry_and_selects_the_exact_standalone_exit() {
     assert_eq!(selector["default-selected"], "VPS [own]");
     let exit = NodeRef::Subscription {
         subscription_id: "source".into(),
-        proxy_name: "Taiwan".into(),
+        proxy_name: "Relay A".into(),
     };
     use_single_exit(&mut c, exit).unwrap();
     let v = crate::mihomo::config_gen::try_generate_app_config(
@@ -202,5 +203,5 @@ fn no_gain_clears_entry_and_selects_the_exact_standalone_exit() {
         .as_array()
         .unwrap()
         .contains(&selector["default-selected"]));
-    assert_eq!(selector["default-selected"], "Airport [source] / Taiwan");
+    assert_eq!(selector["default-selected"], "Airport [source] / Relay A");
 }

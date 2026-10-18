@@ -185,20 +185,21 @@ fn ipv6_private_rules_precede_user_cidrs_and_global_fallback() {
 }
 
 #[test]
-fn default_routes_blocked_domains_before_ip_resolution_and_defaults_direct() {
-    let mut c = AppConfig::default_config();
-    c.subscriptions = vec![subscription("source")];
-    c.subscriptions[0].nodes_only = true;
-    let out = generate_app_config(&c, c.active_rule_group().unwrap(), &[], 19090, 12080);
+fn default_routes_have_only_private_bypasses_and_a_global_proxy_fallback() {
+    let mut config = AppConfig::default_config();
+    config.subscriptions = vec![subscription("source")];
+    config.subscriptions[0].nodes_only = true;
+    let out = generate_app_config(&config, config.active_rule_group().unwrap(), &[], 19090, 12080);
     let rules = out["rules"].as_array().unwrap();
-    let blocked = rules.iter().position(|r| r == "RULE-SET,pingu-geosite-gfw,Pingu Proxy").unwrap();
-    let ip = rules.iter().position(|r| r == "RULE-SET,pingu-geoip-cn,DIRECT").unwrap();
-    assert!(blocked < ip);
-    assert_eq!(rules.last().unwrap(), "MATCH,DIRECT");
-    assert_eq!(out["rule-providers"]["pingu-geosite-gfw"]["proxy"], "Pingu Proxy");
+    assert_eq!(rules.last().unwrap(), "MATCH,Pingu Proxy");
+    assert!(rules[..rules.len() - 1].iter().all(|rule| {
+        let rule = rule.as_str().unwrap();
+        (rule.starts_with("IP-CIDR,") || rule.starts_with("IP-CIDR6,"))
+            && rule.ends_with(",DIRECT,no-resolve")
+    }));
+    assert!(out["rule-providers"].as_object().unwrap().is_empty());
     assert_eq!(out["dns"]["nameserver"], json!(["system"]));
     assert_eq!(out["dns"]["direct-nameserver"], json!(["system"]));
-    assert_eq!(out["dns"]["direct-nameserver-follow-policy"], true);
 }
 
 #[test]
@@ -206,7 +207,7 @@ fn local_dns_policies_survive_and_remote_dns_uses_proxy_transport() {
     let c = AppConfig::default_config();
     let mut g = c.active_rule_group().unwrap().clone();
     g.nameserver_policy.push(NameServerPolicy {
-        domain_suffix: "+.corp.example".into(),
+        domain_suffix: "+.private.example".into(),
         server: "10.0.0.53".into(),
         servers: vec![],
     });
@@ -216,7 +217,7 @@ fn local_dns_policies_survive_and_remote_dns_uses_proxy_transport() {
         enabled: true, source: "manual".into(), reason: String::new(), updated_at: String::new(),
     }];
     let out = generate_app_config(&c, &g, &overrides, 19090, 12080);
-    assert_eq!(out["dns"]["nameserver-policy"]["+.corp.example"], json!(["10.0.0.53"]));
+    assert_eq!(out["dns"]["nameserver-policy"]["+.private.example"], json!(["10.0.0.53"]));
     assert_eq!(out["dns"]["nameserver-policy"]["remote.example"], json!(["https://dns.google/dns-query#Pingu Proxy"]));
     assert_eq!(out["dns"]["proxy-server-nameserver"], json!(["system"]));
 }

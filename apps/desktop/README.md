@@ -73,3 +73,15 @@ TUN 沿用已有节点和分流规则，通过虚拟网卡接管 IPv4、IPv6 客
 组件路径：`/Library/PrivilegedHelperTools/com.pingu.network/`，启动项：`/Library/LaunchDaemons/com.pingu.network.plist`。卸载时先断开 Pingu，再由管理员 `launchctl bootout system/com.pingu.network`，删除上述两个专属路径和 `/private/var/run/pingu-network/`。
 
 首次本机授权与真实路由验收需要在安装后的 macOS 应用中完成；普通单元测试不代表已获得该授权。切换模式须先断开，避免两种模式同时接管网络。
+
+
+## Portable defaults
+
+New configurations use the system resolver, direct access to private networks,
+and a proxy fallback for other traffic. No organization-specific domains, DNS
+servers or regional routing datasets are preselected. Add explicit rules and
+DNS policies through the rule-group editor or import your own subscription.
+Existing saved rules and language preferences remain private user data and are
+preserved; only new installations default to English. Local and system DNS
+aliases both use the system resolver. Dataset names are passed to the rule
+provider unchanged, including names with a `geolocation-` prefix.

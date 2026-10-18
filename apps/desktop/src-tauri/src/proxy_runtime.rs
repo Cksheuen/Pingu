@@ -573,7 +573,7 @@ fn configured_outbound_for_host(
     for rule in &rule_group.rules {
         if matches!(rule.rule_type.as_str(), "geosite" | "geoip" | "ip_cidr") {
             // Dataset membership and destination IPs are resolved by Mihomo.
-            // Falling through to MATCH would falsely report GFW-routed AI
+            // Falling through to MATCH would falsely report rule-set-routed AI
             // services as direct under the direct-by-default template.
             return (
                 "runtime".into(),

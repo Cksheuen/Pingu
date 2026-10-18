@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn access_link_is_normalized_to_secret_free_lease_endpoint() {
     let (endpoint, token) =
-        parse_access_link("https://cksheuen.site/__pingu_gate__/allow?token=secret-value&ttl=7d")
+        parse_access_link("https://gateway.example.com/__pingu_gate__/allow?token=secret-value&ttl=7d")
             .unwrap();
 
-    assert_eq!(endpoint, "https://cksheuen.site/__pingu_gate__/lease");
+    assert_eq!(endpoint, "https://gateway.example.com/__pingu_gate__/lease");
     assert_eq!(token, "secret-value");
     assert!(!endpoint.contains("secret-value"));
 }
@@ -14,9 +14,9 @@ fn access_link_is_normalized_to_secret_free_lease_endpoint() {
 #[test]
 fn base_access_link_is_normalized_to_lease_endpoint() {
     let (endpoint, _) =
-        parse_access_link("https://cksheuen.site/__pingu_gate__/?token=secret-value").unwrap();
+        parse_access_link("https://gateway.example.com/__pingu_gate__/?token=secret-value").unwrap();
 
-    assert_eq!(endpoint, "https://cksheuen.site/__pingu_gate__/lease");
+    assert_eq!(endpoint, "https://gateway.example.com/__pingu_gate__/lease");
 }
 
 #[test]

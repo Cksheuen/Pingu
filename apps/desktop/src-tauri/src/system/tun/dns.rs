@@ -88,7 +88,7 @@ fn configure_with_servers(value: &mut Value, servers: &[String]) {
     dns["ipv6"] = json!(true);
     dns["fake-ip-range6"] = json!("fdfe:dcba:9876::1/64");
     // UDP proxy protocols may resolve a destination before sending it. A
-    // corporate resolver can return its own synthetic IP range, which is not
+    // network resolver can return its own synthetic IP range, which is not
     // routable at the proxy exit. Resolve proxy destinations through that exit;
     // retain local resolution for DIRECT, proxy bootstrap and intranet policy.
     let remote = ["https://1.1.1.1/dns-query#Pingu Proxy".to_owned()];
