@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>邮箱生成器 · Pingu</title><link rel="stylesheet" href="/generator/style.css">
+  <script src="/generator/app.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="/generator/">PINGU <span>/ 邮箱</span></a><button id="logout" class="quiet" hidden>退出登录</button></header>
+  <main>
+    <div class="eyebrow">一个收件箱，多个独立地址</div>
+    <h1>为每个用途，<br>生成一个邮箱。</h1>
+    <p class="intro">注册、订阅、购物分开使用。邮件统一转发到你的常用邮箱，地址随时可以停用。</p>
+    <section id="login-panel" class="card login">
+      <form id="login-form"><label for="password">管理密码</label><div class="inline"><input id="password" type="password" autocomplete="current-password" required placeholder="输入管理密码"><button type="submit">进入管理</button></div></form>
+      <p class="muted">仅供你自己使用。密码只保留在当前页面，关闭后自动退出。</p>
+    </section>
+    <div id="workspace" hidden>
+      <div class="destination"><span class="dot"></span><span>统一收件邮箱</span><strong id="destination"></strong></div>
+      <section class="card">
+        <h2>生成新地址</h2>
+        <form id="generate-form">
+          <div class="fields"><div><label for="label">用途备注 <span>可选</span></label><input id="label" maxlength="80" placeholder="例如：购物、工作工具、新闻订阅"></div><div><label for="prefix">地址前缀</label><input id="prefix" maxlength="24" pattern="[a-z0-9][a-z0-9-]{0,23}" value="mail" required></div><div><label for="domain">域名</label><select id="domain"></select></div></div>
+          <div class="form-footer"><span class="muted">直接使用填写的前缀，不添加随机后缀；已有地址不会被覆盖。</span><button id="generate" type="submit">＋ 生成邮箱</button></div>
+        </form>
+        <div id="created" class="created" hidden><span>新地址已保存；收信配置通常需要约一分钟同步。</span><div class="inline"><strong id="created-address"></strong><button id="copy-created" class="secondary">复制地址</button></div></div>
+      </section>
+      <section class="list-section">
+        <div class="section-heading"><h2>我的邮箱 <span id="count"></span></h2><button id="refresh" class="quiet">刷新列表</button></div>
+        <p class="muted">停用后会拒收新邮件；配置同步通常需要约一分钟，有时更久。这些地址用于收信转发，不提供独立发信账号。</p>
+        <div id="addresses"></div><button id="more" class="secondary" hidden>加载更多</button>
+      </section>
+    </div>
+    <p id="notice" role="status" aria-live="polite"></p>
+  </main>
+  <footer>不同地址，同一个熟悉的收件箱。</footer>
+</body>
+</html>
