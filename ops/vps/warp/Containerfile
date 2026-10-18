@@ -1,0 +1,12 @@
+FROM docker.io/library/debian:bookworm-slim
+ARG WARP_VERSION
+RUN test -n "$WARP_VERSION" \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl gnupg python3 socat dbus \
+ && curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/cloudflare-warp.gpg \
+ && echo 'deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ bookworm main' > /etc/apt/sources.list.d/cloudflare-warp.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends "cloudflare-warp=$WARP_VERSION" \
+ && rm -rf /var/lib/apt/lists/*
+COPY entrypoint.py /usr/local/bin/pingu-warp-entrypoint
+ENTRYPOINT ["python3", "/usr/local/bin/pingu-warp-entrypoint"]

@@ -36,6 +36,10 @@ INVENTORY_EXCLUDED = {
 # Test files belong to exactly one scope. Production files may fan out to every
 # consumer whose behavior they affect.
 SCOPES = {
+    "egress": {
+        "module": "ops.vps.tests.test_pingu_egress",
+        "paths": ("ops/vps/sbin/pingu_egress.py", "ops/vps/sbin/pingu_magpie.py", "ops/vps/warp", "ops/vps/tests/test_pingu_egress.py"),
+    },
     "runtime-controls": {
         "module": "ops.vps.tests.test_pingu_runtime_controls",
         "paths": ("ops/vps/sbin/pingu_runtime_controls.py", "ops/vps/tests/test_pingu_runtime_controls.py", "ops/vps/runtime-controls.sh", "ops/vps/systemd/pingu-runtime-controls.service"),

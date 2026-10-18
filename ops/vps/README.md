@@ -181,6 +181,86 @@ in `/etc/pingu-backup.conf` (root-only, schema in
 
 ## Hot runtime switches
 
+### Desktop-managed Cloudflare exit
+
+`pingu_egress.py` and `pingu_magpie.py` serve the desktop shared WARP pool over
+bounded JSON on SSH stdin. No public administration port is added. Protocol v2
+uses stable exit IDs; one VPS pool is shared by Pingu devices and that VPS's
+Magpie model subscriptions. Each account/API key has an independent binding.
+
+Install Podman from the host distribution, then build our container using an
+explicit version from the [official WARP package repository](https://pkg.cloudflareclient.com/):
+
+```sh
+sudo bash ops/vps/warp/install.sh --warp-version <official-package-version>
+printf '%s\n' '{"action":"status"}' | sudo /usr/local/sbin/pingu-egress --json
+```
+
+This is an explicit operator deployment, not part of desktop startup or local
+tests. It installs the helper and its adapter, builds `localhost/pingu-warp:1`,
+and enables Podman's reboot restart service. It creates no registration and
+changes no Mihomo route. Verify the target distribution, Podman networking,
+restart behavior and real WARP before deploying for use. The package uses the
+official signed Debian repository inside an isolated Debian container; it does
+not install or control the host's `warp-svc` for newly created exits.
+
+Each exit gets a private container, registration volume, stable loopback port,
+VLESS identity and SOCKS outbound. Only that identity's TCP traffic uses WARP;
+its UDP is rejected. WARP runs in local proxy/MASQUE mode in a separate network
+namespace, with NET_ADMIN inside that namespace and no host networking or
+privileged flag. Each instance has a 256 MiB memory limit; creation requires at
+least 384 MiB host memory available. More exits require more VPS resources.
+Different registrations are not guaranteed different, fixed, or selectable IPs.
+
+Containers expose WARP's loopback proxy through an internal forwarder, published
+only on the VPS loopback interface. Pingu uses SOCKS; Magpie uses HTTP CONNECT
+because its Claude subprocesses require HTTP proxies. Creation verifies a
+TLS-protected Cloudflare trace (`warp=on`) before publishing a route. Mihomo
+config validation, in-place reload, live rule readback and rollback preserve
+other exits and original users/listeners/default rules. The desktop verifies
+its actual selected route before committing a live switch.
+
+Private state lives in `/var/lib/pingu-egress/state.json`, with registration
+volumes under `instances/<id>`. Interrupted create/delete operations remain
+visible and retryable by the same ID. Existing v1 state is read as `legacy`
+without changing its identity or host WARP ownership. A legacy partial creation
+should be removed before creating a new container exit. The legacy registration
+fingerprint is still checked before cleanup. Never adopt unrelated containers
+or registrations. Keep state and registration volumes in private backups.
+
+Magpie integration uses the deployed service's `/etc/magpie/service.env`,
+`/var/lib/magpie/config/magpie/providers.json` and authenticated loopback web API
+on port 3430 (contract verified with Magpie v0.1.1255). Credentials remain on the
+server. Account usernames are normalized as Magpie does; API keys use Magpie's
+fingerprints. Edits preserve the persisted provider payload, save through
+Magpie's native API, and verify the resulting binding in both storage and API.
+A provider revision rejects stale edits, and the latest pre-edit catalog is
+backed up at `magpie-before-last-binding.json` mode 0600. Magpie has no atomic
+compare-and-swap API: avoid concurrent edits in its web UI during a Pingu save.
+
+Delete refuses any Magpie reference, including provider defaults and hidden
+account/key overrides, and fails closed if that configured service is offline.
+Remove bindings in Pingu or Magpie before deleting. Unbound deletion first
+removes the owned VLESS route, then unregisters WARP and removes only its
+container/volume. Other Pingu devices using it lose that route; existing streams
+through it stop. No route silently falls back to direct. Magpie can still fail
+over to a different account according to its own routing policy.
+
+Examples (use a newly generated UUID once and retain it for creation retries):
+
+```json
+{"action":"create","id":"<uuid>","name":"Personal"}
+{"action":"rename","id":"<uuid>","name":"Models"}
+{"action":"magpie_bind","provider":"<provider-id>","ref":"<account-or-key-id>","selection":"<exit-id-or-direct-or-inherit>","revision":"<provider-revision>"}
+{"action":"delete","id":"<uuid>"}
+```
+
+SSH replies contain private VLESS routing credentials and must not be logged.
+Only an allowlisted projection reaches the desktop webview. Subscription login,
+provider creation/deletion and other model settings remain in Magpie's web UI.
+The old `vps:controls` whole-server WARP switch has a different routing contract;
+do not use it on a desktop-managed shared-pool configuration.
+
 `pnpm vps:controls` manages four independent optional policies over the existing
 SSH connection: WARP TCP egress, Reality source-IP restriction, private/CN
 outbound filtering, and automatic traffic-quota enforcement. TLS and client
@@ -324,5 +404,6 @@ production host **was performed and verified on 2026-09-24**. A full
 HTTPS/WS reachability for a new host also still requires the future manual
 Cloudflare DNS cutover.
 
-Tailscale and an AI-server feature are not implemented by this VPS package and
-are outside this migration's verified scope.
+Tailscale and automatic Magpie installation are outside this migration
+controller's scope. The shared-exit helper above can manage exit bindings for
+a separately installed Magpie service.
