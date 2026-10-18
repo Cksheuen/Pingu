@@ -44,3 +44,30 @@ ops/vps/remote-snapshots/
 **/.test-dist/
 
 apps/deepseek-harness
+
+# Local secrets, deployment overrides and configuration backups
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.dev.vars*
+!.dev.vars.example
+wrangler.production.json
+config.json.bak*
+.wrangler/
+
+# Local captures, review output and agent handoff notes
+/.screenshots/
+/artifacts/
+/.imo/UPDATE.md
+/.imo/notes/
+*.textClipping
+
+# Independent checkouts and personal reference material
+/external/
+/docs/ai-passport/
+/english leaning/
+/web-design-engineer/
+/main/passport_time.c
+/main/passport_time.h
