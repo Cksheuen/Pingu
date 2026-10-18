@@ -12,11 +12,11 @@ test("multi-provider: /v1/models aggregates manual static models and auto-discov
     apiKeys: [],
     authDir: "/tmp/test-auth",
     providers: {
-      "super-relay": {
+      "custom-relay": {
         type: "anthropic",
-        baseUrl: "https://super-relay.test",
-        apiKey: "plat_test_key",
-        models: ["model_api/experimental_0812_256k", "model_hub/es1_orange_o48"]
+        baseUrl: "https://custom-relay.test",
+        apiKey: "test-provider-key",
+        models: ["custom-model-extended", "custom-model-reasoning"]
       },
       "cpa": {
         type: "anthropic",
@@ -59,8 +59,8 @@ test("multi-provider: /v1/models aggregates manual static models and auto-discov
   const modelIds = body.data.map((m) => m.id);
 
   // Should contain manually declared models
-  assert.ok(modelIds.includes("model_api/experimental_0812_256k"));
-  assert.ok(modelIds.includes("model_hub/es1_orange_o48"));
+  assert.ok(modelIds.includes("custom-model-extended"));
+  assert.ok(modelIds.includes("custom-model-reasoning"));
   assert.ok(modelIds.includes("cpa-claude-3-7-sonnet"));
 
   // Should contain auto-discovered official models
@@ -69,7 +69,7 @@ test("multi-provider: /v1/models aggregates manual static models and auto-discov
   assert.ok(modelIds.includes("o1"));
 });
 
-test("multi-provider: Codex ChatCompletions routed to Super Relay with OpenAI->Anthropic translation", async () => {
+test("multi-provider: Codex ChatCompletions routed to Custom Relay with OpenAI->Anthropic translation", async () => {
   let forwardedUrl = "";
   let forwardedBody: any = null;
   let forwardedApiKey: string | null = null;
@@ -80,11 +80,11 @@ test("multi-provider: Codex ChatCompletions routed to Super Relay with OpenAI->A
     apiKeys: [],
     authDir: "/tmp/test-auth",
     providers: {
-      "super-relay": {
+      "custom-relay": {
         type: "anthropic",
-        baseUrl: "https://super-relay.test",
-        apiKey: "plat_test_relay_token",
-        models: ["model_api/experimental_0812_256k"]
+        baseUrl: "https://custom-relay.test",
+        apiKey: "test-relay-token",
+        models: ["custom-model-extended"]
       },
       "official-openai": {
         type: "openai",
@@ -104,14 +104,14 @@ test("multi-provider: Codex ChatCompletions routed to Super Relay with OpenAI->A
       forwardedBody = JSON.parse(String(init.body));
     }
 
-    if (forwardedUrl.includes("super-relay.test/v1/messages")) {
+    if (forwardedUrl.includes("custom-relay.test/v1/messages")) {
       return new Response(
         JSON.stringify({
           id: "msg_anthropic_123",
           type: "message",
           role: "assistant",
-          model: "model_api/experimental_0812_256k",
-          content: [{ type: "text", text: "Hello from Super Relay!" }],
+          model: "custom-model-extended",
+          content: [{ type: "text", text: "Hello from Custom Relay!" }],
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 15 }
         }),
@@ -124,12 +124,12 @@ test("multi-provider: Codex ChatCompletions routed to Super Relay with OpenAI->A
 
   const worker = createWorker({ config, fetch: mockFetch });
 
-  // Client (Codex) sends OpenAI Chat Completion request for super-relay model
+  // Client (Codex) sends OpenAI Chat Completion request for custom-relay model
   const req = new Request("http://127.0.0.1:51120/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "model_api/experimental_0812_256k",
+      model: "custom-model-extended",
       messages: [
         { role: "system", content: "You are a subagent." },
         { role: "user", content: "Run subagent task." }
@@ -141,9 +141,9 @@ test("multi-provider: Codex ChatCompletions routed to Super Relay with OpenAI->A
   assert.equal(response.status, 200);
 
   // Upstream should have received Anthropic Messages wire format
-  assert.ok(forwardedUrl.includes("super-relay.test/v1/messages"));
-  assert.equal(forwardedApiKey, "plat_test_relay_token");
-  assert.equal(forwardedBody.model, "model_api/experimental_0812_256k");
+  assert.ok(forwardedUrl.includes("custom-relay.test/v1/messages"));
+  assert.equal(forwardedApiKey, "test-relay-token");
+  assert.equal(forwardedBody.model, "custom-model-extended");
   assert.equal(forwardedBody.system, "You are a subagent.");
   assert.equal(forwardedBody.messages[0].role, "user");
   assert.equal(forwardedBody.messages[0].content, "Run subagent task.");
@@ -152,7 +152,7 @@ test("multi-provider: Codex ChatCompletions routed to Super Relay with OpenAI->A
   const respBody = (await response.json()) as any;
   assert.equal(respBody.object, "chat.completion");
   assert.equal(respBody.choices[0].message.role, "assistant");
-  assert.equal(respBody.choices[0].message.content, "Hello from Super Relay!");
+  assert.equal(respBody.choices[0].message.content, "Hello from Custom Relay!");
   assert.equal(respBody.choices[0].finish_reason, "stop");
   assert.equal(respBody.usage.prompt_tokens, 10);
   assert.equal(respBody.usage.completion_tokens, 15);

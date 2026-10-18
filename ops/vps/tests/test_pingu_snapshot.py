@@ -26,7 +26,7 @@ XRAY_CONFIG = {
             "protocol": "vless",
             "settings": {
                 "clients": [
-                    {"id": "b831381d-6324-4d53-ad4f-8cda48b30811",
+                    {"id": "00000000-0000-4000-8000-000000000001",
                      "flow": "xtls-rprx-vision"}
                 ],
                 "decryption": "none",
@@ -37,7 +37,7 @@ XRAY_CONFIG = {
                 "realitySettings": {
                     "dest": OLD_IP + ":443",
                     "serverNames": [OLD_IP],
-                    "privateKey": "oMGgMh-secret-private-key",
+                    "privateKey": "fixture-secret-private-key",
                     "shortIds": ["0123abcd"],
                 },
             },
@@ -94,10 +94,10 @@ def build_source(root):
         "usr/local/share/xray/geoip.dat": "GEOIP\n",
         "usr/local/share/xray/geosite.dat": "GEOSITE\n",
         "etc/pingu-gate.subscription.txt": (
-            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@" + OLD_IP +
+            "vless://00000000-0000-4000-8000-000000000001@" + OLD_IP +
             ":443?security=reality&sni=gateway.example.com&pbk=reality-pubkey"
             "&sid=0123abcd&flow=xtls-rprx-vision&type=tcp#Direct-Reality\n"
-            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@gateway.example.com:443"
+            "vless://00000000-0000-4000-8000-000000000001@gateway.example.com:443"
             "?type=ws&security=tls&sni=gateway.example.com&path=%2Fws%2Fpath#WS\n"
         ),
         "etc/pingu-gate.token": "gate-token\n",
@@ -159,7 +159,7 @@ MIHOMO_CONFIG = {
     "geodata-mode": True,
     "listeners": [{
         "name": "reality", "type": "vless", "listen": OLD_IP, "port": 443,
-        "users": [{"name": "owner", "uuid": "b831381d-6324-4d53-ad4f-8cda48b30811"}],
+        "users": [{"name": "owner", "uuid": "00000000-0000-4000-8000-000000000001"}],
         "reality-config": {
             "dest": OLD_IP + ":443", "private-key": "fixture-reality-private-key",
             "short-id": ["0123abcd"], "server-names": [OLD_IP],
@@ -445,9 +445,9 @@ class SnapshotTests(unittest.TestCase):
         # Identity material must be untouched.
         self.assertEqual(
             inbound["settings"]["clients"][0]["id"],
-            "b831381d-6324-4d53-ad4f-8cda48b30811",
+            "00000000-0000-4000-8000-000000000001",
         )
-        self.assertEqual(reality["privateKey"], "oMGgMh-secret-private-key")
+        self.assertEqual(reality["privateKey"], "fixture-secret-private-key")
         self.assertEqual(reality["shortIds"], ["0123abcd"])
         devices = json.loads(
             (dest / "rootfs/var/lib/pingu-gate/devices.json").read_text()
@@ -466,7 +466,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("sni=gateway.example.com", direct_line)
         self.assertEqual(
             ws_line,
-            "vless://b831381d-6324-4d53-ad4f-8cda48b30811@gateway.example.com:443"
+            "vless://00000000-0000-4000-8000-000000000001@gateway.example.com:443"
             "?type=ws&security=tls&sni=gateway.example.com&path=%2Fws%2Fpath#WS",
         )
         deployment = json.loads((dest / "deployment.json").read_text())
@@ -774,7 +774,7 @@ class SnapshotTests(unittest.TestCase):
 
 
     def test_restore_remaps_owned_reality_ipv6_and_keeps_foreign(self):
-        owned = "b831381d-6324-4d53-ad4f-8cda48b30811"
+        owned = "00000000-0000-4000-8000-000000000001"
         foreign = "00000000-0000-0000-0000-000000000009"
         fake_v6 = "2001:db8::1"
         foreign_v4 = "203.0.113.9"

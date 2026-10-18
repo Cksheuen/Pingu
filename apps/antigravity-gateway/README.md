@@ -1,20 +1,20 @@
 # Unified Local LLM Gateway (formerly antigravity-gateway)
 
-本地统一多 Provider 智能代理与路由网关，支持聚合纳管 **Codex/ChatGPT OAuth 订阅、OpenAI API、Anthropic API、Super Relay、CPA、sub2api、Google Antigravity OAuth**，并提供双向协议转译（Anthropic Messages API ↔ OpenAI Responses API ↔ OpenAI Chat Completions API ↔ Gemini API）。
+本地统一多 Provider 智能代理与路由网关，支持聚合纳管 **Codex/ChatGPT OAuth 订阅、OpenAI API、Anthropic API、Custom Relay、CPA、sub2api、Google Antigravity OAuth**，并提供双向协议转译（Anthropic Messages API ↔ OpenAI Responses API ↔ OpenAI Chat Completions API ↔ Gemini API）。
 
-本地启动后，**Claude Code** 和 **Codex** 可以直接接入该网关，在同一个客户端内同时、自由调用不同 Upstream 的任意模型（例如：Codex 主模型走官方 GPT-5.6，Subagent 模型走 Super Relay 派发）。
+本地启动后，**Claude Code** 和 **Codex** 可以直接接入该网关，在同一个客户端内同时、自由调用不同 Upstream 的任意模型（例如：Codex 主模型走官方 GPT-5.6，Subagent 模型走 Custom Relay 派发）。
 
 ---
 
 ## 核心特性
 
 1. **官方模型自动拉取发现**：官方 Provider（OpenAI / Anthropic）支持 `autoDiscoverModels: true`，异步自动拉取上游最新发布的可用模型并定期缓存刷新，无需手动维护。
-2. **私有/非官方模型精确手动配置**：Super Relay、CPA、sub2api 等渠道支持在配置文件中手动显式声明模型列表、别名（Alias）以及前缀路由规则（如 `cpa/*`, `relay/*`, `sub/*`）。
+2. **私有/非官方模型精确手动配置**：Custom Relay、CPA、sub2api 等渠道支持在配置文件中手动显式声明模型列表、别名（Alias）以及前缀路由规则（如 `provider/*`, `relay/*`, `sub/*`）。
 3. **统一模型清单（`/v1/models`）**：合并所有配置渠道的可用模型，供客户端自由获取与展示。
 4. **全协议跨端双向互转与直通（Passthrough）**：
    - **Codex (OpenAI Responses 协议)** 访问 **Codex/ChatGPT OAuth 订阅**时，保留 Responses、Responses-Lite、订阅模型列表和 Codex 请求头。
    - **Claude Code (Anthropic Messages 协议)** 访问 **Codex/ChatGPT OAuth 订阅**时，自动完成 Messages ↔ Responses 与 SSE 双向转译。
-   - **Codex (OpenAI 协议)** 访问 **Super Relay / CPA (Anthropic 协议)** 时，自动进行双向协议与流式 SSE 转译。
+   - **Codex (OpenAI 协议)** 访问 **Custom Relay / CPA (Anthropic 协议)** 时，自动进行双向协议与流式 SSE 转译。
    - 普通 `openai` Provider 明确表示 OpenAI API Key 计费渠道，不再冒充 ChatGPT/Codex 订阅。
 5. **极轻量、零外部重型依赖**：纯 TypeScript 原生驱动，毫秒级启动，极低内存开销。
 
@@ -54,8 +54,8 @@ pcpa stop
 
 ```sh
 pcpa models list
-pcpa models add alwaysday1_max --provider super-relay
-pcpa models add my-model --provider super-relay --target alwaysday1_max
+pcpa models add custom-model-standard --provider custom-relay
+pcpa models add my-model --provider custom-relay --target custom-model-standard
 pcpa models remove my-model
 pcpa restart
 ```
@@ -110,24 +110,24 @@ pnpm verify:antigravity-gateway     # 自动化测试 + 类型检查 + 冒烟验
       "autoDiscoverModels": true
     },
 
-    // 4. Super Relay（手动精确声明模型）
-    "super-relay": {
+    // 4. Custom Relay（手动精确声明模型）
+    "custom-relay": {
       "type": "anthropic",
-      "baseUrl": "https://super-relay.byted.org",
+      "baseUrl": "https://relay.example.com",
       "apiKey": "plat_xxxxxxxxxxxxxxxxxxxx",
       "models": [
-        "model_api/experimental_0812_256k",
-        "model_api/experimental_0812",
-        "model_hub/es1_orange_o48",
-        "auto_model/alwaysday1"
+        "custom-model-extended",
+        "custom-model-standard",
+        "custom-model-reasoning",
+        "custom-model-auto"
       ]
     },
 
-    // 5. CPA 逆向/内部中转源
-    "cpa": {
+    // 5. Custom API-compatible provider
+    "custom-provider": {
       "type": "anthropic",
-      "baseUrl": "https://cpa.mjclouds.com",
-      "apiKeyFile": "/path/to/latam-c/.claude/cpa-token",
+      "baseUrl": "https://provider.example.com",
+      "apiKeyFile": ".local/credentials/provider-token",
       "autoDiscoverModels": true,
       "models": [
         "gemini-3.7-flash-high",
@@ -154,10 +154,10 @@ pnpm verify:antigravity-gateway     # 自动化测试 + 类型检查 + 冒烟验
   },
   "routes": [
     { "match": "claude-sonnet-4-6", "provider": "codex-subscription", "targetModel": "gpt-5.6-sol" },
-    { "match": ["gemini-3.7-flash-high", "gemini-3-flash"], "provider": "cpa" },
-    { "modelPrefix": "gemini-", "provider": "cpa" },
-    { "modelPrefix": "cpa/", "provider": "cpa", "stripPrefix": true },
-    { "modelPrefix": "relay/", "provider": "super-relay", "stripPrefix": true },
+    { "match": ["gemini-3.7-flash-high", "gemini-3-flash"], "provider": "custom-provider" },
+    { "modelPrefix": "gemini-", "provider": "custom-provider" },
+    { "modelPrefix": "provider/", "provider": "custom-provider", "stripPrefix": true },
+    { "modelPrefix": "relay/", "provider": "custom-relay", "stripPrefix": true },
     { "modelPrefix": "sub/", "provider": "sub2api", "stripPrefix": true }
   ]
 }
@@ -175,7 +175,7 @@ pnpm verify:antigravity-gateway     # 自动化测试 + 类型检查 + 冒烟验
 
 **没有兜底 Provider。** 全部未命中时网关返回 `404 no upstream provider configured for model 'X'`，不会把请求转发给任意一个 Provider。这是有意的设计：若静默转发，上游会拒绝一个本不该由它服务的模型，其报错会指向错误的 Provider（例如 ChatGPT 后端返回 `The 'gemini-3.8-flash-high' model is not supported when using Codex with a ChatGPT account.`），从而掩盖「缺少路由」这一真实原因。
 
-因此，新增上游模型时应在 `routes` 或 Provider 的 `models` 中登记。对于版本号会持续演进的模型族（如 `gemini-3.8` / `gemini-3.9`），建议直接配置前缀规则（如 `{ "modelPrefix": "gemini-", "provider": "cpa" }`）而不是逐个枚举——尤其在上游 `/v1/models` 返回混淆 ID 时，自动发现无法用于匹配。
+因此，新增上游模型时应在 `routes` 或 Provider 的 `models` 中登记。对于版本号会持续演进的模型族（如 `gemini-3.8` / `gemini-3.9`），建议直接配置前缀规则（如 `{ "modelPrefix": "gemini-", "provider": "custom-provider" }`）而不是逐个枚举——尤其在上游 `/v1/models` 返回混淆 ID 时，自动发现无法用于匹配。
 
 `anthropic` Provider 支持 `apiKeyFile`；它会在每次请求时读取文件内容并仅以内存 Header 转发。建议将 CPA/Relay token 副本放在当前项目的 `.local/credentials/`（目录已忽略且文件权限应为 `0600`），不要把 token 写进 `config.json` 或提交到仓库。GPT 官方订阅仍单独读取 `~/.codex/auth.json`。
 
@@ -211,9 +211,9 @@ export GOOGLE_OAUTH_CLIENT_SECRET='<google-oauth-client-secret>'
 给这类 Provider 加上 `"geminiSchemaConstraints": true`，网关就会在转发前对 `tools[].input_schema` 跑 `sanitizeSchema`（与 `google-oauth` 路径同一套清理链），把 `prefixItems` 折叠成 `items` 并把元组形状写进 `description` 供模型参考：
 
 ```json
-"cpa": {
+"custom-provider": {
   "type": "anthropic",
-  "baseUrl": "https://cpa.mjclouds.com",
+  "baseUrl": "https://provider.example.com",
   "geminiSchemaConstraints": true
 }
 ```
@@ -244,8 +244,8 @@ codex exec \
 
 **多模型协同实战**：
 - **主会话模型**：指定 `/models` 返回的 `gpt-5.6-sol`、`gpt-5.6-terra` 或 `gpt-5.6-luna`（直接使用 Codex/ChatGPT OAuth 订阅）。
-- **Subagent / Worker 派发模型**：指定 `model_api/experimental_0812_256k`（自动路由到 Super Relay，网关将 Codex Responses 请求转译为 Anthropic Messages）。
-- **随时探索其他模型**：在模型名中输入 `cpa/claude-3-7-sonnet`、`gemini-3.7-flash-high` 或 `sub/deepseek-chat`。
+- **Subagent / Worker 派发模型**：指定 `custom-model-extended`（自动路由到 Custom Relay，网关将 Codex Responses 请求转译为 Anthropic Messages）。
+- **随时探索其他模型**：在模型名中输入 `provider/claude-3-7-sonnet`、`gemini-3.7-flash-high` 或 `sub/deepseek-chat`。
 
 ### 2. Claude Code 接入配置
 
@@ -257,15 +257,15 @@ export ANTHROPIC_API_KEY=dev-local-key
 ```
 
 Claude Code 即可直接使用：
-- `model_api/experimental_0812_256k`（直通 Super Relay，原生支持 Prompt Caching 与 Thinking）
+- `custom-model-extended`（直通 Custom Relay，原生支持 Prompt Caching 与 Thinking）
 - `gemini-3.7-flash-high` / `gemini-3-flash`（按示例配置走 Gemini CPA）
 - `gpt-5.6-sol` / `gpt-5.6-terra`（走 Codex OAuth/Responses 转换）
-- `cpa/claude-3-7-sonnet`（走 CPA 前缀路由）
-- `cpa/gemini-3.7-flash-high`（走 CPA 前缀路由）
+- `provider/claude-3-7-sonnet`（走 CPA 前缀路由）
+- `provider/gemini-3.7-flash-high`（走 CPA 前缀路由）
 
-使用项目 launcher 时可保留其 OAuth/CPA 认证链路，仅临时覆盖地址到本地网关：
+使用客户端时，将 API 地址指向本地网关，并使用自己的本地认证配置：
 
 ```sh
-CPA_BASE_URL=http://127.0.0.1:51120 \
-  /path/to/latam-c/.claude/claude-cpa --model gemini-3.7-flash-high -p 'hello'
+ANTHROPIC_BASE_URL=http://127.0.0.1:51120 \
+  claude --model custom-model-standard -p 'hello'
 ```

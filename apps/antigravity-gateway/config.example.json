@@ -26,22 +26,22 @@
       "apiKey": "sk-ant-xxxxxxxxxxxx",
       "autoDiscoverModels": true
     },
-    "super-relay": {
+    "custom-relay": {
       "type": "anthropic",
-      "baseUrl": "https://super-relay.byted.org",
-      "apiKeyFile": ".local/credentials/super-relay-token",
+      "baseUrl": "https://relay.example.com",
+      "apiKeyFile": ".local/credentials/custom-relay-token",
       "models": [
-        "model_api/experimental_0812_256k",
-        "model_api/experimental_0812",
-        "model_hub/es1_orange_o48",
-        "auto_model/alwaysday1",
+        "custom-model-extended",
+        "custom-model-standard",
+        "custom-model-reasoning",
+        "custom-model-auto",
         "opensource/glm5.2[1m]"
       ]
     },
-    "cpa": {
+    "custom-provider": {
       "type": "anthropic",
-      "baseUrl": "https://cpa.mjclouds.com",
-      "apiKeyFile": ".local/credentials/cpa-token",
+      "baseUrl": "https://provider.example.com",
+      "apiKeyFile": ".local/credentials/provider-token",
       "autoDiscoverModels": true,
       "geminiSchemaConstraints": true,
       "models": [
@@ -76,13 +76,13 @@
       "targetModel": "gpt-5.6-sol"
     },
     {
-      "modelPrefix": "cpa/",
-      "provider": "cpa",
+      "modelPrefix": "provider/",
+      "provider": "custom-provider",
       "stripPrefix": true
     },
     {
       "modelPrefix": "relay/",
-      "provider": "super-relay",
+      "provider": "custom-relay",
       "stripPrefix": true
     },
     {
