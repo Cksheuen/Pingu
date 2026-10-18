@@ -291,6 +291,15 @@ fn select_strategy_locked(
     if config.proxy_chain.enabled {
         return Err("Disable the chain before changing strategy groups.".into());
     }
+    if group == "Pingu Proxy"
+        && config
+            .vps_egress
+            .selected
+            .as_ref()
+            .is_some_and(|exit| exit.proxy_name != name)
+    {
+        return Err("Switch back to the VPS direct exit before changing the proxy node.".into());
+    }
     let port = if proxy.is_running() {
         Some(api_port(proxy)?)
     } else {

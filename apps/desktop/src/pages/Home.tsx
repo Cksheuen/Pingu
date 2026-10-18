@@ -4,6 +4,7 @@ import { ConnectionHero } from "../components/home/ConnectionHero";
 import { NetworkModeCard } from "../components/home/NetworkModeCard";
 import { TerminalProxyCard } from "../components/home/TerminalProxyCard";
 import { TrafficCard } from "../components/home/TrafficCard";
+import { EgressCard } from "../components/home/EgressCard";
 import { AiPreflightCard } from "../components/home/AiPreflightCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { useHomeConnection } from "../hooks/useHomeConnection";
@@ -41,6 +42,7 @@ export default function Home() {
     <NetworkModeCard />
     <div className="connection-metrics"><TrafficCard /><AiPreflightCard connected={status.connected} proxyInfo={status.network_mode === "tun" ? null : proxyInfo} preflight={preflight} /></div>
     <div id="chain"><Chain embedded onRouteChange={setChainRoute} /></div>
+    <EgressCard />
     <div className="home-tools"><details className="surface workspace-disclosure" id="strategies" open={strategiesOpen} onToggle={event => setStrategiesOpen(event.currentTarget.open)}>
       <summary>{t("nav.strategies")}</summary>{strategiesOpen && <Strategies embedded />}
     </details>

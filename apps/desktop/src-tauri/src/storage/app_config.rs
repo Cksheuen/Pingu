@@ -19,6 +19,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub network_mode: crate::system::tun::NetworkMode,
     #[serde(default)]
+    pub vps_egress: crate::egress::EgressSettings,
+    #[serde(default)]
     pub proxy_chain: crate::chain::ChainSettings,
     #[serde(default)]
     pub subscriptions: Vec<crate::mihomo::profiles::Subscription>,
@@ -96,6 +98,7 @@ impl AppConfig {
                     let active_id = group.id.clone();
                     let config = Self {
                         network_mode: Default::default(),
+                        vps_egress: Default::default(),
                         proxy_chain: Default::default(),
                         subscriptions: vec![],
                         strategy_selections: Default::default(),
@@ -306,6 +309,7 @@ impl AppConfig {
         let active_id = default_group.id.clone();
         Self {
             network_mode: Default::default(),
+            vps_egress: Default::default(),
             proxy_chain: Default::default(),
             subscriptions: vec![],
             strategy_selections: Default::default(),

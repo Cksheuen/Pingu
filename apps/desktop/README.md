@@ -12,6 +12,54 @@ The flag uses the same connection, content-verification, rollback and shutdown l
 
 Run `pnpm test --plan` before verification. See [AGENTS.md](AGENTS.md) for the scoped test workflow.
 
+## Shared VPS WARP exits and Magpie
+
+The connection page manages a shared pool on the VPS: create, rename, inspect
+and delete independent WARP registrations, select an exit for this Pingu device,
+and bind each Magpie model subscription account or API key independently. Each
+consumer can explicitly choose VPS direct; creating an exit does not select it.
+The number of running exits is limited by VPS resources, not by a one-exit UI.
+
+Configure an existing SSH host alias (or `root@host`), an optional absolute SSH
+configuration path, and the exact server hostname of the selected VLESS node.
+SSH requires key authentication and a previously trusted host key. No password,
+private key, VLESS credential or Magpie web key is sent to the webview.
+
+The server setup is documented in
+[`ops/vps/README.md`](../../ops/vps/README.md#desktop-managed-cloudflare-exit).
+Opening this page does not install software or register a Cloudflare device.
+The server helper must support protocol version 2; an old helper is rejected.
+Existing single-exit saved selections migrate to the `legacy` exit without
+changing their VLESS credentials.
+
+Selection changes only this client's VLESS identity. Device paths, TLS settings,
+local rules and `127.0.0.1:2080` are preserved. Use one explicitly selected VLESS
+node with chains disabled. Switch to direct before selecting another server.
+A live switch is committed only after connectivity and a TLS `warp=on` trace
+through the local proxy succeed. A local direct rule for `www.cloudflare.com`
+prevents that verification. Changes apply to new connections; existing streams
+keep their route until they close. Deletion interrupts streams using that exit.
+Cloudflare IPs are shared: separate registrations can have the same IP and
+recreation does not guarantee a new IP. WARP identities support TCP only; UDP
+is explicitly rejected.
+
+Magpie rows contain account names and masked key labels, never full API keys.
+WARP off explicitly writes `direct`; following the provider is a separate
+option. Other manually configured proxies are shown without their credentials.
+Provider revisions prevent saving a stale edit; settings are backed up on the
+VPS before native Magpie saves and read back afterward. Add/remove model
+subscriptions, sign in and edit unrelated settings using the displayed Magpie
+administration address. The Pingu panel manages their exit bindings.
+
+Deletion is refused while any Magpie provider/account/key still references an
+exit, including hidden saved overrides. Magpie must be reachable to confirm
+that check. Other Pingu devices using a deleted exit must choose another exit
+or direct. There is no automatic WARP-to-direct fallback for the same identity
+or key; Magpie's existing account failover can choose another account, which
+then follows its own proxy setting. Magpie bypasses proxies for localhost
+upstreams, so those providers cannot receive a WARP binding here.
+
+
 ## macOS TUN
 
 首页「网络模式」可选择系统代理或 TUN。断开时保存选择，之后每次连接（包括 `--connect` 启动）自动使用该模式。

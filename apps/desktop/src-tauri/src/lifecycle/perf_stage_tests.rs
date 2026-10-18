@@ -24,6 +24,7 @@ fn empty_state() -> (Arc<AppState>, ProxyState) {
     // AppState and ProxyState share one operation lock, as in production.
     let config = AppConfig {
         network_mode: Default::default(),
+        vps_egress: Default::default(),
         proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),

@@ -1,5 +1,6 @@
 pub mod chain;
 pub mod commands;
+pub mod egress;
 pub mod gate;
 pub mod lifecycle;
 pub mod mihomo;
@@ -225,6 +226,13 @@ pub fn run() {
             commands::settings::get_language,
             commands::settings::set_language,
             commands::settings::get_gate_settings,
+            commands::egress::get_vps_egress,
+            commands::egress::configure_vps_egress,
+            commands::egress::create_cloudflare_egress,
+            commands::egress::select_vps_egress,
+            commands::egress::delete_cloudflare_egress,
+            commands::egress::rename_cloudflare_egress,
+            commands::egress::bind_magpie_egress,
             commands::settings::configure_gate,
             commands::settings::set_gate_enabled,
             commands::settings::renew_gate_lease,

@@ -721,7 +721,14 @@ pub fn connect_core(app_state: &AppState, proxy_state: &ProxyState) -> Result<()
     // claiming the relay is usable or changing the user's system proxy settings.
     let _verifying = proxy_state.operation_phase("verifying");
     let verified_checks =
-        match verify_startup_proxy_content(runtime.listen_port) {
+        match verify_startup_proxy_content(runtime.listen_port).and_then(|checks| {
+            let value: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(&runtime.config_path).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+            crate::egress::verify_runtime(&value, runtime.listen_port)?;
+            Ok(checks)
+        }) {
             Ok(checks) => checks,
             Err(error) => {
                 return Err(cleanup_runtime_failure_locked(
@@ -1143,6 +1150,7 @@ fn reload_runtime_in_place_with(
         controller::reload(port, &payload)?;
         if value["tun"]["enable"] == true { crate::system::tun::verify_interface(port)?; }
         let checks = verify(listen_port)?;
+        crate::egress::verify_runtime(&value, listen_port)?;
         runtime.clash_api_port = port;
         runtime.listen_port = listen_port;
         synchronize_selected_node(runtime)?;

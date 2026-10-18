@@ -248,6 +248,7 @@ fn default_config_contains_strengthened_byted_internal_dns_group() {
 fn normalize_rule_groups_backfills_existing_byted_internal_group() {
     let mut config = AppConfig {
         network_mode: Default::default(),
+        vps_egress: Default::default(),
         proxy_chain: Default::default(),
         subscriptions: vec![],
         strategy_selections: Default::default(),
