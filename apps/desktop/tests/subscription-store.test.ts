@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { useSubscriptionStore } from "../src/lib/subscription-store.js";
 import type { SubscriptionSummary } from "../src/lib/mihomo-api.js";
 
-const source: SubscriptionSummary = { id: "source-1", name: "Personal", source_kind: "url", source_host: "example.org", enabled: true, proxy_count: 2, group_count: 1, rule_count: 0, updated_at: "2026-09-24T10:00:00Z", last_error: null, warnings: [] };
+const source: SubscriptionSummary = { id: "source-1", name: "Personal", source_kind: "url", source_host: "example.org", enabled: true, nodes_only: false, proxy_count: 2, group_count: 1, rule_count: 0, updated_at: "2026-09-24T10:00:00Z", last_error: null, warnings: [] };
 let previousInvoke: typeof globalThis.__PINGU_TEST_INVOKE__;
 beforeEach(() => {
   previousInvoke = globalThis.__PINGU_TEST_INVOKE__;
@@ -40,4 +40,24 @@ test("home and subscription page share an in-flight read without replacing sourc
   await Promise.all([home, page]);
   assert.deepEqual(useSubscriptionStore.getState().subscriptions, []);
   assert.equal(useSubscriptionStore.getState().loaded, true);
+});
+
+test("subscription toggle is visible before the write finishes and rolls back on failure", async () => {
+  let reject!: (error: Error) => void;
+  const pending = new Promise<never>((_, fail) => { reject = fail; });
+  globalThis.__PINGU_TEST_INVOKE__ = async <T>(command: string) => {
+    assert.equal(command, "update_subscription");
+    return await pending as T;
+  };
+  const operation = useSubscriptionStore.getState().setEnabled(source.id, false);
+  assert.equal(useSubscriptionStore.getState().subscriptions[0].enabled, false);
+  reject(new Error("Write failed"));
+  await assert.rejects(operation, /Write failed/);
+  assert.equal(useSubscriptionStore.getState().subscriptions[0].enabled, true);
+});
+
+test("successful subscription toggle keeps the optimistic value", async () => {
+  globalThis.__PINGU_TEST_INVOKE__ = async <T>() => ({ ...source, enabled: false }) as T;
+  await useSubscriptionStore.getState().setEnabled(source.id, false);
+  assert.equal(useSubscriptionStore.getState().subscriptions[0].enabled, false);
 });

@@ -287,22 +287,6 @@ pub fn proxy_info(listen_port: u16) -> ProxyInfo {
     }
 }
 
-/// Query the IP address seen by a request that is explicitly sent through the
-/// local mihomo listener. This intentionally does not depend on macOS
-/// system-proxy settings, so it is safe to use while validating a connection.
-pub fn probe_proxy_egress(listen_port: u16) -> Result<String, String> {
-    let response = proxy_probe_agent(listen_port)?
-        // ping0.cc serves a browser-oriented HTML page, rather than a plain IP
-        // response. api.ipify.org is deliberately used here because this API
-        // returns only the observed address (with an optional trailing newline).
-        .get(EGRESS_PROBE_URL)
-        .call()
-        .map_err(|error| format!("Failed to verify proxy egress: {error}"))?
-        .into_string()
-        .map_err(|error| format!("Failed to read proxy egress: {error}"))?;
-    parse_egress_ip(&response)
-}
-
 /// Verify actual response content through the local proxy. These checks answer
 /// different questions: the observed egress address, Cloudflare's trace view
 /// of that address, and a real Google HTTP response. They deliberately do not
@@ -465,10 +449,6 @@ fn finalize_content_checks(
     let mut checks = content_checks_for_egress(egress_ip);
     checks[1].observed_ip = Some(cloudflare_ip);
     Ok(checks)
-}
-
-fn proxy_probe_agent(listen_port: u16) -> Result<ureq::Agent, String> {
-    proxy_probe_agent_with_timeout(listen_port, Duration::from_secs(8))
 }
 
 fn proxy_probe_agent_with_timeout(

@@ -1,9 +1,11 @@
+import { Menu } from "../Menu";
 import { t } from "../../lib/i18n";
 import type { HostOverride } from "../../lib/types";
-import { PencilIcon, TrashIcon, formatVerified } from "./Icons";
+import { formatVerified } from "./Icons";
 
 type OverrideCardProps = {
   override: HostOverride;
+  saving: boolean;
   onEdit: (override: HostOverride) => void;
   onDelete: (id: string) => void;
   onToggle: (id: string) => void;
@@ -11,6 +13,7 @@ type OverrideCardProps = {
 
 export function OverrideCard({
   override,
+  saving,
   onEdit,
   onDelete,
   onToggle,
@@ -24,7 +27,7 @@ export function OverrideCard({
 
   return (
     <div
-      className="surface"
+      className="row override-row"
       style={{
         padding: "14px",
         borderColor: "var(--line)",
@@ -38,63 +41,50 @@ export function OverrideCard({
               {override.host}
             </span>
             <span
-              className="font-mono uppercase rounded-full"
-              style={{
-                fontSize: "10px",
-                padding: "3px 8px",
-                color: override.enabled ? "var(--color-accent)" : "var(--color-text-secondary)",
-                backgroundColor: override.enabled ? "var(--accent-soft)" : "var(--surface-soft)",
-              }}
+              className={`pill ${override.enabled ? "pill-accent" : "pill-muted"}`}
             >
               {override.enabled ? t("host_overrides.enabled") : t("host_overrides.disabled")}
             </span>
-            <span className="font-mono uppercase text-text-muted" style={{ fontSize: "10px" }}>
+            <span className="pill pill-muted">
               {t(sourceKey)}
             </span>
           </div>
-          <div className="flex flex-wrap gap-2" style={{ marginTop: "10px" }}>
-            <span className="font-mono text-text-secondary" style={{ fontSize: "11px" }}>
-              {t("host_overrides.resolver")}: {t(`host_overrides.resolver_value.${override.resolver}`)}
-            </span>
-            <span className="font-mono text-text-secondary" style={{ fontSize: "11px" }}>
-              {t("host_overrides.outbound")}: {t(`host_overrides.outbound_value.${override.outbound}`)}
-            </span>
-            <span className="font-mono text-text-secondary" style={{ fontSize: "11px" }}>
-              {t("host_overrides.last_verified")}: {formatVerified(override.last_verified_at)}
-            </span>
-          </div>
-          {override.reason && <p className="text-text-secondary" style={{ fontSize: "12px", marginTop: "8px" }}>{override.reason}</p>}
-          {override.last_verified_result && (
-            <p className="font-mono text-text-muted break-all" style={{ fontSize: "11px", marginTop: "8px" }}>
-              {override.last_verified_result}
-            </p>
-          )}
+          <dl className="override-meta">
+            <div>
+              <dt>{t("host_overrides.resolver")}</dt>
+              <dd>{t(`host_overrides.resolver_value.${override.resolver}`)}</dd>
+            </div>
+            <div>
+              <dt>{t("host_overrides.outbound")}</dt>
+              <dd>{t(`host_overrides.outbound_value.${override.outbound}`)}</dd>
+            </div>
+            <div>
+              <dt>{t("host_overrides.last_verified")}</dt>
+              <dd className="font-mono">{formatVerified(override.last_verified_at)}</dd>
+            </div>
+          </dl>
+          {override.reason
+            && (
+              <p className="text-text-secondary" style={{ fontSize: "12px", marginTop: "8px" }}>{override.reason}</p>
+            )}
+          {override.last_verified_result
+            && (
+              <p className="text-text-muted break-all" style={{ fontSize: "var(--text-xs)", marginTop: "8px" }}>
+                {override.last_verified_result}
+              </p>
+            )}
         </div>
-
         <div className="override-actions">
-          <button
-            type="button"
-            onClick={() => onToggle(override.id)}
-            className="control-action-button"
-          >
-            {override.enabled ? t("host_overrides.disable") : t("host_overrides.enable")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(override)}
-            className="table-action-button"
-            aria-label={t("host_overrides.edit")}
-          >
-            <PencilIcon />
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(override.id)}
-            className="table-action-button"
-            aria-label={t("host_overrides.delete")}
-          >
-            <TrashIcon />
-          </button>
+          <button type="button" className="switch" role="switch"
+            aria-checked={override.enabled} aria-label={`${t("host_overrides.enable")} ${override.host}`}
+            disabled={saving} onClick={() => onToggle(override.id)} />
+          <div className="row-actions">
+            <Menu label={`${t("lists.actions")} ${override.host}`} items={[
+              { label: t("host_overrides.edit"), disabled: saving, onSelect: () => onEdit(override) },
+              { label: t("host_overrides.delete"), tone: "danger", disabled: saving,
+                onSelect: () => onDelete(override.id) },
+            ]} />
+          </div>
         </div>
       </div>
     </div>

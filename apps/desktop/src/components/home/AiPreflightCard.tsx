@@ -38,51 +38,76 @@ export function AiPreflightCard({ connected, proxyInfo, preflight }: AiPreflight
         : dynamicRouting
           ? t("home.preflight_dynamic")
           : report?.ready
-          ? t("home.preflight_ready")
-          : t("home.preflight_route_error");
+            ? t("home.preflight_ready")
+            : t("home.preflight_route_error");
 
   return (
     <section className="surface readout-card preflight-readout">
-      <div className="readout-card-head">
-        <span className="section-label">{t("chain.egress")}</span>
-      </div>
-      <div className="egress-value-row">
-        <strong>{connected ? report?.egress_ip ?? (checking ? t("home.preflight_checking") : "—") : "—"}</strong>
-        <button className="readout-action" type="button" onClick={() => void check()} disabled={!connected || checking}>
-          {checking ? t("home.preflight_checking") : t("home.preflight_recheck")}
+      <div
+        className="preflight-summary"
+        data-state={!connected ? "idle" : checking ? "checking" : report?.ready ? "ready" : "issue"}
+      >
+        <span className="readout-label">{t("home.preflight_title")}</span>
+        <span className="pill preflight-status" role="status">
+          <span className="status-dot" aria-hidden="true" />
+          {!connected ? t("home.disconnected") : checking ? t("home.preflight_checking")
+            : report?.ready ? t("home.preflight_ready_short") : t("home.preflight_issue")}
+        </span>
+        <button
+          className="btn btn-ghost btn-sm"
+          type="button"
+          onClick={() => void check()}
+          disabled={!connected || checking}
+          aria-busy={checking}
+        >
+          {t("home.preflight_recheck")}
         </button>
       </div>
-      {report && (
-        <details className="preflight-details"><summary>{t("workspace.check_details")}</summary>
-          <ul className="preflight-route-list preflight-content-list">
-            {report.network_checks.map((check) => (
+      <div className="preflight-egress">
+        <span>{t("home.egress_ip")}</span>
+        <strong className="preflight-ip" title={report?.egress_ip}>{report?.egress_ip ?? "—"}</strong>
+      </div>
+      <details className="preflight-details">
+        <summary>{t("home.details")}</summary>
+        <p className="preflight-note">{description}</p>
+        <ul className="preflight-route-list preflight-content-list">
+          {report?.network_checks.map(
+            (check) =>
+            (
               <li key={check.id} data-outbound="proxy">
                 <span>{t(`home.preflight_check_${check.id}`)}</span>
                 <strong>{check.observed_ip ?? t("home.preflight_check_passed")}</strong>
               </li>
-            ))}
-          </ul>
-          <ul className="preflight-route-list">
-            {report.routes.map((route) => (
+            )
+          )}
+        </ul>
+        <ul className="preflight-route-list">
+          {report?.routes.map(
+            (route) =>
+            (
               <li key={route.host} data-outbound={route.outbound} title={route.matched_by}>
                 <span>{route.service}</span>
                 <strong>{t(`home.preflight_route_${route.outbound}`)}</strong>
               </li>
-            ))}
-          </ul>
-          <p className="egress-note">{t("home.preflight_scope_note")}</p>
-      <div className="preflight-actions">
-        {dynamicRouting && <Link className="network-text-link" to="/connections">{t("nav.connections")} →</Link>}
-        {report?.ready && claudeCommand && (
-          <button type="button" onClick={() => void copyClaudeCommand()}>
-            {copied ? t("home.copied") : t("home.preflight_copy_claude")}
-          </button>
-        )}
-      </div>
-        </details>
-      )}
-      {(error || (report && !report.ready && !dynamicRouting)) && <p className="egress-note egress-note-error" role="status">{description}</p>}
-
+            )
+          )}
+        </ul>
+        <p className="preflight-note">{t("home.preflight_scope_note")}</p>
+        <div className="preflight-actions">
+          {dynamicRouting
+            && <Link className="network-text-link" to="/activity">{t("nav.connections")} →</Link>}
+          {report?.ready && claudeCommand
+            && (
+              <button
+                className="btn btn-ghost btn-sm"
+                type="button"
+                onClick={() => void copyClaudeCommand()}
+              >
+                {copied ? t("home.copied") : t("home.preflight_copy_claude")}
+              </button>
+            )}
+        </div>
+      </details>
     </section>
   );
 }

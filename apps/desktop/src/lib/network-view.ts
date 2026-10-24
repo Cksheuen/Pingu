@@ -1,7 +1,9 @@
 import type { LiveConnection } from "./mihomo-api.js";
 
 export function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "Request failed";
+  return cause instanceof Error
+    ? cause.message
+    : typeof cause === "string" ? cause : "Request failed";
 }
 
 export function formatBytes(value: number): string {
@@ -10,7 +12,10 @@ export function formatBytes(value: number): string {
   const units = ["KB", "MB", "GB", "TB"];
   let size = value / 1024;
   let index = 0;
-  while (size >= 1024 && index < units.length - 1) { size /= 1024; index++; }
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index++;
+  }
   return `${size.toFixed(size >= 100 ? 0 : 1)} ${units[index]}`;
 }
 
@@ -25,17 +30,35 @@ export function connectionDuration(start: string, now = Date.now()): string {
 }
 
 export type ConnectionSort = "traffic" | "recent";
-export function filterConnections(connections: LiveConnection[], query: string, network: string, sort: ConnectionSort): LiveConnection[] {
+export function filterConnections(
+  connections: LiveConnection[], query: string, network: string, sort: ConnectionSort
+): LiveConnection[] {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  return connections.filter((connection) => {
-    if (network !== "all" && connection.network.toLowerCase() !== network) return false;
-    const searchable = [connection.host, connection.destination_ip, connection.destination_port,
-      connection.source_ip, connection.process, connection.type, connection.network,
-      connection.rule, connection.rule_payload, ...connection.chains].join(" ").toLocaleLowerCase();
-    return terms.every((term) => searchable.includes(term));
-  }).sort((a, b) => sort === "traffic"
-    ? (b.upload + b.download) - (a.upload + a.download)
-    : (Date.parse(b.start) || 0) - (Date.parse(a.start) || 0));
+  return connections.filter(
+    (connection) => {
+      if (network !== "all" && connection.network.toLowerCase() !== network) return false;
+      const searchable = [
+        connection.host,
+        connection.destination_ip,
+        connection.destination_port,
+        connection.source_ip,
+        connection.process,
+        connection.type,
+        connection.network,
+        connection.rule,
+        connection.rule_payload,
+        ...connection.chains
+      ].join(
+        " "
+      ).toLocaleLowerCase();
+      return terms.every((term) => searchable.includes(term));
+    }
+  ).sort(
+    (a, b) =>
+      sort === "traffic"
+        ? (b.upload + b.download) - (a.upload + a.download)
+        : (Date.parse(b.start) || 0) - (Date.parse(a.start) || 0)
+  );
 }
 
 export function strategyKind(type: string): "manual" | "auto" | "fallback" | "balance" | "other" {

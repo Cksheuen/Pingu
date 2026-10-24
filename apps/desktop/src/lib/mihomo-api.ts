@@ -1,7 +1,7 @@
 import { tauriInvoke } from "./tauri-invoke.js";
 
 export interface SubscriptionSummary {
-  nodes_only?: boolean;
+  nodes_only: boolean;
   id: string;
   name: string;
   source_kind: "url" | "inline";
@@ -21,7 +21,7 @@ export interface StrategyGroup {
   now: string | null;
   all: string[];
   alive: boolean;
-  history: { time: string; delay: number }[];
+  history: { time: string; delay: number; }[];
 }
 
 export interface LiveConnection {
@@ -52,13 +52,13 @@ export const importSubscription = (name: string, input: string, nodesOnly = fals
   tauriInvoke<SubscriptionSummary>("import_subscription", { name, input, nodesOnly });
 export const refreshSubscription = (id: string) =>
   tauriInvoke<SubscriptionSummary>("refresh_subscription", { id });
-export const updateSubscription = (id: string, changes: { name?: string; enabled?: boolean }) =>
+export const updateSubscription = (id: string, changes: { name?: string; enabled?: boolean; }) =>
   tauriInvoke<SubscriptionSummary>("update_subscription", { id, ...changes });
 export const deleteSubscription = (id: string) => tauriInvoke<void>("delete_subscription", { id });
 export const listStrategyGroups = () => tauriInvoke<StrategyGroup[]>("list_strategy_groups");
 export const selectStrategyProxy = (group: string, name: string) =>
   tauriInvoke<void>("select_strategy_proxy", { group, name });
-export const testStrategyDelay = (name: string) => tauriInvoke<{ delay: number }>("test_strategy_delay", { name });
+export const testStrategyDelay = (name: string) => tauriInvoke<{ delay: number; }>("test_strategy_delay", { name });
 export const listConnections = () => tauriInvoke<ConnectionsSnapshot>("list_connections");
 export const closeConnection = (id: string) => tauriInvoke<void>("close_connection", { id });
 export const closeAllConnections = () => tauriInvoke<void>("close_all_connections");

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useState } from "react";
 import { clearLogs, getLogFilePath, getLogs } from "../lib/logs-api";
 import type { LogEntry } from "../lib/types";
 import { useI18nRerender } from "./useI18nRerender";
@@ -10,9 +10,9 @@ function sameLogs(left: LogEntry[], right: LogEntry[]): boolean {
     left.length === right.length &&
     left.every(
       (entry, index) =>
-        entry.timestamp === right[index]?.timestamp &&
-        entry.level === right[index]?.level &&
-        entry.message === right[index]?.message,
+        entry.timestamp === right[index].timestamp &&
+        entry.level === right[index].level &&
+        entry.message === right[index].message,
     )
   );
 }
@@ -20,7 +20,7 @@ function sameLogs(left: LogEntry[], right: LogEntry[]): boolean {
 interface LogsPageModel {
   logs: LogEntry[];
   logPath: string;
-  containerRef: RefObject<HTMLDivElement | null>;
+  loading: boolean;
   handleClear: () => Promise<void>;
 }
 
@@ -28,7 +28,7 @@ export function useLogsPageModel(): LogsPageModel {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logPath, setLogPath] = useState("");
   const [clearedAt, setClearedAt] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
   useI18nRerender();
 
   useEffect(() => {
@@ -47,13 +47,16 @@ export function useLogsPageModel(): LogsPageModel {
         if (stopped) return;
         const next = clearedAt ? entries.filter((entry) => entry.timestamp > clearedAt) : entries;
         setLogs((current) => (sameLogs(current, next) ? current : next));
+      } catch {
+        // Keep the last successful snapshot until the next poll.
       } finally {
+        if (!stopped) setLoading(false);
         schedule();
       }
     };
 
     void fetchLogs();
-    getLogFilePath().then(setLogPath);
+    getLogFilePath().then(path => { if (!stopped) setLogPath(path); }).catch(() => undefined);
 
     const onVisibilityChange = () => {
       if (document.visibilityState !== "visible") {
@@ -73,16 +76,6 @@ export function useLogsPageModel(): LogsPageModel {
     };
   }, [clearedAt]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    if (isNearBottom) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [logs]);
-
   const handleClear = async () => {
     try {
       await clearLogs();
@@ -98,7 +91,7 @@ export function useLogsPageModel(): LogsPageModel {
   return {
     logs,
     logPath,
-    containerRef,
+    loading,
     handleClear,
   };
 }

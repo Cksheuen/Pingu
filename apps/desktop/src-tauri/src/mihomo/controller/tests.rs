@@ -95,7 +95,7 @@ fn real_mihomo_config_controller_and_connections() {
     let api = free_port();
     let(fragment,warnings)=parse_body("proxies: [{name: Example, type: socks5, server: 127.0.0.1, port: 1}]\nproxy-groups: [{name: Choice, type: select, proxies: [DIRECT, REJECT, Example]}]\nrules: ['MATCH,Choice']").unwrap();
     let mut config = AppConfig::default_config();
-    config.active_rule_group_mut().unwrap().rules.clear();
+    config.rule_groups.iter_mut().find(|group| group.id == config.active_group_id).unwrap().rules.clear();
     config.subscriptions.push(Subscription {
         nodes_only: false,
         id: "smoke".into(),
@@ -393,7 +393,7 @@ fn real_mihomo_keeps_imported_sources_isolated() {
     let api = free_port();
     let port = free_port();
     let mut config = AppConfig::default_config();
-    config.active_rule_group_mut().unwrap().rules.clear();
+    config.rule_groups.iter_mut().find(|group| group.id == config.active_group_id).unwrap().rules.clear();
     // Source A: homonymous nodes plus an anchored filter and a provider. The provider
     // URL is loopback so this core makes no external request; the import sanitizer
     // requires HTTPS for real subscriptions, so the test injects the fragment itself

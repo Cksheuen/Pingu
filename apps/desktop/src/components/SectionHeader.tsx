@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 
-export function SectionHeader({ title, embedded = false, children }: {
+export function SectionHeader({ title, children }: {
   title: string;
-  embedded?: boolean;
   children?: ReactNode;
 }) {
-  const Heading = embedded ? "h2" : "h1";
-  return <header className={embedded ? "section-header" : "page-header"}>
-    <Heading className={embedded ? "section-title" : "page-title"}>{title}</Heading>
-    {children && <div className="network-actions">{children}</div>}
-  </header>;
+  return (
+    <header className="section-header">
+      <h2 className="section-title">{title}</h2>
+      {children && <div className="network-actions">{children}</div>}
+    </header>
+  );
 }

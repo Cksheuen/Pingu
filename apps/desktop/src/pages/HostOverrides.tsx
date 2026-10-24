@@ -1,7 +1,9 @@
+import { Menu } from "../components/Menu";
+import { NetworkLoading } from "../components/network/NetworkState";
 import { confirmAction } from "../lib/confirm-action";
 import { SectionHeader } from "../components/SectionHeader";
 import { useMemo, useState } from "react";
-import { EmptyState, PlusIcon, RefreshIcon } from "../components/host-overrides/Icons";
+import { PlusIcon } from "../components/host-overrides/Icons";
 import { OverrideCard } from "../components/host-overrides/OverrideCard";
 import { OverrideForm } from "../components/host-overrides/OverrideForm";
 import { useI18nRerender } from "../hooks/useI18nRerender";
@@ -11,8 +13,20 @@ import type { HostOverride, HostOverrideDraft } from "../lib/types";
 
 const defaultDraft: HostOverrideDraft = { host: "", resolver: "inherit", outbound: "inherit", enabled: true, reason: "" };
 
-export default function HostOverrides({ embedded = false }: { embedded?: boolean }) {
-  const { overrides, loading, saving, error, resetSupported, refresh, createOverride, updateOverrideById, deleteOverrideById, toggleOverrideEnabled, resetOverrides } =
+export default function HostOverrides() {
+  const {
+    overrides,
+    loading,
+    saving,
+    error,
+    resetSupported,
+    refresh,
+    createOverride,
+    updateOverrideById,
+    deleteOverrideById,
+    toggleOverrideEnabled,
+    resetOverrides
+  } =
     useHostOverridesPageModel();
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState<HostOverrideDraft>(defaultDraft);
@@ -28,13 +42,15 @@ export default function HostOverrides({ embedded = false }: { embedded?: boolean
   };
   const openEdit = (override: HostOverride) => {
     setEditingId(override.id);
-    setDraft({
-      host: override.host,
-      resolver: override.resolver,
-      outbound: override.outbound,
-      enabled: override.enabled,
-      reason: override.reason,
-    });
+    setDraft(
+      {
+        host: override.host,
+        resolver: override.resolver,
+        outbound: override.outbound,
+        enabled: override.enabled,
+        reason: override.reason,
+      }
+    );
     setShowCreate(true);
   };
   const closeForm = () => {
@@ -60,62 +76,72 @@ export default function HostOverrides({ embedded = false }: { embedded?: boolean
   };
 
   return (
-    <div className={embedded ? "workspace-section" : "page-shell"}>
-      <SectionHeader title={t("host_overrides.title")} embedded={embedded}>
-        <div className="page-header-actions flex items-center gap-2"><button
-          onClick={() => void refresh()}
-          disabled={loading || saving}
-          className="text-action-button"
-        >
-          {loading ? t("host_overrides.loading") : t("host_overrides.refresh")}
-        </button>
-          {resetSupported && (
-            <button
-              onClick={() => void resetOverrides()}
-              disabled={saving}
-              className="action-secondary"
-            >
-              <RefreshIcon />
-              {t("host_overrides.reset")}
-            </button>
-          )}
+    <div className="workspace-section">
+      <SectionHeader title={t("host_overrides.title")}>
+        <div className="page-header-actions flex items-center gap-2">
+          <Menu label={t("lists.actions")} items={[
+            { label: t("host_overrides.refresh"), disabled: loading || saving, onSelect: () => { void refresh(); } },
+            ...(resetSupported ? [{ label: t("host_overrides.reset"), tone: "danger" as const,
+              disabled: saving, onSelect: () => {
+                void (async () => {
+                  if (await confirmAction(t("host_overrides.reset_confirm"))) await resetOverrides();
+                })().catch(() => undefined);
+              } }] : []),
+          ]} />
           <button
             onClick={openCreate}
-            className="action-primary"
+            className="btn btn-primary"
           >
             <PlusIcon />
             {t("host_overrides.add")}
           </button>
         </div>
       </SectionHeader>
-      {showCreate && <OverrideForm draft={draft} onChange={setDraft} onCancel={closeForm} onSubmit={() => void handleSubmit()} saving={saving} editing={Boolean(editing)} />}
-      {error && (
-        <div className="surface" style={{ backgroundColor: "var(--danger-soft)", color: "var(--color-danger)", padding: "12px 14px", fontSize: "13px" }}>
-          {error}
-        </div>
-      )}
-      <div className="override-list flex flex-col gap-3">
-        {!loading && overrides.length === 0 && <EmptyState />}
-        {loading && (
-          <div className="surface flex items-center justify-center" style={{ minHeight: "220px", padding: "24px" }}>
-            <p className="font-mono text-text-muted" style={{ fontSize: "13px" }}>
-              {t("host_overrides.loading")}
-            </p>
+      {showCreate
+        && <OverrideForm
+          draft={draft}
+          onChange={setDraft}
+          onCancel={closeForm}
+          onSubmit={() => void handleSubmit().catch(() => undefined)}
+          saving={saving}
+          editing={Boolean(editing)}
+        />}
+      {error
+        && (
+          <div
+            className="surface"
+            style={{
+              backgroundColor: "var(--danger-soft)",
+              color: "var(--color-danger)",
+              padding: "12px 14px",
+              fontSize: "13px"
+            }}
+          >
+            {error}
           </div>
         )}
-        {!loading &&
-          overrides.map((override) => (
-            <OverrideCard
-              key={override.id}
-              override={override}
-              onEdit={openEdit}
-              onDelete={async (id) => {
-                if (!await confirmAction(t("host_overrides.delete_confirm"))) return;
-                void deleteOverrideById(id);
-              }}
-              onToggle={(id) => void toggleOverrideEnabled(id)}
-            />
-          ))}
+      <div className="override-list flex flex-col gap-3">
+        {!loading && overrides.length === 0 && <div className="empty-state">
+          <p>{t("host_overrides.empty")}</p>
+          <button className="btn" onClick={openCreate}>{t("host_overrides.add")}</button>
+        </div>}
+        {loading && overrides.length === 0 && <NetworkLoading />}
+        {overrides.map(
+            (override) =>
+            (
+              <OverrideCard
+                key={override.id}
+                override={override}
+                saving={saving}
+                onEdit={openEdit}
+                onDelete={async (id) => {
+                  if (!await confirmAction(t("host_overrides.delete_confirm"))) return;
+                  void deleteOverrideById(id).catch(() => undefined);
+                }}
+                onToggle={(id) => void toggleOverrideEnabled(id).catch(() => undefined)}
+              />
+            )
+          )}
       </div>
     </div>
   );

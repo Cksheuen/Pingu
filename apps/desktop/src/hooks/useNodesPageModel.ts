@@ -4,6 +4,7 @@ import { deleteNode, importNode, setActiveNode } from "../lib/nodes-api";
 import { useConnectionStore } from "../lib/connection-store";
 
 interface NodesPageModel {
+  loading: boolean;
   activeNodeId: string | null;
   nodes: ReturnType<typeof useConnectionStore.getState>["nodes"];
   showImport: boolean;
@@ -17,6 +18,7 @@ interface NodesPageModel {
 }
 
 export function useNodesPageModel(): NodesPageModel {
+  const [loading, setLoading] = useState(true);
   const activeNodeId = useConnectionStore((state) => state.status.active_node_id);
   const nodes = useConnectionStore((state) => state.nodes);
   const refreshStatus = useConnectionStore((state) => state.refreshStatus);
@@ -26,7 +28,7 @@ export function useNodesPageModel(): NodesPageModel {
   const [switchError, setSwitchError] = useState<string | null>(null);
 
   useEffect(() => {
-    refreshNodes().catch(() => undefined);
+    refreshNodes().catch(() => undefined).finally(() => setLoading(false));
   }, [refreshNodes]);
 
   const activateNode = async (id: string) => {
@@ -60,6 +62,7 @@ export function useNodesPageModel(): NodesPageModel {
   };
 
   return {
+    loading,
     activeNodeId,
     nodes,
     showImport,

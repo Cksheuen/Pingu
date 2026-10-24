@@ -225,29 +225,33 @@ fn median(v: &[f64]) -> Option<f64> {
         (v[v.len() / 2 - 1] + v[v.len() / 2]) / 2.0
     })
 }
-fn complete(r: &RouteMeasurement) -> bool {
-    r.error.is_none()
-        && r.egress_ip.is_some()
-        && r.targets.len() == TARGETS.len()
-        && r.targets.iter().all(|t| {
-            t.error.is_none() && t.response_ms.len() == ROUNDS && median(&t.response_ms).is_some()
-        })
+fn validated_medians(route: &RouteMeasurement) -> Option<Vec<f64>> {
+    if route.error.is_some() || route.egress_ip.is_none() || route.targets.len() != TARGETS.len() {
+        return None;
+    }
+    route.targets.iter().map(|target| {
+        if target.error.is_some() || target.response_ms.len() != ROUNDS {
+            return None;
+        }
+        median(&target.response_ms)
+    }).collect()
 }
 /// Normalize per site so a slow endpoint cannot dominate the score. Require a
 /// useful gain (10% and 30ms) and reject a candidate that regresses any site >5%.
 pub fn score(routes: &[RouteMeasurement]) -> Option<(f64, bool)> {
     let a = routes.iter().find(|r| r.route == "direct_exit")?;
     let b = routes.iter().find(|r| r.route == "chain")?;
-    if !complete(a) || !complete(b) || a.egress_ip != b.egress_ip {
+    if a.egress_ip != b.egress_ip {
         return None;
     }
+    let a_medians = validated_medians(a)?;
+    let b_medians = validated_medians(b)?;
     let mut ratios = vec![];
     let mut savings = vec![];
-    for (a, b) in a.targets.iter().zip(&b.targets) {
+    for ((a, b), (x, y)) in a.targets.iter().zip(&b.targets).zip(a_medians.into_iter().zip(b_medians)) {
         if a.url != b.url {
             return None;
         }
-        let (x, y) = (median(&a.response_ms)?, median(&b.response_ms)?);
         ratios.push(y / x);
         savings.push(x - y);
     }

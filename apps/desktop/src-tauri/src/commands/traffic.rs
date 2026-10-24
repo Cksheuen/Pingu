@@ -28,11 +28,3 @@ pub fn get_traffic(proxy_state: State<Arc<ProxyState>>) -> Result<TrafficSnapsho
         download_total: sample.download_total,
     })
 }
-
-#[tauri::command]
-pub fn get_clash_api_port(proxy_state: State<Arc<ProxyState>>) -> Option<u16> {
-    proxy_state
-        .runtime_snapshot()
-        .ok()
-        .and_then(|runtime| runtime.clash_api_port)
-}

@@ -1,51 +1,58 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ConnectionHero } from "../components/home/ConnectionHero";
 import { NetworkModeCard } from "../components/home/NetworkModeCard";
 import { TerminalProxyCard } from "../components/home/TerminalProxyCard";
 import { TrafficCard } from "../components/home/TrafficCard";
-import { EgressCard } from "../components/home/EgressCard";
 import { AiPreflightCard } from "../components/home/AiPreflightCard";
-import { SectionHeader } from "../components/SectionHeader";
+import { RouteStrip } from "../components/home/RouteStrip";
 import { useHomeConnection } from "../hooks/useHomeConnection";
 import { useAiServicePreflight } from "../hooks/useAiServicePreflight";
-import { useSubscriptionStore } from "../lib/subscription-store";
+import { useRouteSummary } from "../hooks/useRouteSummary";
 import { t } from "../lib/i18n";
 import { useI18nRerender } from "../hooks/useI18nRerender";
-import { useConnectionStore } from "../lib/connection-store";
-import Chain from "./Chain";
-import Strategies from "./Strategies";
 
 export default function Home() {
-  const { status, proxyInfo, activeNode, activeRuleGroupId, activeRuleGroupName,
-    loading, error, clearError, toggleConnection } = useHomeConnection();
-  const [chainRoute, setChainRoute] = useState("");
-  const preflight = useAiServicePreflight(status.connected, activeRuleGroupId, `${status.routing_revision}:${status.active_node_id}:${chainRoute}`);
   useI18nRerender();
-  const { hash } = useLocation();
-  const [strategiesOpen, setStrategiesOpen] = useState(hash === "#strategies");
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  useEffect(() => { if (hash === "#strategies") setStrategiesOpen(true); }, [hash]);
-  const navigate = useNavigate();
-  const nodeCount = useConnectionStore(state => state.nodes.length);
-  const subscriptions = useSubscriptionStore((state) => state.subscriptions);
-  const needsSource = !status.connected && nodeCount === 0 && !subscriptions.some(source => source.enabled);
-  const chainMode = status.active_node_id === "__chain__";
-  const subscriptionMode = status.active_node_id === "__subscriptions__" || (!activeNode && subscriptions.some((source) => source.enabled));
-  return <div className="page-shell home-page">
-    <SectionHeader title={t("workspace.connection")}>
-      <Link className="route-rule-link" to="/routing">{t("workspace.routing")} · {activeRuleGroupName ?? activeRuleGroupId ?? "—"} <span aria-hidden="true">↗</span></Link>
-    </SectionHeader>
-    <ConnectionHero connected={status.connected} uptimeSeconds={status.uptime_seconds} loading={loading} error={error}
-      activeNodeName={status.active_node_name ?? (chainMode ? t("nav.chain") : subscriptionMode ? t("home.subscription_route") : activeNode?.name ?? null)}
-      connectLabel={needsSource ? t("workspace.add_source") : undefined} onClearError={clearError} onToggleConnection={needsSource ? async () => navigate("/sources") : toggleConnection} />
-    <NetworkModeCard />
-    <div className="connection-metrics"><TrafficCard /><AiPreflightCard connected={status.connected} proxyInfo={status.network_mode === "tun" ? null : proxyInfo} preflight={preflight} /></div>
-    <div id="chain"><Chain embedded onRouteChange={setChainRoute} /></div>
-    <EgressCard />
-    <div className="home-tools"><details className="surface workspace-disclosure" id="strategies" open={strategiesOpen} onToggle={event => setStrategiesOpen(event.currentTarget.open)}>
-      <summary>{t("nav.strategies")}</summary>{strategiesOpen && <Strategies embedded />}
-    </details>
-    <details className="surface workspace-disclosure" open={terminalOpen} onToggle={event => setTerminalOpen(event.currentTarget.open)}><summary>{t("home.terminal_proxy")}</summary>{terminalOpen && (status.network_mode === "tun" ? <p className="network-hint tun-terminal-hint">{t("tun.terminal_hint")}</p> : <TerminalProxyCard connected={status.connected} proxyInfo={proxyInfo} />)}</details></div>
-  </div>;
+  const {
+    status, phase, proxyInfo, activeNode, activeRuleGroupId, activeRuleGroupName,
+    loading, error, clearError, toggleConnection, needsSource,
+  } = useHomeConnection();
+  const route = useRouteSummary(activeNode?.name ?? null);
+  const preflight = useAiServicePreflight(status.connected, activeRuleGroupId, route.routeKey);
+  const name = status.active_node_name ?? (status.active_node_id === "__chain__" ? t("nav.chain")
+    : status.active_node_id === "__subscriptions__"
+      ? t("home.subscription_route") : activeNode?.name ?? null);
+  return (
+    <div className="page-shell home-page">
+      <header className="page-header">
+        <h1 className="page-title">{t("workspace.connection")}</h1>
+        <NetworkModeCard />
+      </header>
+      <ConnectionHero
+        connected={status.connected}
+        phase={phase}
+        uptimeSeconds={status.uptime_seconds}
+        loading={loading}
+        error={error}
+        activeNodeName={name}
+        connectLabel={needsSource ? t("workspace.add_source") : undefined}
+        onClearError={clearError}
+        onToggleConnection={toggleConnection}
+      >
+        <RouteStrip steps={route.steps} ruleGroup={activeRuleGroupName ?? activeRuleGroupId} />
+      </ConnectionHero>
+      <div className="connection-metrics">
+        <TrafficCard />
+        <AiPreflightCard
+          connected={status.connected}
+          proxyInfo={status.network_mode === "tun" ? null : proxyInfo}
+          preflight={preflight}
+        />
+      </div>
+      <TerminalProxyCard
+        connected={status.connected}
+        proxyInfo={proxyInfo}
+        tun={status.network_mode === "tun"}
+      />
+    </div>
+  );
 }

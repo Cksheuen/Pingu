@@ -7,8 +7,8 @@ fn enabled_stack_uses_one_global_fallback_after_all_groups_and_subscription_rule
     let first = config.rule_groups[0].id.clone();
     config.rule_groups[0].rules = vec![Rule { id: "first".into(), rule_type: "domain".into(), match_value: "first.test".into(), outbound: "direct".into() }];
     let second = config.create_rule_group("Second".into());
-    config.set_active_group(&second.id).unwrap();
-    config.add_rule_to_active_group(Rule { id: "second".into(), rule_type: "domain".into(), match_value: "second.test".into(), outbound: "block".into() }).unwrap();
+    config.active_group_id = second.id.clone();
+    config.rule_groups.iter_mut().find(|group| group.id == second.id).unwrap().rules.push(Rule { id: "second".into(), rule_type: "domain".into(), match_value: "second.test".into(), outbound: "block".into() });
     config.subscriptions.push(subscription("stack"));
     config.set_rule_stack(RuleStack { enabled_group_ids: vec![first, second.id], default_strategy: "proxy".into() }).unwrap();
     let value = try_generate_app_config(&config, config.active_rule_group().unwrap(), &[], 0, 0).unwrap();

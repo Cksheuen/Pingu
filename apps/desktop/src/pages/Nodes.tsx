@@ -1,3 +1,5 @@
+import { Menu } from "../components/Menu";
+import { NetworkLoading } from "../components/network/NetworkState";
 import { confirmAction } from "../lib/confirm-action";
 import { SectionHeader } from "../components/SectionHeader";
 import { t } from "../lib/i18n";
@@ -8,26 +10,26 @@ import { useNodesPageModel } from "../hooks/useNodesPageModel";
 
 function PlusIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+    >
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }
 
-function XIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
-export default function Nodes({ embedded = false }: { embedded?: boolean }) {
+export default function Nodes() {
   const {
     activeNodeId,
     nodes,
+    loading,
     showImport,
     switchingNodeId,
     switchError,
@@ -40,115 +42,99 @@ export default function Nodes({ embedded = false }: { embedded?: boolean }) {
   useI18nRerender();
 
   return (
-    <div className={embedded ? "workspace-section" : "page-shell"}>
-      <SectionHeader title={t("workspace.manual_nodes")} embedded={embedded}>
+    <div className="workspace-section">
+      <SectionHeader title={t("workspace.manual_nodes")}>
         <button
           onClick={openImportDialog}
-          className="action-primary"
+          className="btn btn-primary"
         >
           <PlusIcon />
           {t("nodes.import")}
         </button>
       </SectionHeader>
-
       {switchError && <p className="node-switch-error" role="alert">{switchError}</p>}
-
       {/* Node list */}
       <div className="node-list flex flex-col gap-2">
-        {nodes.length === 0 && (
-          <div className="empty-state">
-            <p>{t("nodes.empty")}</p>
-            <button className="action-primary" onClick={openImportDialog}>
-              {t("nodes.empty_cta")}
-            </button>
-          </div>
-        )}
-        {nodes.map((node) => {
-          const isActive = node.id === activeNodeId;
-          const isSwitching = node.id === switchingNodeId;
-          const switching = switchingNodeId !== null;
-          return (
-            <div
-              key={node.id}
-              onClick={() => {
-                if (!switching) void activateNode(node.id);
-              }}
-              role="button"
-              tabIndex={switching ? -1 : 0}
-              aria-pressed={isActive}
-              aria-busy={isSwitching}
-              aria-disabled={switching}
-              data-switching={isSwitching}
-              onKeyDown={(e) => {
-                if (!switching && (e.key === "Enter" || e.key === " ")) {
-                  if (e.key === " ") e.preventDefault();
-                  void activateNode(node.id);
-                }
-              }}
-              className="surface node-row"
-              style={{
-                borderColor: isActive ? "var(--color-accent)" : "var(--line)",
-              }}
-            >
-              {/* Status dot */}
-              <span
-                className="rounded-full shrink-0"
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  backgroundColor: isActive ? "var(--color-accent)" : "var(--color-text-muted)",
-                }}
-              />
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="font-sans font-semibold text-text-primary truncate" style={{ fontSize: "15px" }}>
-                  {node.name}
-                </p>
-                <span className="flex items-center gap-1" style={{ marginTop: "2px" }}>
-                  <span className="font-mono text-text-secondary truncate" style={{ fontSize: "11px" }}>
-                    {node.address}:{node.port}
-                  </span>
-                  <span className="font-mono text-text-secondary" style={{ fontSize: "11px" }}> · </span>
-                  <span className="font-mono text-text-secondary" style={{ fontSize: "11px" }}>VLESS{node.security ? ` + ${node.security.toUpperCase()}` : ""}</span>
-                  {node.security === "reality" && <Tooltip text={t("tooltip.reality")} />}
-                </span>
-              </div>
-
-              {/* Status / actions */}
-              <div className="node-row-actions">
-                <span
-                  className="font-mono"
-                  style={{
-                    fontSize: "13px",
-                    color: isActive ? "var(--color-accent)" : "var(--color-text-secondary)",
-                  }}
-                >
-                  {isSwitching ? t("nodes.switching") : isActive ? t("nodes.active") : "\u2014"}
-                </span>
-                <button
-                  type="button"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (switching) return;
-                    if (!await confirmAction(t("nodes.delete_confirm"))) return;
-                    void removeNode(node.id);
-                  }}
-                  aria-label={`Delete ${node.name}`}
-                  disabled={switching}
-                  className="table-action-button"
-                >
-                  <XIcon />
-                </button>
-              </div>
+        {loading && <NetworkLoading />}
+        {!loading && nodes.length === 0
+          && (
+            <div className="empty-state">
+              <p>{t("nodes.empty")}</p>
+              <button className="btn" onClick={openImportDialog}>
+                {t("nodes.empty_cta")}
+              </button>
             </div>
-          );
-        })}
+          )}
+        {nodes.map(
+          (node) => {
+            const isActive = node.id === activeNodeId;
+            const isSwitching = node.id === switchingNodeId;
+            const switching = switchingNodeId !== null;
+            return (
+              <div
+                key={node.id}
+                aria-busy={isSwitching}
+                data-switching={isSwitching}
+                className="row node-row"
+                style={{
+                  borderColor: isActive ? "var(--color-accent)" : "var(--line)",
+                }}
+              >
+                {/* Status dot */}
+                <span
+                  className="status-dot shrink-0"
+                  style={{
+                    width: "10px",
+                    height: "10px",
+                    backgroundColor: isActive ? "var(--color-accent)" : "var(--color-text-muted)",
+                  }}
+                />
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-sans font-semibold text-text-primary truncate" style={{ fontSize: "15px" }}>
+                    {node.name}
+                  </p>
+                  <span className="flex items-center gap-1" style={{ marginTop: "2px" }}>
+                    <span className="font-mono text-text-secondary truncate" style={{ fontSize: "var(--text-xs)" }}>
+                      {node.address}
+                      {":"}
+                      {node.port}
+                    </span>
+                    <span className="text-text-secondary" style={{ fontSize: "var(--text-xs)" }}> · </span>
+                    <span className="text-text-secondary" style={{ fontSize: "var(--text-xs)" }}>
+                      {"VLESS"}
+                      {node.security ? ` + ${node.security.toUpperCase()}` : ""}
+                    </span>
+                    {node.security === "reality" && <Tooltip text={t("tooltip.reality")} />}
+                  </span>
+                </div>
+                {/* Status / actions */}
+                <div className="node-row-actions">
+                  {(isActive || isSwitching) && <span className="pill pill-accent">
+                    {isSwitching ? t("nodes.switching") : t("nodes.active")}
+                  </span>}
+                  <div className="row-actions">
+                    <Menu label={`${t("lists.actions")} ${node.name}`} items={[
+                      ...(!isActive ? [{ label: t("nodes.set_active"), disabled: switching,
+                        onSelect: () => { void activateNode(node.id); } }] : []),
+                      { label: t("network.delete"), tone: "danger", disabled: switching,
+                        onSelect: () => {
+                          void (async () => {
+                            if (await confirmAction(t("nodes.delete_confirm"))) await removeNode(node.id);
+                          })();
+                        } },
+                    ]} />
+                  </div>
+                </div>
+              </div>
+            );
+          }
+        )}
       </div>
-
-      {showImport && (
-        <ImportDialog onClose={closeImportDialog} onImport={importNodeFromUri} />
-      )}
+      {showImport
+        && (
+          <ImportDialog onClose={closeImportDialog} onImport={importNodeFromUri} />
+        )}
     </div>
   );
 }

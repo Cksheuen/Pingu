@@ -4,6 +4,7 @@ import { useConnectionStore } from "../src/lib/connection-store.js";
 import type { ProxyStatus } from "../src/lib/types.js";
 
 const connected: ProxyStatus = {
+  network_mode: "system", phase: "connected", routing_revision: 0, active_node_name: "Node 1",
   connected: true, active_node_id: "node-1", active_group_id: "group-1",
   active_group_name: "Work", uptime_seconds: 10,
 };

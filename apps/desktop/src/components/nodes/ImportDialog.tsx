@@ -47,14 +47,15 @@ export function ImportDialog({ onClose, onImport }: ImportDialogProps) {
       <div className="dialog-actions">
         <button
           onClick={onClose}
-          className="action-secondary"
+          className="btn"
         >
           {t("nodes.cancel")}
         </button>
         <button
           onClick={handleImport}
           disabled={loading || !uri.trim()}
-          className="action-primary"
+          aria-busy={loading}
+          className="btn btn-primary"
         >
           {loading ? t("nodes.importing") : t("nodes.import_btn")}
         </button>

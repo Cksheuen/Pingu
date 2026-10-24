@@ -9,10 +9,6 @@ export async function setAutostart(enabled: boolean): Promise<void> {
   return tauriInvoke("set_autostart", { enabled });
 }
 
-export async function getLanguage(): Promise<string> {
-  return tauriInvoke("get_language");
-}
-
 export async function setLanguage(language: string): Promise<void> {
   return tauriInvoke("set_language", { language });
 }

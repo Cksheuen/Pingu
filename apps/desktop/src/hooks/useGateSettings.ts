@@ -1,3 +1,4 @@
+import { runOptimistic } from "../lib/optimistic";
 import { useCallback, useEffect, useState } from "react";
 import {
   configureGate,
@@ -50,11 +51,16 @@ export function useGateSettings() {
   };
 
   const toggleEnabled = async () => {
-    if (!settings) return;
+    if (!settings || saving) return;
     setSaving(true);
     setError(null);
     try {
-      setSettings(await setGateEnabled(!settings.enabled));
+      const previous = settings;
+      setSettings(await runOptimistic({
+        apply: () => setSettings({ ...previous, enabled: !previous.enabled }),
+        commit: () => setGateEnabled(!previous.enabled),
+        rollback: () => setSettings(previous),
+      }));
     } catch (cause) {
       setError(errorMessage(cause));
       await refresh().catch(() => undefined);

@@ -120,12 +120,6 @@ impl MihomoProcess {
         }
     }
 
-    /// Create an independently managed mihomo instance with the same binary.
-    /// Lifecycle uses this for a blue/green local-proxy handoff, keeping the old
-    /// process alive while the new listener is being verified.
-    pub fn successor(&self) -> Self {
-        Self::with_binary(self.binary_path.clone())
-    }
 
     pub fn check(&self, config_path: &str) -> Result<(), ValidationError> {
         let mut child = Command::new(&self.binary_path)

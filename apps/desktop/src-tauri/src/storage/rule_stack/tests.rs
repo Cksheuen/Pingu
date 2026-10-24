@@ -136,7 +136,7 @@ fn ordering_controls_rules_and_same_suffix_dns_and_survives_reload() {
 fn editor_selection_and_group_defaults_cannot_change_active_stack() {
     let mut config = fixture();
     config.migrate_rule_stack();
-    config.set_active_group("second").unwrap();
+    config.active_group_id = "second".into();
     assert_eq!(config.effective_rule_group().unwrap().rules[0].id, "a");
     config.set_global_default_strategy("proxy").unwrap();
     assert_eq!(

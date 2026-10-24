@@ -8,7 +8,7 @@ test("a pending connect survives navigation and rejects a conflicting rule or no
   const connect = runtimeOperation("connect", () => wait);
   assert.equal(useRuntimeOperation.getState().command, "connect");
   let invoked = false;
-  await assert.rejects(runtimeOperation("set_active_group", async () => { invoked = true; }), /in progress/);
+  await assert.rejects(runtimeOperation("set_rule_stack", async () => { invoked = true; }), /in progress/);
   await assert.rejects(runtimeOperation("select_strategy_proxy", async () => { invoked = true; }), /in progress/);
   assert.equal(invoked, false);
   assert.equal(await runtimeOperation("get_status", async () => "verifying"), "verifying");

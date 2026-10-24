@@ -28,11 +28,11 @@ export interface Rule {
 }
 
 export interface ProxyStatus {
-  network_mode?: "system" | "tun";
+  network_mode: "system" | "tun";
   connected: boolean;
-  phase?: "disconnected" | "connecting" | "verifying" | "connected" | "switching" | "disconnecting";
-  routing_revision?: number;
-  active_node_name?: string | null;
+  phase: "disconnected" | "connecting" | "verifying" | "connected" | "switching" | "disconnecting";
+  routing_revision: number;
+  active_node_name: string | null;
   active_node_id: string | null;
   active_group_id: string | null;
   active_group_name: string | null;
@@ -50,8 +50,8 @@ export interface RuleGroup {
   name: string;
   rules: Rule[];
   default_strategy: Strategy;
-  nameserver_policy?: { domain_suffix: string; server?: string; servers?: string[] }[];
-  fake_ip_filter?: string[];
+  nameserver_policy: { domain_suffix: string; server?: string; servers?: string[] }[];
+  fake_ip_filter: string[];
 }
 
 export interface ProxyInfo {

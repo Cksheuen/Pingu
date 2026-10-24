@@ -1,0 +1,324 @@
+.override-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rule-group-input {
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-inset);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  outline: none;
+}
+
+.rule-group-input:focus {
+  border-color: var(--color-accent);
+}
+
+.route-rule-link {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: var(--text-xs);
+}
+
+.route-rule-link:hover {
+  color: var(--color-accent);
+}
+
+.rule-strategy-card {
+  gap: 10px;
+  margin-top: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+}
+
+.rule-stack {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rule-stack-description {
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.rule-stack-scroll {
+  overflow-x: auto;
+  box-shadow: none;
+}
+
+.rule-stack-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+.rule-stack-table th {
+  padding: 11px var(--space-3);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  background: var(--color-inset);
+}
+
+.rule-stack-table td {
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.rule-stack-table tr[data-selected="true"] td {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+
+.rule-stack-table input[type="checkbox"] {
+  accent-color: var(--color-accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.rule-stack-priority {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rule-stack-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.rule-stack-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.rule-stack-priority > span {
+  min-width: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule-stack-priority button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  width: 24px;
+  height: 26px;
+}
+
+.rule-stack-table button:disabled {
+  opacity: .3;
+  cursor: default;
+}
+
+.rule-stack-table button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.rule-stack-group {
+  color: var(--color-text-primary);
+  text-align: left;
+  font-weight: 600;
+}
+
+.rule-stack-count {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.rule-group-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.rule-group-editor-heading {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.rule-group-editor-heading .dialog-field-group {
+  margin: 0;
+}
+
+.rule-group-editor-body {
+  min-height: 100px;
+  overflow-y: auto;
+}
+
+.rule-group-editor-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.rule-group-editor-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: 13px;
+}
+
+.rule-group-editor-scroll {
+  overflow-x: auto;
+}
+
+.rule-group-editor-grid {
+  display: grid;
+  grid-template-columns: 40px 135px minmax(180px, 1fr) 105px 90px;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 650px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.rule-group-editor-labels {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.rule-group-editor-grid .dialog-field,
+.rule-group-editor-grid .select-trigger {
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+
+.rule-group-editor-index {
+  color: var(--color-text-secondary);
+  text-align: center;
+  font-size: var(--text-xs);
+}
+
+.rule-group-editor-actions {
+  display: flex;
+  gap: 3px;
+  justify-content: flex-end;
+}
+
+.rule-group-editor-actions button {
+  width: 27px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.rule-group-editor button:disabled {
+  opacity: .4;
+}
+
+.rule-group-editor-empty {
+  color: var(--color-text-secondary);
+  padding: 18px 0;
+}
+
+.rule-group-editor-details {
+  margin: var(--space-4) 0;
+  font-size: var(--text-xs);
+}
+
+.rule-group-editor-details summary {
+  cursor: pointer;
+  padding: var(--space-2) 0;
+}
+
+.rule-group-editor-dns {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(200px, 2fr) 28px;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.rule-group-editor-dns .dialog-field {
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+
+.rule-group-editor-footer {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.rule-group-editor-footer p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.rule-group-editor-footer .dialog-actions {
+  margin-top: var(--space-3);
+}
+
+.override-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+}
+
+.override-meta > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.override-meta > div + div::before {
+  content: "·";
+  color: var(--color-text-muted);
+  margin-right: var(--space-2);
+}
+
+.override-meta dt {
+  color: var(--color-text-muted);
+}
+
+.override-meta dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 680px) {
+  .rule-strategy-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .override-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .rule-group-editor-heading {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rule-stack-table input.switch { width: 36px; height: 22px; }
+.rule-stack-priority button { border: 0; width: 28px; height: 28px; }
+.rule-stack-table button:disabled { opacity: .45; cursor: not-allowed; }
+.rule-stack > .btn { justify-self: start; }
+.override-row { display: block; }
+.override-row + .override-row { border-top: 1px solid var(--line); }

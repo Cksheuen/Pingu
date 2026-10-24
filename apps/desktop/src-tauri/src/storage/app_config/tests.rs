@@ -142,33 +142,16 @@ fn invalid_active_node_leaves_all_selection_state_untouched() {
 }
 
 #[test]
-fn rule_group_crud_and_strategy_updates_stay_inside_app_config() {
+fn rule_group_creation_and_strategy_updates_stay_inside_app_config() {
     let mut config = AppConfig::default_config();
     let created = config.create_rule_group("Work".to_string());
-    config.set_active_group(&created.id).unwrap();
-
-    let inserted = config
-        .add_rule_to_active_group(sample_rule("", "proxy"))
-        .unwrap();
-    assert!(!inserted.id.is_empty());
-    assert_eq!(config.list_rules().unwrap().len(), 1);
+    assert_eq!(config.find_rule_group_name(&created.id).as_deref(), Some("Work"));
 
     config.set_global_default_strategy("direct").unwrap();
     assert_eq!(
         config.effective_rule_group().unwrap().default_strategy,
         "direct"
     );
-
-    config
-        .rename_rule_group(&created.id, "Renamed".to_string())
-        .unwrap();
-    assert_eq!(
-        config.find_rule_group_name(&created.id).as_deref(),
-        Some("Renamed")
-    );
-
-    config.delete_rule_from_active_group(&inserted.id).unwrap();
-    assert!(config.list_rules().unwrap().is_empty());
 }
 
 #[test]

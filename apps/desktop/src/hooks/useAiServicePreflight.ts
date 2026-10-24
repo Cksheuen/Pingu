@@ -12,7 +12,7 @@ export interface AiServicePreflightModel {
 export function useAiServicePreflight(
   connected: boolean,
   activeGroupId: string | null,
-  routeKey = "",
+  routeKey: string | null,
 ): AiServicePreflightModel {
   const [report, setReport] = useState<AiServicePreflight | null>(null);
   const [checking, setChecking] = useState(false);
@@ -23,6 +23,7 @@ export function useAiServicePreflight(
     if (!connected) return;
     const request = ++generation.current;
     setChecking(true);
+    setError(null);
     setReport(null);
     try {
       const next = await getAiServicePreflight();
@@ -37,21 +38,29 @@ export function useAiServicePreflight(
     }
   }, [connected]);
 
+  const checkedKey = useRef<string | null>(null);
   useEffect(() => {
     if (!connected) {
+      checkedKey.current = null;
       generation.current++;
       setChecking(false);
       setReport(null);
       setError(null);
       return;
     }
-
-    // A preflight is intentionally event-driven: connect, route or rule-group change
-    // triggers it once, and the user can recheck before starting a CLI session.
-    // Continuous egress polling would add avoidable traffic and UI work.
+    // A preflight is intentionally event-driven: each settled route or rule
+    // group is checked once (every check repeats three probes through the
+    // proxy), and the user can recheck before starting a CLI session.
+    if (routeKey === null) return;
+    const key = JSON.stringify([activeGroupId, routeKey]);
+    if (checkedKey.current === key) return;
+    checkedKey.current = key;
     void check();
-    return () => { generation.current++; };
   }, [activeGroupId, routeKey, check, connected]);
+  useEffect(() => () => {
+    generation.current++;
+    checkedKey.current = null;
+  }, []);
 
   return { report, checking, error, check };
 }

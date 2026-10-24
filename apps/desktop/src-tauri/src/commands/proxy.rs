@@ -7,7 +7,7 @@ use crate::lifecycle;
 pub use crate::lifecycle::ProxyState;
 use crate::mihomo::process::LogEntry;
 use crate::proxy_runtime::{
-    build_ai_service_preflight, build_proxy_status, probe_proxy_egress, proxy_info,
+    build_ai_service_preflight, build_proxy_status, proxy_info,
     verify_proxy_content, AiServicePreflight, ProxyInfo, ProxyStatus,
 };
 
@@ -118,18 +118,6 @@ pub fn get_status(
     Ok(status)
 }
 
-#[tauri::command]
-pub async fn reload_proxy(
-    app_state: State<'_, Arc<AppState>>,
-    proxy_state: State<'_, Arc<ProxyState>>,
-) -> Result<(), String> {
-    let app_state = app_state.inner().clone();
-    let proxy_state = proxy_state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || reload_proxy_if_running(&app_state, &proxy_state))
-        .await
-        .map_err(|error| format!("Reload task failed: {error}"))?
-}
-
 pub fn reload_proxy_if_running(
     app_state: &AppState,
     proxy_state: &ProxyState,
@@ -140,37 +128,6 @@ pub fn reload_proxy_if_running(
 #[tauri::command]
 pub fn get_proxy_info(proxy_state: State<Arc<ProxyState>>) -> ProxyInfo {
     proxy_info(proxy_state.active_listen_port())
-}
-
-#[tauri::command]
-pub async fn get_egress_ip(proxy_state: State<'_, Arc<ProxyState>>) -> Result<String, String> {
-    let proxy_state = proxy_state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        // Pin the exact runtime (generation/listener) under the operation
-        // lock; probe that listener without the lock; re-check the runtime is
-        // still live and unchanged before returning, so an egress IP can never
-        // be attributed to a runtime that was switched away mid-probe.
-        let context = {
-            let operation = proxy_state
-                .operation_lock
-                .lock()
-                .map_err(|error| format!("Lifecycle lock failed: {error}"))?;
-            proxy_state
-                .preflight_context(&operation)
-                .ok_or_else(|| "Proxy is not connected".to_string())?
-        };
-        let egress_ip = probe_proxy_egress(context.listen_port)?;
-        let operation = proxy_state
-            .operation_lock
-            .lock()
-            .map_err(|error| format!("Lifecycle lock failed: {error}"))?;
-        if !proxy_state.preflight_context_still_current(&operation, &context) {
-            return Err("Active proxy changed during verification".to_string());
-        }
-        Ok(egress_ip)
-    })
-    .await
-    .map_err(|error| format!("Egress probe task failed: {error}"))?
 }
 
 #[tauri::command]

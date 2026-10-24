@@ -5,12 +5,13 @@ import Tooltip from "../Tooltip";
 
 interface TerminalProxyCardProps {
   connected: boolean;
+  tun?: boolean;
   proxyInfo: ProxyInfo | null;
 }
 
 type CopyState = "idle" | "copied" | "failed";
 
-export function TerminalProxyCard({ connected, proxyInfo }: TerminalProxyCardProps) {
+export function TerminalProxyCard({ connected, proxyInfo, tun = false }: TerminalProxyCardProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
 
   async function handleCopy() {
@@ -29,21 +30,19 @@ export function TerminalProxyCard({ connected, proxyInfo }: TerminalProxyCardPro
   return (
     <section className="surface terminal-strip">
       <div className="terminal-strip-meta">
-        <span className="section-label">{t("home.terminal_proxy")}</span>
-        <span className="terminal-lights" aria-hidden="true"><i /><i /><i /></span>
+        <span>{t("home.terminal_proxy")}</span>
       </div>
       <div className="terminal-content">
-        <span className="terminal-prompt">$</span>
-        {connected && proxyInfo ? (
-          <pre>{proxyInfo.terminal_commands.join("\n")}</pre>
+        {tun ? <p>{t("tun.terminal_hint")}</p> : connected && proxyInfo ? (
+          <pre title={proxyInfo.terminal_commands.join("; ")}>{proxyInfo.terminal_commands.join("; ")}</pre>
         ) : (
           <p>{t("home.connect_for_commands")}</p>
         )}
       </div>
       <div className="terminal-action">
         <Tooltip text={t("tooltip.terminal_proxy")} />
-        {connected && proxyInfo && (
-          <button className="readout-action" type="button" onClick={() => void handleCopy()}>
+        {!tun && connected && proxyInfo && (
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => void handleCopy()}>
             {copied === "copied"
               ? t("home.copied")
               : copied === "failed"

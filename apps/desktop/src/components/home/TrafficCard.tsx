@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { t } from "../../lib/i18n";
 import { getTraffic } from "../../lib/traffic-api";
 import { useConnectionStore } from "../../lib/connection-store";
+import { pushSample, type TrafficSample } from "../../lib/traffic-history";
+import { Sparkline } from "./Sparkline";
+import { Skeleton } from "../Skeleton";
 import type { TrafficSnapshot } from "../../lib/types";
 
 function formatSpeed(bytesPerSec: number): string {
@@ -14,9 +17,12 @@ export function TrafficCard() {
   const connected = useConnectionStore((state) => state.status.connected);
   const [traffic, setTraffic] = useState<TrafficSnapshot | null>(null);
 
+  const [history, setHistory] = useState<TrafficSample[]>([]);
+
   useEffect(() => {
     if (!connected) {
       setTraffic(null);
+      setHistory([]);
       return;
     }
 
@@ -32,7 +38,12 @@ export function TrafficCard() {
     const poll = async () => {
       try {
         const snapshot = await getTraffic();
-        if (!stopped) setTraffic(snapshot);
+        if (!stopped) {
+          setTraffic(snapshot);
+          setHistory(current => pushSample(current, {
+            down: snapshot.download_speed, up: snapshot.upload_speed,
+          }));
+        }
       } catch {
         // Traffic is auxiliary; keep the connection UI responsive on a failed probe.
       }
@@ -74,6 +85,7 @@ export function TrafficCard() {
           <strong>{downSpeed}</strong>
         </div>
       </div>
+      {connected && !traffic ? <Skeleton height={40} /> : <Sparkline history={history} />}
     </section>
   );
 }

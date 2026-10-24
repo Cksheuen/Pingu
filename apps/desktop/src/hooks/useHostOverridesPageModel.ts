@@ -1,3 +1,4 @@
+import { runOptimistic } from "../lib/optimistic.js";
 import { useCallback, useEffect, useState } from "react";
 import {
   createHostOverride,
@@ -112,13 +113,19 @@ export function useHostOverridesPageModel(): HostOverridesPageModel {
   const toggleOverrideEnabled = useCallback(
     async (id: string) => {
       await runMutation(async () => {
-        const updated = await toggleHostOverride(id);
+        const previous = overrides.find(item => item.id === id);
+        if (!previous) return;
+        const updated = await runOptimistic({
+          apply: () => setOverrides(items => items.map(item => item.id === id ? { ...item, enabled: !item.enabled } : item)),
+          commit: () => toggleHostOverride(id),
+          rollback: () => setOverrides(items => items.map(item => item.id === id ? previous : item)),
+        });
         setOverrides((prev) =>
           prev.map((item) => (item.id === id ? updated : item))
         );
       });
     },
-    [runMutation]
+    [runMutation, overrides]
   );
 
   const resetOverrides = useCallback(async () => {

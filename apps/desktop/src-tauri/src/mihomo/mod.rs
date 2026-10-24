@@ -6,6 +6,7 @@ pub mod uri_parser;
 
 pub mod controller;
 pub mod profiles;
+pub mod rule_cache;
 
 pub fn private_write(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
     use std::io::Write;

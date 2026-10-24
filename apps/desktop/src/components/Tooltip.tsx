@@ -69,17 +69,17 @@ export default function Tooltip({ text }: { text: string }) {
               transform: pos.flipped
                 ? "translate(-50%, 0) translateY(8px)"
                 : "translate(-50%, -100%) translateY(-8px)",
-              backgroundColor: "var(--surface-raised)",
+              backgroundColor: "var(--elev-2)",
               border: "1px solid var(--line-strong)",
               color: "var(--color-text-secondary)",
               fontFamily: "var(--font-sans)",
-              fontSize: "12px",
+              fontSize: "var(--text-xs)",
               lineHeight: "1.5",
               width: "min(260px, calc(100vw - 16px))",
               whiteSpace: "normal",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+              boxShadow: "var(--shadow-elev-2)",
               padding: "8px 12px",
-              borderRadius: "8px",
+              borderRadius: "var(--radius-sm)",
               zIndex: 9999,
               pointerEvents: "none",
             }}

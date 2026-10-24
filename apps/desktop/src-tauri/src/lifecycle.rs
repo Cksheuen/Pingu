@@ -765,6 +765,7 @@ pub fn connect_core(app_state: &AppState, proxy_state: &ProxyState) -> Result<()
         .map(|s| s.generation)
         .unwrap_or(0);
     proxy_state.store_preflight_handoff(&runtime, generation, verified_checks);
+    crate::mihomo::rule_cache::refresh_stale(runtime.listen_port);
 
     proxy_state.active_process()?.add_log(
         "info",
@@ -1194,6 +1195,7 @@ fn reload_runtime_in_place_with(
         group_name: runtime.group_name.clone(),
     };
     proxy_state.store_preflight_handoff(&stable_runtime, generation, checks);
+    crate::mihomo::rule_cache::refresh_stale(listen_port);
     Ok(())
 }
 

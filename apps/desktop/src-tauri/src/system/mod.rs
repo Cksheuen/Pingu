@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 pub mod tun;
 
 #[cfg(target_os = "macos")]
@@ -35,8 +33,4 @@ impl SystemProxyControl for MacOsSystemProxyControl {
     fn clear(&self) -> Result<(), String> {
         proxy_macos::clear_system_proxy()
     }
-}
-
-pub fn production_system_proxy() -> Arc<dyn SystemProxyControl> {
-    Arc::new(MacOsSystemProxyControl)
 }

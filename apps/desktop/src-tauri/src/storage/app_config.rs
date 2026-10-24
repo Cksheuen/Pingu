@@ -287,19 +287,6 @@ impl AppConfig {
         Ok(())
     }
 
-    pub fn list_rules(&self) -> Result<Vec<Rule>, String> {
-        Ok(self.active_rule_group()?.rules.clone())
-    }
-
-    pub fn set_active_group(&mut self, id: &str) -> Result<(), String> {
-        if !self.rule_groups.iter().any(|group| group.id == id) {
-            return Err("Group not found".to_string());
-        }
-
-        self.active_group_id = id.to_string();
-        Ok(())
-    }
-
     pub fn create_rule_group(&mut self, name: String) -> RuleGroup {
         let group = RuleGroup {
             id: uuid::Uuid::new_v4().to_string(),
@@ -328,37 +315,6 @@ impl AppConfig {
         Ok(())
     }
 
-    pub fn rename_rule_group(&mut self, id: &str, name: String) -> Result<(), String> {
-        let group = self
-            .rule_groups
-            .iter_mut()
-            .find(|group| group.id == id)
-            .ok_or("Group not found")?;
-        group.name = name;
-        Ok(())
-    }
-
-    pub fn add_rule_to_active_group(&mut self, rule: Rule) -> Result<Rule, String> {
-        let rule = if rule.id.is_empty() {
-            Rule {
-                id: uuid::Uuid::new_v4().to_string(),
-                ..rule
-            }
-        } else {
-            rule
-        };
-
-        self.active_rule_group_mut()?.rules.push(rule.clone());
-        Ok(rule)
-    }
-
-    pub fn delete_rule_from_active_group(&mut self, id: &str) -> Result<(), String> {
-        self.active_rule_group_mut()?
-            .rules
-            .retain(|rule| rule.id != id);
-        Ok(())
-    }
-
     pub fn set_global_default_strategy(&mut self, strategy: &str) -> Result<(), String> {
         if strategy != "proxy" && strategy != "direct" {
             return Err("Strategy must be 'proxy' or 'direct'".to_string());
@@ -374,14 +330,6 @@ impl AppConfig {
         self.rule_groups
             .iter()
             .find(|group| group.id == self.active_group_id)
-            .ok_or("Active group not found".to_string())
-    }
-
-    pub fn active_rule_group_mut(&mut self) -> Result<&mut RuleGroup, String> {
-        let active_group_id = self.active_group_id.clone();
-        self.rule_groups
-            .iter_mut()
-            .find(|group| group.id == active_group_id)
             .ok_or("Active group not found".to_string())
     }
 

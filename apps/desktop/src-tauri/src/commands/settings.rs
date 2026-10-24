@@ -49,12 +49,6 @@ pub async fn set_autostart(
 }
 
 #[tauri::command]
-pub fn get_language(app_state: State<Arc<AppState>>) -> Result<String, String> {
-    let config = app_state.config.lock().map_err(|e| e.to_string())?;
-    Ok(config.language.clone())
-}
-
-#[tauri::command]
 pub async fn set_language(
     app_handle: tauri::AppHandle,
     app_state: State<'_, Arc<AppState>>,

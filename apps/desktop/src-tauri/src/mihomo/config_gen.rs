@@ -94,48 +94,6 @@ pub fn node_proxy(node: &Node) -> Value {
     }
     p
 }
-pub fn generate_config(
-    active_node: &Node,
-    rule_group: &RuleGroup,
-    cache_file_path: &str,
-    clash_api_port: u16,
-) -> Value {
-    generate_config_with_host_overrides(
-        active_node,
-        rule_group,
-        cache_file_path,
-        &[],
-        clash_api_port,
-    )
-}
-pub fn generate_config_with_exact_dns_policies(
-    active_node: &Node,
-    rule_group: &RuleGroup,
-    cache_file_path: &str,
-    policies: &[ExactDnsPolicy],
-    clash_api_port: u16,
-) -> Value {
-    let overrides = policies
-        .iter()
-        .map(|p| HostOverride {
-            id: p.domain.clone(),
-            host: p.domain.clone(),
-            resolver_mode: p.server.clone(),
-            outbound_mode: "inherit".into(),
-            enabled: true,
-            source: "compat".into(),
-            reason: String::new(),
-            updated_at: String::new(),
-        })
-        .collect::<Vec<_>>();
-    generate_config_with_host_overrides(
-        active_node,
-        rule_group,
-        cache_file_path,
-        &overrides,
-        clash_api_port,
-    )
-}
 pub fn generate_config_with_host_overrides(
     active_node: &Node,
     rule_group: &RuleGroup,
@@ -799,7 +757,8 @@ pub fn try_generate_app_config(
                     } else {
                         "ipcidr"
                     };
-                    rule_providers.insert(key.clone(),json!({"type":"http","behavior":behavior,"format":"mrs","url":format!("https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/{}/{}.mrs",rule.rule_type,value),"path":format!("providers/{key}.mrs"),"proxy":"Pingu Proxy","interval":86400}));
+                    let url = format!("https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/{}/{}.mrs", rule.rule_type, value);
+                    rule_providers.insert(key.clone(), super::rule_cache::provider(&key, &url, behavior));
                     rules.push(format!("RULE-SET,{key},{t}"));
                 }
             }
